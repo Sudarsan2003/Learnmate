@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: learnmate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: learnmate
+      POSTGRES_USER: learnmate_user
+      POSTGRES_PASSWORD: learnmate_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - learnmate_pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learnmate_user -d learnmate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: learnmate-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - learnmate_ollama:/root/.ollama
+
+volumes:
+  learnmate_pgdata:
+  learnmate_ollama:

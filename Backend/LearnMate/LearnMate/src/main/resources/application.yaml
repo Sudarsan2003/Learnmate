@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: LearnMate
+
+  profiles:
+    active: local,anthropic
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  datasource:
+    url: jdbc:postgresql://localhost:5432/learnmate
+    username: learnmate_user
+    password: learnmate_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-please-32chars}
+  expiration-ms: 86400000
+
+learnmate:
+  llm:
+    provider: anthropic
+    anthropic:
+      model: claude-sonnet-5
+      temperature: 0.3
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY}
+
+logging:
+  level:
+    com.learnmate.learnmateai: DEBUG
+    org.springframework.ai: INFO
