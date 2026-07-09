@@ -39,11 +39,12 @@ export default function App() {
           </div>
         ) : (
           <ChatWindow
-            currentUser={user.username}
-            onLogout={handleLogout}
-            isAdmin={isAdmin}
-            onOpenUpload={() => setView("upload")}
-          />
+  currentUser={user.username}
+  currentRole={user.role}
+  onLogout={handleLogout}
+  isAdmin={isAdmin}
+  onOpenUpload={() => setView("upload")}
+/>
         )
       ) : (
         <LoginScreen

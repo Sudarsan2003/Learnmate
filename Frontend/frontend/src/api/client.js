@@ -32,3 +32,11 @@ export async function fetchHistory() {
   const { data } = await api.get("/api/chat/history");
   return data;
 }
+export async function getChatHistory() {
+  const { data } = await api.get("/api/chat/history");
+  return data;
+}
+
+export async function clearChatHistory() {
+  await api.delete("/api/chat/history");
+}
