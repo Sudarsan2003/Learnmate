@@ -11,16 +11,15 @@ import java.util.List;
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
 
     @Query(value = """
-    SELECT c.*
+
+            SELECT c.*
     FROM document_chunks c
     WHERE c.embedding IS NOT NULL
       AND (
             :subject IS NULL
             OR :subject = ''
             OR c.subject = :subject
-      )
-      AND (1 - (c.embedding <=> CAST(:queryEmbedding AS vector))) > 0.55
-
+          )
     ORDER BY
     (
         0.7 * (1 - (c.embedding <=> CAST(:queryEmbedding AS vector)))
@@ -29,9 +28,8 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
             plainto_tsquery('english', :queryText)
         )
     ) DESC
-
     LIMIT :topK
-    """, nativeQuery = true)
+        """, nativeQuery = true)
     List<DocumentChunk> hybridSearch(
             @Param("queryEmbedding") String queryEmbedding,
             @Param("queryText") String queryText,
