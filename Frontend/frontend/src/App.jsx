@@ -2,6 +2,7 @@ import { useState } from "react";
 import ChatWindow from "./components/ChatWindow";
 import LoginScreen from "./components/LoginScreen";
 import DocumentUpload from "./components/DocumentUpload";
+import Sidebar from "./components/Sidebar";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -13,6 +14,8 @@ export default function App() {
   });
 
   const [view, setView] = useState("chat"); // "chat" | "upload"
+  const [sessionId, setSessionId] = useState(null);
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
 
   function handleLogout() {
     localStorage.removeItem("learnmate_token");
@@ -20,6 +23,12 @@ export default function App() {
     localStorage.removeItem("learnmate_role");
     setUser(null);
     setView("chat");
+    setSessionId(null);
+  }
+
+  function handleSessionCreated(newSessionId) {
+    setSessionId(newSessionId);
+    setSidebarRefreshKey((k) => k + 1); // makes the new session show up in the sidebar right away
   }
 
   const isAdmin = user?.role === "ADMIN";
@@ -27,25 +36,44 @@ export default function App() {
   return (
     <div className="h-screen w-screen">
       {user ? (
-        view === "upload" && isAdmin ? (
-          <div className="relative h-full w-full">
-            <button
-              onClick={() => setView("chat")}
-              className="absolute right-4 top-4 z-10 rounded border border-amber px-3 py-1 font-mono text-xs uppercase text-amber hover:bg-amber hover:text-ink"
-            >
-              back to chat
-            </button>
-            <DocumentUpload token={user.token} />
+        <div className="flex h-full w-full">
+          <Sidebar
+            activeSessionId={sessionId}
+            refreshKey={sidebarRefreshKey}
+            onSelectSession={(id) => {
+              setSessionId(id);
+              setView("chat");
+            }}
+            onNewChat={() => {
+              setSessionId(null);
+              setView("chat");
+            }}
+          />
+
+          <div className="relative flex-1">
+            {view === "upload" && isAdmin ? (
+              <div className="relative h-full w-full">
+                <button
+                  onClick={() => setView("chat")}
+                  className="absolute right-4 top-4 z-10 rounded border border-amber px-3 py-1 font-mono text-xs uppercase text-amber hover:bg-amber hover:text-ink"
+                >
+                  back to chat
+                </button>
+                <DocumentUpload token={user.token} />
+              </div>
+            ) : (
+              <ChatWindow
+                currentUser={user.username}
+                currentRole={user.role}
+                onLogout={handleLogout}
+                isAdmin={isAdmin}
+                onOpenUpload={() => setView("upload")}
+                sessionId={sessionId}
+                onSessionCreated={handleSessionCreated}
+              />
+            )}
           </div>
-        ) : (
-          <ChatWindow
-  currentUser={user.username}
-  currentRole={user.role}
-  onLogout={handleLogout}
-  isAdmin={isAdmin}
-  onOpenUpload={() => setView("upload")}
-/>
-        )
+        </div>
       ) : (
         <LoginScreen
           onAuthenticated={(result) => {

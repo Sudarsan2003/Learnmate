@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { LogOut, ShieldCheck, User } from "lucide-react";
+import { LogOut, ShieldCheck, User, KeyRound } from "lucide-react";
+import ChangePasswordModal from "./ChangePasswordModal";
 
 function initialsFor(name) {
   if (!name) return "?";
@@ -8,6 +9,7 @@ function initialsFor(name) {
 
 export default function ProfileMenu({ username, role }) {
   const [open, setOpen] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const avatarRef = useRef(null);
   const containerRef = useRef(null);
@@ -71,6 +73,16 @@ export default function ProfileMenu({ username, role }) {
           <button
             onClick={() => {
               setOpen(false);
+              setShowPasswordModal(true);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+          >
+            <KeyRound size={14} />
+            change password
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
               document.dispatchEvent(new CustomEvent("learnmate:logout"));
             }}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#C89B3C]"
@@ -80,6 +92,8 @@ export default function ProfileMenu({ username, role }) {
           </button>
         </div>
       )}
+
+      {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
 
       <style>{`
         @keyframes pop-in {

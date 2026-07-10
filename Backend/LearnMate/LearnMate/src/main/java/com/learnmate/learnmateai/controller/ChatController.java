@@ -12,6 +12,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -33,20 +35,17 @@ public class ChatController {
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, Authentication auth) {
         ChatResponse response = orchestrator.handle(request);
 
-        // --- persisted per-user chat history (drives the chat UI + ProfileMenu/history endpoint) ---
+        String sessionId = (request.sessionId() == null || request.sessionId().isBlank())
+                ? UUID.randomUUID().toString()
+                : request.sessionId();
+
+        // --- persisted per-session chat history (drives the sidebar + chat UI) ---
         chatHistoryService.saveLearnerMessage(
-                auth.getName(),
-                request.query(),
-                request.subject(),
-                request.level()
+                auth.getName(), sessionId, request.query(), request.subject(), request.level()
         );
 
         chatHistoryService.saveTutorMessage(
-                auth.getName(),
-                response.answer(),
-                request.subject(),
-                request.level(),
-                response.citations()
+                auth.getName(), sessionId, response.answer(), request.subject(), request.level(), response.citations()
         );
 
         // --- flat analytics log, kept solely for admin reporting (query+answer per row) ---
@@ -58,16 +57,21 @@ public class ChatController {
         history.setLevel(request.level());
         historyRepository.save(history);
 
-        return response;
+        return response.withSessionId(sessionId);
+    }
+
+    @GetMapping("/api/chat/sessions")
+    public List<Map<String, Object>> sessions(Authentication auth) {
+        return chatHistoryService.getSessions(auth.getName());
     }
 
     @GetMapping("/api/chat/history")
-    public List<ChatMessage> history(Authentication auth) {
-        return chatHistoryService.getHistory(auth.getName());
+    public List<ChatMessage> history(@RequestParam String sessionId, Authentication auth) {
+        return chatHistoryService.getSessionHistory(auth.getName(), sessionId);
     }
 
     @DeleteMapping("/api/chat/history")
-    public void clearHistory(Authentication auth) {
-        chatHistoryService.clearHistory(auth.getName());
+    public void deleteSession(@RequestParam String sessionId, Authentication auth) {
+        chatHistoryService.clearSession(auth.getName(), sessionId);
     }
 }

@@ -7,6 +7,8 @@ import com.learnmate.learnmateai.repository.ChatMessageRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatHistoryService {
@@ -18,9 +20,10 @@ public class ChatHistoryService {
         this.repository = repository;
     }
 
-    public void saveLearnerMessage(String ownerUsername, String content, String subject, String level) {
+    public void saveLearnerMessage(String ownerUsername, String sessionId, String content, String subject, String level) {
         ChatMessage msg = new ChatMessage();
         msg.setOwnerUsername(ownerUsername);
+        msg.setSessionId(sessionId);
         msg.setRole("learner");
         msg.setContent(content);
         msg.setSubject(subject);
@@ -28,10 +31,11 @@ public class ChatHistoryService {
         repository.save(msg);
     }
 
-    public void saveTutorMessage(String ownerUsername, String content, String subject, String level,
+    public void saveTutorMessage(String ownerUsername, String sessionId, String content, String subject, String level,
                                  List<RetrievedChunk> citations) {
         ChatMessage msg = new ChatMessage();
         msg.setOwnerUsername(ownerUsername);
+        msg.setSessionId(sessionId);
         msg.setRole("tutor");
         msg.setContent(content);
         msg.setSubject(subject);
@@ -48,7 +52,30 @@ public class ChatHistoryService {
         return repository.findByOwnerUsernameOrderByCreatedAtAsc(ownerUsername);
     }
 
+    public List<ChatMessage> getSessionHistory(String ownerUsername, String sessionId) {
+        return repository.findByOwnerUsernameAndSessionIdOrderByCreatedAtAsc(ownerUsername, sessionId);
+    }
+
+    public List<Map<String, Object>> getSessions(String ownerUsername) {
+        return repository.findSessionSummaries(ownerUsername).stream()
+                .filter(s -> s.getSessionId() != null)
+                .map(s -> Map.<String, Object>of(
+                        "sessionId", s.getSessionId(),
+                        "title", truncate(s.getFirstMessage(), 60),
+                        "lastMessageAt", s.getLastMessageAt()
+                ))
+                .collect(Collectors.toList());
+    }
     public void clearHistory(String ownerUsername) {
         repository.deleteByOwnerUsername(ownerUsername);
+    }
+
+    public void clearSession(String ownerUsername, String sessionId) {
+        repository.deleteByOwnerUsernameAndSessionId(ownerUsername, sessionId);
+    }
+
+    private String truncate(String text, int max) {
+        if (text == null) return "New chat";
+        return text.length() <= max ? text : text.substring(0, max) + "…";
     }
 }

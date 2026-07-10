@@ -50,3 +50,21 @@ export async function getChatHistory() {
 export async function clearChatHistory() {
   await api.delete("/api/chat/history");
 }
+
+export async function changePassword(currentPassword, newPassword) {
+  await api.post("/api/auth/change-password", { currentPassword, newPassword });
+}
+
+export async function getChatSessions() {
+  const { data } = await api.get("/api/chat/sessions");
+  return data;
+}
+
+export async function getSessionHistory(sessionId) {
+  const { data } = await api.get("/api/chat/history", { params: { sessionId } });
+  return data;
+}
+
+export async function deleteSession(sessionId) {
+  await api.delete("/api/chat/history", { params: { sessionId } });
+}

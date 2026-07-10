@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Feather } from "lucide-react";
-import { sendChatMessage, getChatHistory } from "../api/client";
+import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./useTypewriter";
@@ -40,7 +40,15 @@ function TutorBubble({ text, isNew, citations, isError }) {
   );
 }
 
-export default function ChatWindow({ currentUser, currentRole, onLogout, isAdmin, onOpenUpload }) {
+export default function ChatWindow({
+  currentUser,
+  currentRole,
+  onLogout,
+  isAdmin,
+  onOpenUpload,
+  sessionId,
+  onSessionCreated,
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [subject, setSubject] = useState("");
@@ -48,15 +56,34 @@ export default function ChatWindow({ currentUser, currentRole, onLogout, isAdmin
   const [historyLoading, setHistoryLoading] = useState(true);
   const scrollRef = useRef(null);
 
+  // Set right before we tell the parent a new session was created. Lets the
+  // sessionId-change effect below skip its refetch exactly once, so the
+  // in-memory message we just typed (isNew:true) isn't immediately replaced
+  // by a reloaded copy (isNew:false) before the typewriter has run.
+  const justCreatedSessionRef = useRef(false);
+
   useEffect(() => {
     document.addEventListener("learnmate:logout", onLogout);
     return () => document.removeEventListener("learnmate:logout", onLogout);
   }, [onLogout]);
 
   useEffect(() => {
+    if (!sessionId) {
+      setMessages([]);
+      setHistoryLoading(false);
+      return;
+    }
+
+    if (justCreatedSessionRef.current) {
+      justCreatedSessionRef.current = false;
+      setHistoryLoading(false);
+      return;
+    }
+
     (async () => {
+      setHistoryLoading(true);
       try {
-        const history = await getChatHistory();
+        const history = await getSessionHistory(sessionId);
         setMessages(
           history.map((m) => ({
             id: `h-${m.id}`,
@@ -67,12 +94,12 @@ export default function ChatWindow({ currentUser, currentRole, onLogout, isAdmin
           }))
         );
       } catch {
-        // fresh session, no history yet
+        setMessages([]);
       } finally {
         setHistoryLoading(false);
       }
     })();
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -88,7 +115,13 @@ export default function ChatWindow({ currentUser, currentRole, onLogout, isAdmin
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage({ query, subject: subject || undefined });
+      const response = await sendChatMessage({ query, subject: subject || undefined, sessionId });
+
+      if (!sessionId && response.sessionId) {
+        justCreatedSessionRef.current = true;
+        onSessionCreated(response.sessionId);
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -129,7 +162,7 @@ export default function ChatWindow({ currentUser, currentRole, onLogout, isAdmin
 
       <header className="relative z-30 flex items-center justify-between border-b border-[#2DD4BF]/10 bg-[#0B0E14]/70 px-6 py-4 shadow-[0_8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md">
         <h1 className="font-serif text-2xl tracking-tight text-[#EDE6D6]">
-          LearnMate<span className="text-[#C89B3C]">.</span>
+          {sessionId ? "Chat" : "New chat"}
         </h1>
         <div className="flex items-center gap-3 font-mono text-xs uppercase tracking-wide text-[#9FB0AC]">
           <input

@@ -20,6 +20,6 @@ public class AgentOrchestrator {
     public ChatResponse handle(ChatRequest req) {
         var chunks = retrievalAgent.retrieve(req.query(), req.subject(), 3);
         var answer = learningAgent.explain(req.query(), req.level(), chunks);
-        return new ChatResponse(answer, chunks); // chunks double as your citations
+        return new ChatResponse(answer, chunks, null);
     }
 }
