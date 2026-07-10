@@ -1,18 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Loader2, Feather } from "lucide-react";
 
-/**
- * Admin-only document ingestion panel for LearnMate.
- *
- * Render this only when the logged-in user has ROLE_ADMIN — this component
- * assumes it has already been gated by the parent (e.g. inside your
- * existing `log out (admin)` branch). The backend re-checks the role on
- * every call via @PreAuthorize, so this is a UX gate, not a security one.
- *
- * Props:
- *  - token: string           JWT to send as Authorization: Bearer <token>
- *  - apiBase?: string        defaults to "/api/documents"
- */
 
 const STATUS = {
   QUEUED: "queued",
@@ -165,51 +153,42 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
   const hasFinished = queue.some((i) => i.status === STATUS.DONE || i.status === STATUS.ERROR);
 
   return (
-    <div
-      style={{
-        minHeight: "100%",
-        background: "#0d1912",
-        color: "#e9ede6",
-        fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
-        padding: "32px",
-      }}
-    >
+    <div className="doc-upload min-h-full bg-[#0B0E14] px-8 py-8 font-mono text-[#EDE6D6]" style={{ perspective: "1400px" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        .lm-btn { transition: background 120ms ease, opacity 120ms ease, transform 60ms ease; }
-        .lm-btn:active { transform: translateY(1px); }
-        .lm-row:hover { background: #16261c; }
+        .doc-upload { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
+        .lm-row { transition: background 140ms ease, transform 140ms ease; transform-style: preserve-3d; }
+        .lm-row:hover { background: rgba(45,212,191,0.05); transform: translateZ(4px); }
         .lm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-        .lm-scroll::-webkit-scrollbar-thumb { background: #2a3a2f; border-radius: 4px; }
+        .lm-scroll::-webkit-scrollbar-thumb { background: #22283a; border-radius: 4px; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes queue-in {
+          from { opacity: 0; transform: translateY(-6px) rotateX(-10deg); }
+          to { opacity: 1; transform: translateY(0) rotateX(0deg); }
+        }
+        @keyframes drop-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(45,212,191,0.25); }
+          50% { box-shadow: 0 0 0 10px rgba(45,212,191,0); }
+        }
       `}</style>
 
-      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+      <div className="mx-auto max-w-[920px]" style={{ transformStyle: "preserve-3d" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 28 }}>
+        <div className="mb-7 flex items-baseline justify-between">
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
-              document ingestion <span style={{ color: "#e8a33d" }}>·</span> admin
+            <h1 className="m-0 flex items-center gap-2 text-[22px] font-bold tracking-tight text-[#EDE6D6]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
+                <Feather size={12} className="text-[#0B0E14]" />
+              </span>
+              document ingestion <span className="text-[#C89B3C]">·</span> admin
             </h1>
-            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#7f9284" }}>
+            <p className="mt-1.5 text-[13px] text-[#9FB0AC]">
               upload subject material for the knowledge base — parsed, chunked, embedded automatically
             </p>
           </div>
           <button
             onClick={loadDocuments}
-            className="lm-btn"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "1px solid #2a3a2f",
-              color: "#a9baad",
-              borderRadius: 6,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontFamily: "inherit",
-              cursor: "pointer",
-            }}
+            className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
           >
             <RefreshCw size={13} strokeWidth={2} />
             refresh
@@ -217,28 +196,15 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
         </div>
 
         {/* Subject field */}
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ display: "block", fontSize: 11, color: "#7f9284", marginBottom: 6 }}>
+        <div className="mb-4">
+          <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">
             subject tag (optional — filters retrieval)
           </label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="e.g. data-structures, distributed-systems"
-            style={{
-              width: "100%",
-              background: "#0f1b14",
-              border: "1px solid #2a3a2f",
-              borderRadius: 6,
-              padding: "10px 12px",
-              fontSize: 13,
-              color: "#e9ede6",
-              fontFamily: "inherit",
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-            onFocus={(e) => (e.target.style.borderColor = "#e8a33d")}
-            onBlur={(e) => (e.target.style.borderColor = "#2a3a2f")}
+            className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
           />
         </div>
 
@@ -249,21 +215,22 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
           onDragEnter={onDragEnter}
           onDragLeave={onDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          style={{
-            border: `1.5px dashed ${isDragging ? "#e8a33d" : "#2a3a2f"}`,
-            borderRadius: 10,
-            padding: "36px 20px",
-            textAlign: "center",
-            cursor: "pointer",
-            background: isDragging ? "rgba(232,163,61,0.06)" : "#101d16",
-            transition: "border-color 150ms ease, background 150ms ease",
-          }}
+          style={{ animation: isDragging ? "drop-pulse 1.4s ease-in-out infinite" : "none" }}
+          className={`cursor-pointer rounded-xl border-[1.5px] border-dashed px-5 py-9 text-center transition-all duration-150 ${
+            isDragging
+              ? "-translate-y-1 border-[#C89B3C] bg-[#C89B3C]/[0.07]"
+              : "border-[#2DD4BF]/15 bg-[#12151F]/50 hover:border-[#2DD4BF]/30"
+          }`}
         >
-          <Upload size={22} strokeWidth={1.5} color={isDragging ? "#e8a33d" : "#7f9284"} style={{ marginBottom: 10 }} />
-          <div style={{ fontSize: 13, color: "#e9ede6", marginBottom: 4 }}>
-            drop files here, or <span style={{ color: "#e8a33d" }}>browse</span>
+          <Upload
+            size={22}
+            strokeWidth={1.5}
+            className={`mx-auto mb-2.5 transition-colors ${isDragging ? "text-[#C89B3C]" : "text-[#9FB0AC]"}`}
+          />
+          <div className="mb-1 text-[13px] text-[#EDE6D6]">
+            drop files here, or <span className="text-[#C89B3C]">browse</span>
           </div>
-          <div style={{ fontSize: 11, color: "#5f7367" }}>pdf, docx, pptx — re-uploading a source replaces its old chunks</div>
+          <div className="text-[11px] text-[#6E7C79]">pdf, docx, pptx — re-uploading a source replaces its old chunks</div>
           <input
             ref={fileInputRef}
             type="file"
@@ -273,31 +240,22 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
               if (e.target.files?.length) addFilesToQueue(e.target.files);
               e.target.value = "";
             }}
-            style={{ display: "none" }}
+            className="hidden"
           />
         </div>
 
         {/* Queue */}
         {queue.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: "#7f9284" }}>
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] text-[#9FB0AC]">
                 {queue.length} file{queue.length !== 1 ? "s" : ""} in queue
               </span>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="flex gap-2">
                 {hasFinished && (
                   <button
                     onClick={clearFinished}
-                    className="lm-btn"
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#7f9284",
-                      fontSize: 11,
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                    }}
+                    className="bg-transparent text-[11px] text-[#9FB0AC] underline transition-colors hover:text-[#EDE6D6]"
                   >
                     clear finished
                   </button>
@@ -305,18 +263,7 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
                 {queuedCount > 0 && (
                   <button
                     onClick={uploadAllQueued}
-                    className="lm-btn"
-                    style={{
-                      background: "#e8a33d",
-                      color: "#1a1108",
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "6px 14px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                    }}
+                    className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-1.5 text-xs font-semibold text-[#0B0E14] shadow-[0_4px_12px_-4px_rgba(200,155,60,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(200,155,60,0.65)]"
                   >
                     upload {queuedCount}
                   </button>
@@ -324,42 +271,32 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {queue.map((item) => (
+            <div className="flex flex-col gap-1.5">
+              {queue.map((item, idx) => (
                 <div
                   key={item.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    background: "#101d16",
-                    border: "1px solid #1e2e24",
-                    borderRadius: 8,
-                    padding: "9px 12px",
-                    fontSize: 12,
-                  }}
+                  style={{ animation: "queue-in 220ms cubic-bezier(0.22,1,0.36,1) both", animationDelay: `${idx * 25}ms` }}
+                  className="flex items-center gap-2.5 rounded-lg border border-[#1B2333] bg-[#12151F]/60 px-3 py-2.5 text-xs"
                 >
-                  <FileText size={14} color="#7f9284" style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {item.file.name}
-                  </span>
-                  <span style={{ color: "#5f7367", fontSize: 11 }}>{(item.file.size / 1024).toFixed(0)} kb</span>
+                  <FileText size={14} className="flex-shrink-0 text-[#9FB0AC]" />
+                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.file.name}</span>
+                  <span className="text-[11px] text-[#6E7C79]">{(item.file.size / 1024).toFixed(0)} kb</span>
 
-                  {item.status === STATUS.QUEUED && <span style={{ color: "#7f9284", fontSize: 11 }}>queued</span>}
+                  {item.status === STATUS.QUEUED && <span className="text-[11px] text-[#9FB0AC]">queued</span>}
                   {item.status === STATUS.UPLOADING && (
-                    <Loader2 size={14} color="#e8a33d" className="lm-spin" style={{ animation: "spin 0.8s linear infinite" }} />
+                    <Loader2 size={14} className="animate-spin text-[#C89B3C]" />
                   )}
-                  {item.status === STATUS.DONE && <CheckCircle2 size={14} color="#5fb87c" />}
+                  {item.status === STATUS.DONE && <CheckCircle2 size={14} className="text-[#2DD4BF]" />}
                   {item.status === STATUS.ERROR && (
-                    <span title={item.error} style={{ display: "flex", alignItems: "center", gap: 4, color: "#d9694f" }}>
-                      <AlertCircle size={13} /> <span style={{ fontSize: 11 }}>failed</span>
+                    <span title={item.error} className="flex items-center gap-1 text-[#E2725B]">
+                      <AlertCircle size={13} /> <span className="text-[11px]">failed</span>
                     </span>
                   )}
 
                   {item.status !== STATUS.UPLOADING && (
                     <button
                       onClick={() => removeFromQueue(item.id)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#5f7367", padding: 2 }}
+                      className="bg-transparent p-0.5 text-[#6E7C79] transition-colors hover:text-[#EDE6D6]"
                     >
                       <X size={13} />
                     </button>
@@ -371,73 +308,52 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
         )}
 
         {/* Ingested documents list */}
-        <div style={{ marginTop: 36 }}>
-          <h2 style={{ fontSize: 13, color: "#7f9284", fontWeight: 600, margin: "0 0 10px", letterSpacing: "0.02em" }}>
+        <div className="mt-9">
+          <h2 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
+            <span className="thread-dot inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
             ingested documents
           </h2>
 
           {listError && (
-            <div
-              style={{
-                background: "rgba(217,105,79,0.1)",
-                border: "1px solid rgba(217,105,79,0.3)",
-                color: "#e08a72",
-                borderRadius: 8,
-                padding: "10px 12px",
-                fontSize: 12,
-                marginBottom: 12,
-              }}
-            >
+            <div className="mb-3 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
               couldn't load documents — {listError}
             </div>
           )}
 
           {listLoading ? (
-            <div style={{ color: "#5f7367", fontSize: 12, padding: "20px 0" }}>loading…</div>
+            <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
           ) : documents.length === 0 ? (
-            <div
-              style={{
-                border: "1px solid #1e2e24",
-                borderRadius: 8,
-                padding: "28px 16px",
-                textAlign: "center",
-                color: "#5f7367",
-                fontSize: 12,
-              }}
-            >
+            <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
               nothing ingested yet — upload a document above to start building the knowledge base
             </div>
           ) : (
-            <div style={{ border: "1px solid #1e2e24", borderRadius: 8, overflow: "hidden" }}>
-              <div
-                className="lm-scroll"
-                style={{ maxHeight: 360, overflowY: "auto" }}
-              >
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <div className="overflow-hidden rounded-lg border border-[#1B2333]">
+              <div className="lm-scroll max-h-[360px] overflow-y-auto">
+                <table className="w-full border-collapse text-xs">
                   <thead>
-                    <tr style={{ background: "#101d16", color: "#5f7367", textAlign: "left" }}>
-                      <th style={{ padding: "9px 12px", fontWeight: 500 }}>source</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 500 }}>subject</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 500 }}>uploaded</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 500 }}>chunks</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 500, textAlign: "right" }}>actions</th>
+                    <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
+                      <th className="px-3 py-2.5 font-medium">source</th>
+                      <th className="px-3 py-2.5 font-medium">subject</th>
+                      <th className="px-3 py-2.5 font-medium">uploaded</th>
+                      <th className="px-3 py-2.5 font-medium">chunks</th>
+                      <th className="px-3 py-2.5 text-right font-medium">actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {documents.map((doc) => (
-                      <tr key={doc.id} className="lm-row" style={{ borderTop: "1px solid #1e2e24" }}>
-                        <td style={{ padding: "10px 12px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <tr key={doc.id} className="lm-row border-t border-[#1B2333]">
+                        <td className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
                           {doc.source ?? doc.fileName ?? "untitled"}
                         </td>
-                        <td style={{ padding: "10px 12px", color: "#a9baad" }}>{doc.subject || "—"}</td>
-                        <td style={{ padding: "10px 12px", color: "#a9baad" }}>{formatDate(doc.uploadDate ?? doc.createdAt)}</td>
-                        <td style={{ padding: "10px 12px", color: "#a9baad" }}>{doc.chunkCount ?? "—"}</td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                        <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.subject || "—"}</td>
+                        <td className="px-3 py-2.5 text-[#9FB0AC]">{formatDate(doc.uploadDate ?? doc.createdAt)}</td>
+                        <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.chunkCount ?? "—"}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex justify-end gap-2.5">
                             <button
                               onClick={() => handleReprocess(doc.id)}
                               title="Re-chunk and re-embed this document"
-                              style={{ background: "none", border: "none", cursor: "pointer", color: "#7f9284", padding: 2 }}
+                              className="bg-transparent p-0.5 text-[#9FB0AC] transition-colors hover:text-[#2DD4BF]"
                             >
                               <RefreshCw size={13} />
                             </button>
@@ -445,15 +361,11 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
                               onClick={() => handleDelete(doc.id)}
                               disabled={deletingId === doc.id}
                               title="Remove this document and its chunks"
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: deletingId === doc.id ? "default" : "pointer",
-                                color: deletingId === doc.id ? "#3f5247" : "#d9694f",
-                                padding: 2,
-                              }}
+                              className={`bg-transparent p-0.5 transition-colors ${
+                                deletingId === doc.id ? "cursor-default text-[#3A4A45]" : "cursor-pointer text-[#E2725B] hover:text-[#F3B9A8]"
+                              }`}
                             >
-                              {deletingId === doc.id ? <Loader2 size={13} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={13} />}
+                              {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                             </button>
                           </div>
                         </td>
@@ -466,10 +378,6 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

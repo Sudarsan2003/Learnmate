@@ -13,8 +13,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export async function register(username, password, role) {
-  const { data } = await api.post("/api/auth/register", { username, password, role });
+export async function register(username, password, role, profile = {}) {
+  const { data } = await api.post("/api/auth/register", {
+    username,
+    password,
+    role,
+    email: profile.email || undefined,
+    mobile: profile.mobile || undefined,
+    gender: profile.gender || undefined,
+    address: profile.address || undefined,
+    institution: profile.institution || undefined,
+  });
   return data;
 }
 
@@ -32,6 +41,7 @@ export async function fetchHistory() {
   const { data } = await api.get("/api/chat/history");
   return data;
 }
+
 export async function getChatHistory() {
   const { data } = await api.get("/api/chat/history");
   return data;

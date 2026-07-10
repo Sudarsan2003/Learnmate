@@ -24,4 +24,16 @@ public class User {
 
     @Column(nullable = false)
     private String role = "USER";
+
+    @Column(unique = true)
+    private String email;
+
+    private String mobile;
+
+    private String gender;
+
+    @Column(columnDefinition = "TEXT")
+    private String address;
+
+    private String institution;
 }

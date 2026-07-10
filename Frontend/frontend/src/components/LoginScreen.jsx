@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { Feather, ScrollText, ShieldCheck } from "lucide-react";
 import { login, register } from "../api/client";
+import AmbientBackground from "./AmbientBackground";
 
 export default function LoginScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("USER");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [gender, setGender] = useState("");
+  const [address, setAddress] = useState("");
+  const [institution, setInstitution] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const cardRef = useRef(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -16,8 +25,7 @@ export default function LoginScreen({ onAuthenticated }) {
     try {
       const result = mode === "login"
         ? await login(username, password)
-        : await register(username, password, role);
-      console.log(result);
+        : await register(username, password, role, { email, mobile, gender, address, institution });
       localStorage.setItem("learnmate_token", result.token);
       localStorage.setItem("learnmate_username", result.username);
       onAuthenticated(result);
@@ -28,65 +36,183 @@ export default function LoginScreen({ onAuthenticated }) {
     }
   }
 
-  return (
-    <div className="flex h-full w-full items-center justify-center bg-ink text-parchment">
-      <form onSubmit={handleSubmit} className="w-80 space-y-4 rounded-lg border border-moss bg-moss/20 p-6">
-        <h1 className="font-display text-2xl">
-          LearnMate<span className="text-amber">.</span>
-        </h1>
+  function handleMouseMove(e) {
+    const rect = cardRef.current.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    setTilt({ x: py * -6, y: px * 6 });
+  }
 
-        <div className="flex overflow-hidden rounded border border-moss font-mono text-xs uppercase">
+  function handleMouseLeave() {
+    setTilt({ x: 0, y: 0 });
+  }
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center bg-[#0B0E14] text-[#EDE6D6]" style={{ perspective: "1400px" }}>
+      <AmbientBackground />
+
+      <form
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onSubmit={handleSubmit}
+        style={{
+          transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+          transition: "transform 180ms ease-out",
+          transformStyle: "preserve-3d",
+        }}
+        className="login-card relative z-10 w-80 space-y-5 rounded-2xl border border-[#2DD4BF]/15 bg-[#12151F]/80 p-7 backdrop-blur-xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center gap-2.5" style={{ transform: "translateZ(24px)" }}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22] shadow-[0_3px_10px_rgba(0,0,0,0.5)]">
+            <Feather size={15} className="text-[#0B0E14]" />
+          </div>
+          <h1 className="font-serif text-2xl tracking-tight">
+            LearnMate<span className="text-[#C89B3C]">.</span>
+          </h1>
+        </div>
+
+        <div className="relative flex overflow-hidden rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 font-mono text-xs uppercase" style={{ transform: "translateZ(16px)" }}>
+          <span
+            className="absolute inset-y-0 w-1/2 rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] transition-transform duration-300 ease-out"
+            style={{ transform: mode === "login" ? "translateX(0%)" : "translateX(100%)" }}
+          />
           <button
             type="button"
             onClick={() => setMode("login")}
-            className={`flex-1 py-2 ${mode === "login" ? "bg-amber text-ink" : ""}`}
+            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "login" ? "text-[#0B0E14]" : "text-[#9FB0AC]"}`}
           >
             Log in
           </button>
           <button
             type="button"
             onClick={() => setMode("register")}
-            className={`flex-1 py-2 ${mode === "register" ? "bg-amber text-ink" : ""}`}
+            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "register" ? "text-[#0B0E14]" : "text-[#9FB0AC]"}`}
           >
             Register
           </button>
         </div>
 
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          className="w-full rounded border border-moss bg-transparent px-3 py-2 text-sm focus:border-amber focus:outline-none"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="w-full rounded border border-moss bg-transparent px-3 py-2 text-sm focus:border-amber focus:outline-none"
-        />
+        <div className="space-y-3" style={{ transform: "translateZ(10px)" }}>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+          />
 
-        {mode === "register" && (
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded border border-moss bg-ink px-3 py-2 text-sm focus:border-amber focus:outline-none"
-          >
-            <option value="USER">Learner</option>
-            <option value="ADMIN">Admin (can upload documents)</option>
-          </select>
+          {mode === "register" && (
+            <div
+              className="space-y-3"
+              style={{ animation: "unfurl 220ms cubic-bezier(0.22,1,0.36,1) both" }}
+            >
+              <div className="relative">
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                >
+                  <option value="USER">Learner</option>
+                  <option value="ADMIN">Admin (can upload documents)</option>
+                </select>
+                {role === "ADMIN" && (
+                  <ShieldCheck size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#C89B3C]" />
+                )}
+              </div>
+
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              />
+
+              <input
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="Mobile number"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              />
+
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              >
+                <option value="">Gender (optional)</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+
+              <input
+                value={institution}
+                onChange={(e) => setInstitution(e.target.value)}
+                placeholder="Institution"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              />
+
+              <textarea
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Address"
+                rows={2}
+                className="w-full resize-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p className="flex items-center gap-1.5 rounded-md border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2 text-xs text-[#F3B9A8]">
+            {error}
+          </p>
         )}
-
-        {error && <p className="text-xs text-red-300">{error}</p>}
 
         <button
           type="submit"
           disabled={isLoading || !username || !password}
-          className="w-full rounded-md bg-amber py-2 text-sm font-medium text-ink disabled:opacity-40"
+          style={{ transform: "translateZ(18px)" }}
+          className="submit-btn flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] py-2.5 text-sm font-medium text-[#0B0E14] transition-all disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         >
+          {isLoading ? (
+            <ScrollText size={14} className="animate-spin" />
+          ) : (
+            <Feather size={14} />
+          )}
           {mode === "login" ? "Log in" : "Create account"}
         </button>
       </form>
+
+      <style>{`
+        .login-card {
+          box-shadow: 0 24px 60px -20px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.05) inset;
+        }
+        @keyframes unfurl {
+          from { opacity: 0; transform: scaleY(0.8) translateY(-6px); transform-origin: top; }
+          to { opacity: 1; transform: scaleY(1) translateY(0); transform-origin: top; }
+        }
+        .submit-btn {
+          box-shadow: 0 4px 14px -4px rgba(200,155,60,0.55);
+        }
+        .submit-btn:hover:not(:disabled) {
+          transform: translateZ(18px) translateY(-2px);
+          box-shadow: 0 10px 22px -6px rgba(200,155,60,0.65);
+        }
+        .submit-btn:active:not(:disabled) {
+          transform: translateZ(18px) translateY(0);
+          box-shadow: 0 2px 8px -2px rgba(200,155,60,0.45);
+        }
+      `}</style>
     </div>
   );
 }
