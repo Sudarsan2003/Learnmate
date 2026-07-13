@@ -3,16 +3,17 @@ spring:
     name: LearnMate
 
   profiles:
-    active: local,anthropic
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
   servlet:
     multipart:
       max-file-size: 100MB
       max-request-size: 100MB
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/learnmate
-    username: learnmate_user
-    password: learnmate_pass
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -24,7 +25,7 @@ spring:
         format_sql: true
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-please-32chars}
