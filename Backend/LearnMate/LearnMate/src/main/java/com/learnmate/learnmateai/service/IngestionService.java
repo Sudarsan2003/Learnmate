@@ -17,7 +17,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
+import org.apache.tika.parser.ocr.TesseractOCRConfig;
 @Service
 public class IngestionService {
 
@@ -95,23 +95,33 @@ public class IngestionService {
         return repository.saveAll(chunks);
     }
 
-    /**
-     * Uses Tika's AutoDetectParser directly (instead of the simplified Tika
-     * facade) so we can force OCR to run on PDFs whose text layer is missing
-     * or too sparse — e.g. scanned documents.
-     */
     private String extractTextWithOcrFallback(InputStream stream) throws Exception {
+
         PDFParserConfig pdfConfig = new PDFParserConfig();
+
+        // Extract text normally, and OCR only when images are present
         pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.OCR_AND_TEXT_EXTRACTION);
+
+        TesseractOCRConfig tesseractConfig = new TesseractOCRConfig();
+        tesseractConfig.setLanguage("eng+hin+tel");
 
         ParseContext context = new ParseContext();
         context.set(PDFParserConfig.class, pdfConfig);
+        context.set(TesseractOCRConfig.class, tesseractConfig);
 
         AutoDetectParser parser = new AutoDetectParser();
-        BodyContentHandler handler = new BodyContentHandler(-1); // -1 = no character limit
+
         Metadata metadata = new Metadata();
+        BodyContentHandler handler = new BodyContentHandler(-1);
 
         parser.parse(stream, handler, metadata, context);
-        return handler.toString();
+
+        String text = handler.toString().trim();
+
+        if (text.isBlank()) {
+            throw new IOException("No text could be extracted from the document.");
+        }
+
+        return text;
     }
 }
