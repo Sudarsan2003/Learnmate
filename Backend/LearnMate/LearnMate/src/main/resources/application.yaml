@@ -45,3 +45,6 @@ logging:
   level:
     com.learnmate.learnmateai: DEBUG
     org.springframework.ai: INFO
+
+openai:
+  api-key: ${OPENAI_API_KEY}
