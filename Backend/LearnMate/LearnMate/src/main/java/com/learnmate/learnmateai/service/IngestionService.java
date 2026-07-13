@@ -99,8 +99,11 @@ public class IngestionService {
 
         PDFParserConfig pdfConfig = new PDFParserConfig();
 
-        // Extract text normally, and OCR only when images are present
-        pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.OCR_AND_TEXT_EXTRACTION);
+        // AUTO: use the existing text layer when present, and only fall back to
+        // Tesseract OCR for pages that don't have one (e.g. scanned images).
+        // OCR_AND_TEXT_EXTRACTION was running full OCR on every page of every
+        // upload (x3 for eng+hin+tel), which is what was making uploads so slow.
+        pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.AUTO);
 
         TesseractOCRConfig tesseractConfig = new TesseractOCRConfig();
         tesseractConfig.setLanguage("eng+hin+tel");
