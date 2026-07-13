@@ -61,7 +61,10 @@ export default function App() {
                 >
                   back to chat
                 </button>
-                <DocumentUpload token={user.token} />
+               <DocumentUpload
+    token={user.token}
+    apiBase={`${import.meta.env.VITE_API_BASE_URL}/api/documents`}
+/>
               </div>
             ) : (
               <ChatWindow
