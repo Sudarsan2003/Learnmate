@@ -3,7 +3,7 @@ import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown 
 import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
-import { useTypewriter } from "./useTypewriter";
+import { useTypewriter } from "./Usetypewriter";
 
 const EXAMPLE_PROMPTS = [
   "Explain a concept from scratch",
