@@ -37,6 +37,9 @@ export default function LoginScreen({ onAuthenticated }) {
   }
 
   function handleMouseMove(e) {
+    // Tilt is a desktop-hover flourish only; skip on touch/coarse pointers
+    // where there's no real hover and the transform would just feel laggy.
+    if (window.matchMedia?.("(pointer: coarse)").matches) return;
     const rect = cardRef.current.getBoundingClientRect();
     const px = (e.clientX - rect.left) / rect.width - 0.5;
     const py = (e.clientY - rect.top) / rect.height - 0.5;
@@ -48,7 +51,7 @@ export default function LoginScreen({ onAuthenticated }) {
   }
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center bg-[#0B0E14] text-[#EDE6D6]" style={{ perspective: "1400px" }}>
+    <div className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[#0B0E14] px-4 py-8 text-[#EDE6D6]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
 
       <form
@@ -61,16 +64,19 @@ export default function LoginScreen({ onAuthenticated }) {
           transition: "transform 180ms ease-out",
           transformStyle: "preserve-3d",
         }}
-        className="login-card relative z-10 w-80 space-y-5 rounded-2xl border border-[#2DD4BF]/15 bg-[#12151F]/80 p-7 backdrop-blur-xl max-h-[90vh] overflow-y-auto"
+        className="login-card relative z-10 w-full max-w-sm space-y-5 rounded-2xl border border-[#2DD4BF]/15 bg-[#12151F]/80 p-5 backdrop-blur-xl sm:p-7 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center gap-2.5" style={{ transform: "translateZ(24px)" }}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22] shadow-[0_3px_10px_rgba(0,0,0,0.5)]">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22] shadow-[0_3px_10px_rgba(0,0,0,0.5)]">
             <Feather size={15} className="text-[#0B0E14]" />
           </div>
-          <h1 className="font-serif text-2xl tracking-tight">
+          <h1 className="lg-serif text-2xl">
             LearnMate<span className="text-[#C89B3C]">.</span>
           </h1>
         </div>
+        <p className="-mt-3 pl-[46px] font-mono text-[10px] uppercase tracking-[0.15em] text-[#6E7C79]" style={{ transform: "translateZ(16px)" }}>
+          your tutor, grounded in sources
+        </p>
 
         <div className="relative flex overflow-hidden rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 font-mono text-xs uppercase" style={{ transform: "translateZ(16px)" }}>
           <span
@@ -194,6 +200,12 @@ export default function LoginScreen({ onAuthenticated }) {
       </form>
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
+        .lg-serif {
+          font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+        }
         .login-card {
           box-shadow: 0 24px 60px -20px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.05) inset;
         }

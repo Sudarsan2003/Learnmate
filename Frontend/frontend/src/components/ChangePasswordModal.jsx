@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, KeyRound, Loader2 } from "lucide-react";
 import { changePassword } from "../api/client";
 
@@ -35,11 +36,18 @@ export default function ChangePasswordModal({ onClose }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  // Rendered via a portal straight into <body>. Without this, `fixed`
+  // positioning here would be computed relative to the nearest ancestor
+  // that sets a transform/perspective/filter (ChatWindow's root div uses
+  // `perspective: 1400px` for its 3D hover effects) instead of the actual
+  // viewport — which is why the modal was showing up off-center and
+  // clipped on small screens. Portaling to document.body sidesteps that
+  // entirely.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={handleSubmit}
-        className="w-80 space-y-4 rounded-2xl border border-[#2DD4BF]/20 bg-[#12151F]/95 p-6 shadow-2xl shadow-black/50 backdrop-blur-xl"
+        className="w-full max-w-sm space-y-4 rounded-2xl border border-[#2DD4BF]/20 bg-[#12151F]/95 p-6 shadow-2xl shadow-black/50 backdrop-blur-xl"
       >
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-serif text-lg text-[#EDE6D6]">
@@ -96,6 +104,7 @@ export default function ChangePasswordModal({ onClose }) {
           </>
         )}
       </form>
-    </div>
+    </div>,
+    document.body
   );
 }

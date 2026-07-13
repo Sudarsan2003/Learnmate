@@ -153,7 +153,7 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
   const hasFinished = queue.some((i) => i.status === STATUS.DONE || i.status === STATUS.ERROR);
 
   return (
-    <div className="doc-upload min-h-full bg-[#0B0E14] px-8 py-8 font-mono text-[#EDE6D6]" style={{ perspective: "1400px" }}>
+    <div className="doc-upload min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8" style={{ perspective: "1400px" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         .doc-upload { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
@@ -174,10 +174,10 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
 
       <div className="mx-auto max-w-[920px]" style={{ transformStyle: "preserve-3d" }}>
         {/* Header */}
-        <div className="mb-7 flex items-baseline justify-between">
+        <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
-            <h1 className="m-0 flex items-center gap-2 text-[22px] font-bold tracking-tight text-[#EDE6D6]">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
+            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[#EDE6D6] sm:text-[22px]">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
                 <Feather size={12} className="text-[#0B0E14]" />
               </span>
               document ingestion <span className="text-[#C89B3C]">·</span> admin
@@ -188,7 +188,7 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
           </div>
           <button
             onClick={loadDocuments}
-            className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+            className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
           >
             <RefreshCw size={13} strokeWidth={2} />
             refresh
@@ -216,7 +216,7 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
           onDragLeave={onDragLeave}
           onClick={() => fileInputRef.current?.click()}
           style={{ animation: isDragging ? "drop-pulse 1.4s ease-in-out infinite" : "none" }}
-          className={`cursor-pointer rounded-xl border-[1.5px] border-dashed px-5 py-9 text-center transition-all duration-150 ${
+          className={`cursor-pointer rounded-xl border-[1.5px] border-dashed px-4 py-8 text-center transition-all duration-150 sm:px-5 sm:py-9 ${
             isDragging
               ? "-translate-y-1 border-[#C89B3C] bg-[#C89B3C]/[0.07]"
               : "border-[#2DD4BF]/15 bg-[#12151F]/50 hover:border-[#2DD4BF]/30"
@@ -247,7 +247,7 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
         {/* Queue */}
         {queue.length > 0 && (
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[11px] text-[#9FB0AC]">
                 {queue.length} file{queue.length !== 1 ? "s" : ""} in queue
               </span>
@@ -280,23 +280,29 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
                 >
                   <FileText size={14} className="flex-shrink-0 text-[#9FB0AC]" />
                   <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.file.name}</span>
-                  <span className="text-[11px] text-[#6E7C79]">{(item.file.size / 1024).toFixed(0)} kb</span>
+                  <span className="hidden flex-shrink-0 text-[11px] text-[#6E7C79] sm:inline">
+                    {(item.file.size / 1024).toFixed(0)} kb
+                  </span>
 
-                  {item.status === STATUS.QUEUED && <span className="text-[11px] text-[#9FB0AC]">queued</span>}
-                  {item.status === STATUS.UPLOADING && (
-                    <Loader2 size={14} className="animate-spin text-[#C89B3C]" />
+                  {item.status === STATUS.QUEUED && (
+                    <span className="flex-shrink-0 text-[11px] text-[#9FB0AC]">queued</span>
                   )}
-                  {item.status === STATUS.DONE && <CheckCircle2 size={14} className="text-[#2DD4BF]" />}
+                  {item.status === STATUS.UPLOADING && (
+                    <Loader2 size={14} className="flex-shrink-0 animate-spin text-[#C89B3C]" />
+                  )}
+                  {item.status === STATUS.DONE && (
+                    <CheckCircle2 size={14} className="flex-shrink-0 text-[#2DD4BF]" />
+                  )}
                   {item.status === STATUS.ERROR && (
-                    <span title={item.error} className="flex items-center gap-1 text-[#E2725B]">
-                      <AlertCircle size={13} /> <span className="text-[11px]">failed</span>
+                    <span title={item.error} className="flex flex-shrink-0 items-center gap-1 text-[#E2725B]">
+                      <AlertCircle size={13} /> <span className="hidden text-[11px] sm:inline">failed</span>
                     </span>
                   )}
 
                   {item.status !== STATUS.UPLOADING && (
                     <button
                       onClick={() => removeFromQueue(item.id)}
-                      className="bg-transparent p-0.5 text-[#6E7C79] transition-colors hover:text-[#EDE6D6]"
+                      className="flex-shrink-0 bg-transparent p-0.5 text-[#6E7C79] transition-colors hover:text-[#EDE6D6]"
                     >
                       <X size={13} />
                     </button>
@@ -328,8 +334,10 @@ export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-[#1B2333]">
-              <div className="lm-scroll max-h-[360px] overflow-y-auto">
-                <table className="w-full border-collapse text-xs">
+              {/* overflow-x-auto lets the table scroll sideways instead of
+                  breaking the page layout on narrow screens */}
+              <div className="lm-scroll max-h-[360px] overflow-x-auto overflow-y-auto">
+                <table className="w-full min-w-[560px] border-collapse text-xs">
                   <thead>
                     <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                       <th className="px-3 py-2.5 font-medium">source</th>

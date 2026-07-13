@@ -31,6 +31,11 @@ export default function App() {
     setSidebarRefreshKey((k) => k + 1); // makes the new session show up in the sidebar right away
   }
 
+  function handleNewChat() {
+    setSessionId(null);
+    setView("chat");
+  }
+
   const isAdmin = user?.role === "ADMIN";
 
   return (
@@ -44,10 +49,7 @@ export default function App() {
               setSessionId(id);
               setView("chat");
             }}
-            onNewChat={() => {
-              setSessionId(null);
-              setView("chat");
-            }}
+            onNewChat={handleNewChat}
           />
 
           <div className="relative flex-1">
@@ -55,7 +57,7 @@ export default function App() {
               <div className="relative h-full w-full">
                 <button
                   onClick={() => setView("chat")}
-                  className="absolute right-4 top-4 z-10 rounded border border-amber px-3 py-1 font-mono text-xs uppercase text-amber hover:bg-amber hover:text-ink"
+                  className="absolute right-4 top-4 z-10 rounded border border-[#FF6B4A] px-3 py-1 font-mono text-xs uppercase text-[#FF8F6B] transition-colors hover:bg-[#FF6B4A] hover:text-[#0A0916]"
                 >
                   back to chat
                 </button>
@@ -70,6 +72,7 @@ export default function App() {
                 onOpenUpload={() => setView("upload")}
                 sessionId={sessionId}
                 onSessionCreated={handleSessionCreated}
+                onNewChat={handleNewChat}
               />
             )}
           </div>
