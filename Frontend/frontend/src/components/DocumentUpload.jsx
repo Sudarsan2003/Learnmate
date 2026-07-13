@@ -9,7 +9,10 @@ const STATUS = {
   ERROR: "error",
 };
 
-export default function DocumentUpload({ token, apiBase = "/api/documents" }) {
+export default function DocumentUpload({
+    token,
+    apiBase = `${import.meta.env.VITE_API_BASE_URL}/api/documents`
+}){
   const [documents, setDocuments] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
