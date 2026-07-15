@@ -31,7 +31,7 @@ public class DocumentChunk {
 
     @Convert(converter = PGvectorConverter.class)
     @ColumnTransformer(write = "?::vector")
-    @Column(name = "embedding", columnDefinition = "vector(768)")
+    @Column(name = "embedding", columnDefinition = "vector(1024)")
     private PGvector embedding;
 
     @Column(nullable = false)
