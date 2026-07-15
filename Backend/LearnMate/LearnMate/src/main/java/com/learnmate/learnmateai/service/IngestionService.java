@@ -96,25 +96,34 @@ public class IngestionService {
                 return;
             }
 
+            List<String> pieces = new ArrayList<>();
             int step = CHUNK_SIZE_WORDS - CHUNK_OVERLAP_WORDS;
             for (int start = 0; start < words.length; start += step) {
                 int end = Math.min(start + CHUNK_SIZE_WORDS, words.length);
                 String piece = String.join(" ", Arrays.copyOfRange(words, start, end)).trim();
 
                 if (!piece.isEmpty()) {
-                    DocumentChunk chunk = new DocumentChunk();
-                    chunk.setSourceId(sourceId);
-                    chunk.setSubject(subject);
-                    chunk.setContent(piece);
-                    chunk.setOwnerUsername(ownerUsername);
-
-                    float[] vector = embeddingClient.embed(piece);
-                    chunk.setEmbedding(new PGvector(vector));
-
-                    chunks.add(chunk);
+                    pieces.add(piece);
                 }
 
                 if (end == words.length) break;
+            }
+
+            // Embed all chunks in batched requests rather than one HTTP call
+            // per chunk. Large documents can produce hundreds of chunks, and
+            // calling the embeddings API once per chunk in a loop blew
+            // through Voyage's per-minute rate limit and failed partway
+            // through with 429 Too Many Requests.
+            List<float[]> vectors = embeddingClient.embedBatch(pieces);
+
+            for (int i = 0; i < pieces.size(); i++) {
+                DocumentChunk chunk = new DocumentChunk();
+                chunk.setSourceId(sourceId);
+                chunk.setSubject(subject);
+                chunk.setContent(pieces.get(i));
+                chunk.setOwnerUsername(ownerUsername);
+                chunk.setEmbedding(new PGvector(vectors.get(i)));
+                chunks.add(chunk);
             }
 
             System.out.println("[Ingestion] Produced " + chunks.size() + " chunks for " + sourceId);
