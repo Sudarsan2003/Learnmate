@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -11,7 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+// Default embedding provider. Add "ollama" to spring.profiles.active to
+// switch to OllamaEmbeddingClient instead — only one of the two is active
+// at a time so Spring doesn't see two competing EmbeddingClient beans.
 @Component
+@org.springframework.context.annotation.Profile("!ollama")
 public class VoyageEmbeddingClient implements EmbeddingClient {
 
     // NOTE: plain "voyage-3-lite" always returns 512-dim vectors and does not
@@ -41,10 +46,22 @@ public class VoyageEmbeddingClient implements EmbeddingClient {
     public VoyageEmbeddingClient(
             @Value("${voyage.api-key}") String apiKey) {
 
+        // Spring's WebClient defaults to a 256KB (262144 byte) in-memory
+        // buffer limit for response bodies. A batch of 100 chunks each
+        // returning a 1024-dim float vector comes back as roughly 1-2MB of
+        // JSON — several times over that default — so the request would
+        // succeed (200 OK) but Spring would refuse to buffer the reply with
+        // DataBufferLimitException. 10MB gives comfortable headroom even
+        // for larger batch sizes later.
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
+                .build();
+
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.voyageai.com")
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .exchangeStrategies(strategies)
                 .build();
     }
 
