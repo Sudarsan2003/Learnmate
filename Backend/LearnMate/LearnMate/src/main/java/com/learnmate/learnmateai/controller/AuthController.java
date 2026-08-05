@@ -48,6 +48,7 @@ public class AuthController {
         user.setGender(request.gender());
         user.setAddress(request.address());
         user.setInstitution(request.institution());
+        user.setStandard(request.standard()); // was missing — students never got their class saved
         userRepository.save(user);
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
@@ -56,6 +57,20 @@ public class AuthController {
 
     // Admin-only: promote an existing user to TEACHER so they can upload
 // documents. Called from an admin dashboard, not public signup.
+    @GetMapping("/me")
+    public java.util.Map<String, Object> me(org.springframework.security.core.Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        return java.util.Map.of(
+                "username", user.getUsername(),
+                "email", user.getEmail() == null ? "" : user.getEmail(),
+                "role", user.getRole(),
+                "institution", user.getInstitution() == null ? "" : user.getInstitution(),
+                "standard", user.getStandard() == null ? "" : user.getStandard()
+        );
+    }
+
     @PostMapping("/promote-teacher")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public AuthResponse promoteToTeacher(@RequestParam String username) {

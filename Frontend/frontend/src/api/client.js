@@ -32,6 +32,11 @@ export async function login(username, password) {
   return data;
 }
 
+export async function getMe() {
+  const { data } = await api.get("/api/auth/me");
+  return data;
+}
+
 export async function sendChatMessage(request) {
   const { data } = await api.post("/api/chat", request);
   return data;
