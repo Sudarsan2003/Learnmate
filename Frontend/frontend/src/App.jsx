@@ -5,7 +5,7 @@ import DocumentUpload from "./components/DocumentUpload";
 import Sidebar from "./components/Sidebar";
 import ManageUsers from "./components/ManageUsers";
 import Quizzes from "./components/Quizzes";
-import ProfilePage from "./components/ProfilePage";
+import ProfilePage from "./components/Profilepage";
 
 export default function App() {
   const [user, setUser] = useState(() => {
