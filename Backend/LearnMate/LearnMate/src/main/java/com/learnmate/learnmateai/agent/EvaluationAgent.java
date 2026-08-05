@@ -83,4 +83,16 @@ public class EvaluationAgent {
             throw new RuntimeException("Failed to parse AI-generated quiz questions: " + e.getMessage(), e);
         }
     }
+    public String explainQuizAnswer(String quizContext, String studentQuestion) {
+        String systemPrompt = """
+            You are LearnMate, helping a student understand a quiz they just
+            completed. Only answer using the quiz questions, options, correct
+            answers, and the student's own responses provided below. If the
+            student asks about anything outside these quiz questions, politely
+            say you can only discuss this quiz and redirect them back to it.
+            Explain the reasoning behind the correct answer clearly and kindly.
+            """;
+        String userPrompt = quizContext + "\nStudent's question: " + studentQuestion;
+        return llmClient.complete(systemPrompt, userPrompt);
+    }
 }

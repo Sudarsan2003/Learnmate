@@ -7,9 +7,9 @@ import com.learnmate.learnmateai.model.*;
 import com.learnmate.learnmateai.repository.*;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class QuizService {
@@ -42,10 +42,6 @@ public class QuizService {
         User creator = userRepository.findByUsername(createdByUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        // Teachers belong to one institution, so a quiz they create is
-        // scoped to it automatically. Admins manage across institutions and
-        // don't have one of their own — they must say which institution the
-        // quiz is for.
         boolean isAdmin = "ADMIN".equals(creator.getRole());
         String institution;
         if (isAdmin) {
@@ -62,22 +58,23 @@ public class QuizService {
         if (req.standard() == null || req.standard().isBlank()) {
             throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
         }
+        if (req.durationMinutes() != null && (req.durationMinutes() < 1 || req.durationMinutes() > 180)) {
+            throw new IllegalArgumentException("durationMinutes must be between 1 and 180.");
+        }
 
         Quiz quiz = new Quiz();
         quiz.setTitle(req.title());
         quiz.setSubject(req.subject());
-        // Trimmed so a stray trailing space typed into the quiz form (or a
-        // teacher's profile) can never silently mismatch a student's
-        // profile value later — see matchesScope() below.
         quiz.setStandard(req.standard().trim());
         quiz.setInstitution(institution.trim());
         quiz.setCreatedByUsername(createdByUsername);
         quiz.setMode(req.mode());
+        quiz.setDurationMinutes(req.durationMinutes());
 
         if (req.mode() == Quiz.QuizMode.SCHEDULED) {
             quiz.setOpensAt(req.opensAt() != null ? Instant.parse(req.opensAt()) : Instant.now());
             quiz.setClosesAt(req.closesAt() != null ? Instant.parse(req.closesAt()) : null);
-            quiz.setStatus(Quiz.QuizStatus.OPEN); // opensAt/closesAt gate actual availability
+            quiz.setStatus(Quiz.QuizStatus.OPEN);
         } else {
             quiz.setStatus(Quiz.QuizStatus.OPEN);
         }
@@ -96,10 +93,7 @@ public class QuizService {
         if (req.aiGenerateCount() != null && req.aiGenerateCount() > 0) {
             var chunks = retrievalAgent.retrieve(
                     req.subject() == null ? req.title() : req.subject(),
-                    req.subject(),
-                    institution,
-                    req.standard(),
-                    10);
+                    req.subject(), institution, req.standard(), 10);
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException(
                         "No study material found for subject '" + req.subject() + "' and standard '"
@@ -137,25 +131,16 @@ public class QuizService {
         }
 
         Instant now = Instant.now();
-        // Institution/standard are free-text fields (typed independently on
-        // the student's profile and on the quiz form), so we fetch broadly
-        // and compare with matchesScope() rather than relying on an exact,
-        // case-sensitive DB-level match — see matchesScope() for why.
         return quizRepository.findAll().stream()
                 .filter(q -> matchesScope(q.getInstitution(), user.getInstitution())
                         && matchesScope(q.getStandard(), user.getStandard()))
                 .filter(q -> q.getStatus() == Quiz.QuizStatus.OPEN)
-                .filter(q -> q.getMode() == Quiz.QuizMode.OPEN
-                        || isWithinSchedule(q, now))
+                .filter(q -> q.getMode() == Quiz.QuizMode.OPEN || isWithinSchedule(q, now))
+                // NEW: hide quizzes this student has already started/submitted
+                .filter(q -> attemptRepository.findByQuizIdAndUsername(q.getId(), username).isEmpty())
                 .toList();
     }
 
-    // Institution and standard are both plain free-text fields (typed on
-    // registration, edited by admins, typed again on the quiz form), so a
-    // strict String.equals() is fragile: "Green Valley School" vs "green
-    // valley school " (extra space, different case) would previously make a
-    // quiz silently invisible to every student with no error anywhere. This
-    // trims and ignores case so near-identical values still match.
     private boolean matchesScope(String quizValue, String userValue) {
         if (quizValue == null || userValue == null) return false;
         return quizValue.trim().equalsIgnoreCase(userValue.trim());
@@ -167,30 +152,61 @@ public class QuizService {
         return afterOpen && beforeClose;
     }
 
-    public List<QuizQuestionForStudentDto> getQuestionsForStudent(Long quizId, String username) {
+    /**
+     * Starts (or resumes) a student's attempt: creates the QuizAttempt row on
+     * first call so the timer has a fixed startedAt, returns the same
+     * startedAt/deadline on subsequent calls (e.g. page refresh) instead of
+     * resetting the clock, and hands back the questions in a per-student
+     * shuffled order.
+     */
+    public QuizStartDto startQuiz(Long quizId, String username) {
         Quiz quiz = requireVisible(quizId, username);
 
-        return questionRepository.findByQuizIdOrderByOrderIndexAsc(quiz.getId()).stream()
+        QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
+                .orElseGet(() -> {
+                    QuizAttempt a = new QuizAttempt();
+                    a.setQuiz(quiz);
+                    a.setUsername(username);
+                    a.setStartedAt(Instant.now());
+                    return attemptRepository.save(a);
+                });
+
+        if (attempt.getSubmittedAt() != null) {
+            throw new IllegalArgumentException("You have already submitted this quiz.");
+        }
+
+        Instant deadline = quiz.getDurationMinutes() != null
+                ? attempt.getStartedAt().plus(Duration.ofMinutes(quiz.getDurationMinutes()))
+                : null;
+
+        List<QuizQuestionForStudentDto> questions = jumbledQuestions(quizId, username).stream()
                 .map(q -> new QuizQuestionForStudentDto(
                         q.getId(), q.getQuestionText(), q.getOptionA(), q.getOptionB(), q.getOptionC(), q.getOptionD()))
                 .toList();
+
+        return new QuizStartDto(quiz.getId(), quiz.getTitle(), questions, quiz.getDurationMinutes(), deadline);
+    }
+
+    // Deterministic per-student order: same student always sees the same
+    // order across reloads, but different students see different orders.
+    private List<QuizQuestion> jumbledQuestions(Long quizId, String username) {
+        List<QuizQuestion> questions = new ArrayList<>(questionRepository.findByQuizIdOrderByOrderIndexAsc(quizId));
+        long seed = Objects.hash(quizId, username);
+        Collections.shuffle(questions, new Random(seed));
+        return questions;
     }
 
     public QuizSubmitResult submit(Long quizId, String username, QuizSubmitRequest req) {
         Quiz quiz = requireVisible(quizId, username);
 
-        if (attemptRepository.findByQuizIdAndUsername(quizId, username).isPresent()) {
+        QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
+                .orElseThrow(() -> new IllegalArgumentException("Start the quiz before submitting."));
+
+        if (attempt.getSubmittedAt() != null) {
             throw new IllegalArgumentException("You have already submitted this quiz.");
         }
 
         List<QuizQuestion> questions = questionRepository.findByQuizIdOrderByOrderIndexAsc(quizId);
-
-        QuizAttempt attempt = new QuizAttempt();
-        attempt.setQuiz(quiz);
-        attempt.setUsername(username);
-        attempt.setSubmittedAt(Instant.now());
-        attempt.setTotalQuestions(questions.size());
-        attempt = attemptRepository.save(attempt);
 
         int score = 0;
         for (QuizQuestion question : questions) {
@@ -211,18 +227,68 @@ public class QuizService {
             answerRepository.save(answer);
         }
 
+        attempt.setSubmittedAt(Instant.now());
         attempt.setScore(score);
+        attempt.setTotalQuestions(questions.size());
         attemptRepository.save(attempt);
 
         return new QuizSubmitResult(score, questions.size());
+    }
+
+    /**
+     * "Ask LearnMate" — only available once the student has submitted, and
+     * scoped strictly to that student's own quiz questions/answers so the
+     * AI can't be used as a general chat backdoor.
+     */
+    public String askAboutQuiz(Long quizId, String username, QuizAskRequest req) {
+        QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
+                .filter(a -> a.getSubmittedAt() != null)
+                .orElseThrow(() -> new IllegalArgumentException("Submit the quiz before asking LearnMate about it."));
+
+        if (req.question() == null || req.question().isBlank()) {
+            throw new IllegalArgumentException("question is required.");
+        }
+
+        List<QuizQuestion> questions = questionRepository.findByQuizIdOrderByOrderIndexAsc(quizId);
+        Map<Long, QuizAnswer> answersByQuestion = new HashMap<>();
+        for (QuizAnswer a : answerRepository.findByAttemptId(attempt.getId())) {
+            answersByQuestion.put(a.getQuestion().getId(), a);
+        }
+
+        if (req.questionId() != null) {
+            questions = questions.stream().filter(q -> q.getId().equals(req.questionId())).toList();
+            if (questions.isEmpty()) {
+                throw new IllegalArgumentException("That question isn't part of this quiz.");
+            }
+        }
+
+        String context = buildQuizContext(questions, answersByQuestion);
+        return evaluationAgent.explainQuizAnswer(context, req.question());
+    }
+
+    private String buildQuizContext(List<QuizQuestion> questions, Map<Long, QuizAnswer> answersByQuestion) {
+        StringBuilder sb = new StringBuilder();
+        for (QuizQuestion q : questions) {
+            QuizAnswer ans = answersByQuestion.get(q.getId());
+            sb.append("Question: ").append(q.getQuestionText()).append("\n");
+            sb.append("A) ").append(q.getOptionA()).append("\n");
+            sb.append("B) ").append(q.getOptionB()).append("\n");
+            sb.append("C) ").append(q.getOptionC()).append("\n");
+            sb.append("D) ").append(q.getOptionD()).append("\n");
+            sb.append("Correct answer: ").append(q.getCorrectOption()).append("\n");
+            if (ans != null) {
+                sb.append("Student's answer: ").append(ans.getSelectedOption() == null ? "(no answer)" : ans.getSelectedOption())
+                        .append(ans.isCorrect() ? " (correct)" : " (incorrect)").append("\n");
+            }
+            sb.append("\n---\n\n");
+        }
+        return sb.toString();
     }
 
     public QuizResultsDto getResults(Long quizId, String requestingAdminUsername) {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        // Only the creator, or any ADMIN, may view results — a teacher at the
-        // same institution who didn't create this quiz should not see it.
         User requester = userRepository.findByUsername(requestingAdminUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         boolean isCreator = quiz.getCreatedByUsername().equals(requestingAdminUsername);
@@ -232,6 +298,7 @@ public class QuizService {
         }
 
         List<QuizResultsDto.StudentScore> scores = attemptRepository.findByQuizIdOrderByScoreDesc(quizId).stream()
+                .filter(a -> a.getSubmittedAt() != null) // exclude in-progress attempts from results
                 .map(a -> new QuizResultsDto.StudentScore(a.getUsername(), a.getScore(), a.getTotalQuestions()))
                 .toList();
 

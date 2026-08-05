@@ -7,20 +7,17 @@ import java.util.List;
 public record QuizCreateRequest(
         String title,
         String subject,
-        String standard,  // "1".."10" — which class this quiz targets
-        String institution, // only read when the creator is ADMIN — teachers use their own (see QuizService)
+        String standard,
+        String institution,
         Quiz.QuizMode mode,
-        String opensAt,   // ISO-8601 string, only used when mode == SCHEDULED
-        String closesAt,  // ISO-8601 string, optional even when scheduled
-        List<ManualQuestion> manualQuestions, // may be empty
-        Integer aiGenerateCount // null/0 = no AI questions requested
+        String opensAt,
+        String closesAt,
+        Integer durationMinutes, // null/0 = untimed; e.g. 10, 15, 20, 30, 45, 60
+        List<ManualQuestion> manualQuestions,
+        Integer aiGenerateCount
 ) {
     public record ManualQuestion(
-            String questionText,
-            String optionA,
-            String optionB,
-            String optionC,
-            String optionD,
-            String correctOption
+            String questionText, String optionA, String optionB,
+            String optionC, String optionD, String correctOption
     ) {}
 }

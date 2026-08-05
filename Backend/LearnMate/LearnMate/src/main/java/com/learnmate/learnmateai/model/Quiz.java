@@ -54,4 +54,5 @@ public class Quiz {
 
     public enum QuizMode { SCHEDULED, OPEN }
     public enum QuizStatus { DRAFT, OPEN, CLOSED }
+    private Integer durationMinutes;
 }

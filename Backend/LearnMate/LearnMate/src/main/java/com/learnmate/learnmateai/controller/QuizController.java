@@ -31,14 +31,21 @@ public class QuizController {
         return quizService.listAvailableQuizzesForStudent(auth.getName());
     }
 
-    @GetMapping("/{quizId}/questions")
-    public List<QuizQuestionForStudentDto> questions(@PathVariable Long quizId, Authentication auth) {
-        return quizService.getQuestionsForStudent(quizId, auth.getName());
+    // NOTE: no more GET /{quizId}/questions — starting a quiz now has a
+    // side effect (creating the attempt + timer), so it's a POST.
+    @PostMapping("/{quizId}/start")
+    public QuizStartDto start(@PathVariable Long quizId, Authentication auth) {
+        return quizService.startQuiz(quizId, auth.getName());
     }
 
     @PostMapping("/{quizId}/submit")
     public QuizSubmitResult submit(@PathVariable Long quizId, @RequestBody QuizSubmitRequest req, Authentication auth) {
         return quizService.submit(quizId, auth.getName(), req);
+    }
+
+    @PostMapping("/{quizId}/ask")
+    public QuizAskResponse ask(@PathVariable Long quizId, @RequestBody QuizAskRequest req, Authentication auth) {
+        return new QuizAskResponse(quizService.askAboutQuiz(quizId, auth.getName(), req));
     }
 
     @GetMapping("/{quizId}/results")
