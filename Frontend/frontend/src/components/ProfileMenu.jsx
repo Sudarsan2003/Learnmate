@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LogOut, ShieldCheck, User, KeyRound, Users } from "lucide-react";
+import { LogOut, ShieldCheck, User, KeyRound, Users, ClipboardList } from "lucide-react";
 import ChangePasswordModal from "./ChangePasswordModal";
 function initialsFor(name) {
   if (!name) return "?";
@@ -71,6 +71,17 @@ export default function ProfileMenu({ username, role }) {
           )}
 
           <div className="my-1 h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              document.dispatchEvent(new CustomEvent("learnmate:open-quizzes"));
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+          >
+            <ClipboardList size={14} />
+            quizzes
+          </button>
 
           <button
             onClick={() => {

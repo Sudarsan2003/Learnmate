@@ -33,7 +33,8 @@ public class AdminController {
                         "username", u.getUsername(),
                         "email", u.getEmail() == null ? "" : u.getEmail(),
                         "role", u.getRole(),
-                        "institution", u.getInstitution() == null ? "" : u.getInstitution()
+                        "institution", u.getInstitution() == null ? "" : u.getInstitution(),
+                        "standard", u.getStandard() == null ? "" : u.getStandard()
                 ))
                 .collect(Collectors.toList());
     }

@@ -7,6 +7,7 @@ import java.util.List;
 public record QuizCreateRequest(
         String title,
         String subject,
+        String standard,  // "1".."10" — which class this quiz targets
         Quiz.QuizMode mode,
         String opensAt,   // ISO-8601 string, only used when mode == SCHEDULED
         String closesAt,  // ISO-8601 string, optional even when scheduled

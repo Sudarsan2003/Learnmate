@@ -80,6 +80,7 @@ export default function ChatWindow({
   isAdmin,
   onOpenUpload,
   onOpenUsers,
+  onOpenQuizzes,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -116,6 +117,14 @@ useEffect(() => {
   document.addEventListener("learnmate:open-users", handleOpenUsers);
   return () => document.removeEventListener("learnmate:open-users", handleOpenUsers);
 }, [onOpenUsers]);
+
+useEffect(() => {
+  function handleOpenQuizzes() {
+    onOpenQuizzes?.();
+  }
+  document.addEventListener("learnmate:open-quizzes", handleOpenQuizzes);
+  return () => document.removeEventListener("learnmate:open-quizzes", handleOpenQuizzes);
+}, [onOpenQuizzes]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -288,6 +297,14 @@ useEffect(() => {
           >
             <Plus size={14} />
             <span className="hidden sm:inline">new chat</span>
+          </button>
+
+          <button
+            onClick={onOpenQuizzes}
+            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[#9691B8] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[#F1EEFB]"
+          >
+            <span className="hidden sm:inline">quizzes</span>
+            <span className="sm:hidden">quiz</span>
           </button>
 
           {isAdmin && (

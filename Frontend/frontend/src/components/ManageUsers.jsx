@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Users, RefreshCw, Loader2, ShieldCheck } from "lucide-react";
-import { listUsers, updateUserRole } from "../api/client";
+import { Users, RefreshCw, Loader2, ShieldCheck, Check } from "lucide-react";
+import { listUsers, updateUserRole, updateUserProfile } from "../api/client";
 
 const ROLES = ["USER", "TEACHER", "ADMIN"];
 
@@ -9,6 +9,8 @@ export default function ManageUsers({ currentUsername }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatingUsername, setUpdatingUsername] = useState(null);
+  const [profileDrafts, setProfileDrafts] = useState({}); // username -> { institution, standard }
+  const [savingProfileUsername, setSavingProfileUsername] = useState(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -16,6 +18,9 @@ export default function ManageUsers({ currentUsername }) {
     try {
       const data = await listUsers();
       setUsers(data);
+      setProfileDrafts(
+        Object.fromEntries(data.map((u) => [u.username, { institution: u.institution || "", standard: u.standard || "" }]))
+      );
     } catch (err) {
       setError(err.response?.data?.message ?? "Could not load users.");
     } finally {
@@ -37,6 +42,39 @@ export default function ManageUsers({ currentUsername }) {
       setError(err.response?.data?.message ?? `Could not update role for ${username}.`);
     } finally {
       setUpdatingUsername(null);
+    }
+  };
+
+  const updateDraft = (username, field, value) =>
+    setProfileDrafts((prev) => ({ ...prev, [username]: { ...prev[username], [field]: value } }));
+
+  const draftChanged = (u) => {
+    const draft = profileDrafts[u.username] || {};
+    return draft.institution !== (u.institution || "") || draft.standard !== (u.standard || "");
+  };
+
+  const handleProfileSave = async (u) => {
+    const draft = profileDrafts[u.username] || {};
+    if (!draft.institution || !draft.institution.trim()) {
+      setError("Institution cannot be blank.");
+      return;
+    }
+    setSavingProfileUsername(u.username);
+    setError(null);
+    try {
+      const updated = await updateUserProfile(u.username, {
+        institution: draft.institution.trim(),
+        standard: draft.standard?.trim() || "",
+      });
+      setUsers((prev) =>
+        prev.map((row) =>
+          row.username === u.username ? { ...row, institution: updated.institution, standard: updated.standard } : row
+        )
+      );
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not update profile for ${u.username}.`);
+    } finally {
+      setSavingProfileUsername(null);
     }
   };
 
@@ -88,12 +126,13 @@ export default function ManageUsers({ currentUsername }) {
         ) : (
           <div className="overflow-hidden rounded-lg border border-[#1B2333]">
             <div className="lm-scroll max-h-[480px] overflow-x-auto overflow-y-auto">
-              <table className="w-full min-w-[560px] border-collapse text-xs">
+              <table className="w-full min-w-[680px] border-collapse text-xs">
                 <thead>
                   <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                     <th className="px-3 py-2.5 font-medium">username</th>
                     <th className="px-3 py-2.5 font-medium">email</th>
                     <th className="px-3 py-2.5 font-medium">institution</th>
+                    <th className="px-3 py-2.5 font-medium">standard</th>
                     <th className="px-3 py-2.5 font-medium">role</th>
                   </tr>
                 </thead>
@@ -107,7 +146,38 @@ export default function ManageUsers({ currentUsername }) {
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-[#9FB0AC]">{u.email || "—"}</td>
-                      <td className="px-3 py-2.5 text-[#9FB0AC]">{u.institution || "—"}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            value={profileDrafts[u.username]?.institution ?? ""}
+                            onChange={(e) => updateDraft(u.username, "institution", e.target.value)}
+                            placeholder="institution"
+                            className="w-28 rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-2 py-1.5 text-[11px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                          />
+                          {draftChanged(u) && (
+                            <button
+                              onClick={() => handleProfileSave(u)}
+                              disabled={savingProfileUsername === u.username}
+                              title="Save institution/standard"
+                              className="flex-shrink-0 text-[#2DD4BF] transition-colors hover:text-[#EDE6D6] disabled:opacity-40"
+                            >
+                              {savingProfileUsername === u.username ? (
+                                <Loader2 size={13} className="animate-spin" />
+                              ) : (
+                                <Check size={13} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <input
+                          value={profileDrafts[u.username]?.standard ?? ""}
+                          onChange={(e) => updateDraft(u.username, "standard", e.target.value)}
+                          placeholder="e.g. 5"
+                          className="w-16 rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-2 py-1.5 text-[11px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                        />
+                      </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <select

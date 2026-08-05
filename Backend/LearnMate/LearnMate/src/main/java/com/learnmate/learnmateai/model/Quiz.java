@@ -27,6 +27,12 @@ public class Quiz {
     @Column(nullable = false)
     private String institution;
 
+    // Scopes visibility further: only students in this class/standard at the
+    // above institution can see/take the quiz. Set from the request at
+    // creation time.
+    @Column(nullable = false)
+    private String standard;
+
     @Column(nullable = false)
     private String createdByUsername;
 

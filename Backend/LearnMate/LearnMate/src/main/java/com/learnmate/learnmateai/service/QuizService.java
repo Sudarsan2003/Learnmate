@@ -45,10 +45,14 @@ public class QuizService {
         if (creator.getInstitution() == null || creator.getInstitution().isBlank()) {
             throw new IllegalArgumentException("Set an institution on your profile before creating a quiz.");
         }
+        if (req.standard() == null || req.standard().isBlank()) {
+            throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
+        }
 
         Quiz quiz = new Quiz();
         quiz.setTitle(req.title());
         quiz.setSubject(req.subject());
+        quiz.setStandard(req.standard());
         quiz.setInstitution(creator.getInstitution());
         quiz.setCreatedByUsername(createdByUsername);
         quiz.setMode(req.mode());
@@ -73,11 +77,16 @@ public class QuizService {
         }
 
         if (req.aiGenerateCount() != null && req.aiGenerateCount() > 0) {
-            var chunks = retrievalAgent.retrieve(req.subject() == null ? req.title() : req.subject(),
-                    req.subject(), 10);
+            var chunks = retrievalAgent.retrieve(
+                    req.subject() == null ? req.title() : req.subject(),
+                    req.subject(),
+                    creator.getInstitution(),
+                    req.standard(),
+                    10);
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "No study material found for subject '" + req.subject() + "' to generate AI questions from.");
+                        "No study material found for subject '" + req.subject() + "' and standard '"
+                                + req.standard() + "' to generate AI questions from.");
             }
             var generated = evaluationAgent.generateMcqQuestions(chunks, req.aiGenerateCount());
             for (var q : generated) {
@@ -112,6 +121,7 @@ public class QuizService {
 
         Instant now = Instant.now();
         return quizRepository.findByInstitutionOrderByCreatedAtDesc(user.getInstitution()).stream()
+                .filter(q -> q.getStandard() != null && q.getStandard().equals(user.getStandard()))
                 .filter(q -> q.getStatus() == Quiz.QuizStatus.OPEN)
                 .filter(q -> q.getMode() == Quiz.QuizMode.OPEN
                         || isWithinSchedule(q, now))
@@ -178,11 +188,13 @@ public class QuizService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        // Only the creator (or any admin) should see results — simplest
-        // check: same institution as the quiz.
+        // Only the creator, or any ADMIN, may view results — a teacher at the
+        // same institution who didn't create this quiz should not see it.
         User requester = userRepository.findByUsername(requestingAdminUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
-        if (!quiz.getInstitution().equals(requester.getInstitution())) {
+        boolean isCreator = quiz.getCreatedByUsername().equals(requestingAdminUsername);
+        boolean isAdmin = "ADMIN".equals(requester.getRole());
+        if (!isCreator && !isAdmin) {
             throw new IllegalArgumentException("Not authorized to view results for this quiz.");
         }
 
@@ -200,6 +212,15 @@ public class QuizService {
     public void closeQuiz(Long quizId, String username) {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+
+        User requester = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        boolean isCreator = quiz.getCreatedByUsername().equals(username);
+        boolean isAdmin = "ADMIN".equals(requester.getRole());
+        if (!isCreator && !isAdmin) {
+            throw new IllegalArgumentException("Not authorized to close this quiz.");
+        }
+
         quiz.setStatus(Quiz.QuizStatus.CLOSED);
         quizRepository.save(quiz);
     }
@@ -210,7 +231,8 @@ public class QuizService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        if (!quiz.getInstitution().equals(user.getInstitution())) {
+        if (!quiz.getInstitution().equals(user.getInstitution())
+                || !quiz.getStandard().equals(user.getStandard())) {
             throw new IllegalArgumentException("This quiz is not available to you.");
         }
         if (quiz.getStatus() != Quiz.QuizStatus.OPEN) {

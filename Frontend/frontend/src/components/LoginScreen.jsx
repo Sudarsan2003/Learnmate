@@ -12,6 +12,7 @@ export default function LoginScreen({ onAuthenticated }) {
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
   const [institution, setInstitution] = useState("");
+  const [standard, setStandard] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -24,7 +25,7 @@ export default function LoginScreen({ onAuthenticated }) {
     try {
       const result = mode === "login"
         ? await login(username, password)
-        : await register(username, password, { email, mobile, gender, address, institution });
+        : await register(username, password, { email, mobile, gender, address, institution, standard });
       localStorage.setItem("learnmate_token", result.token);
       localStorage.setItem("learnmate_username", result.username);
       onAuthenticated(result);
@@ -150,6 +151,13 @@ export default function LoginScreen({ onAuthenticated }) {
                 value={institution}
                 onChange={(e) => setInstitution(e.target.value)}
                 placeholder="Institution"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+              />
+
+              <input
+                value={standard}
+                onChange={(e) => setStandard(e.target.value)}
+                placeholder="Class / standard (students only, e.g. 5)"
                 className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
 

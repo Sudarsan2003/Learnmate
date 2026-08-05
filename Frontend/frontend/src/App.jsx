@@ -4,6 +4,7 @@ import LoginScreen from "./components/LoginScreen";
 import DocumentUpload from "./components/DocumentUpload";
 import Sidebar from "./components/Sidebar";
 import ManageUsers from "./components/ManageUsers";
+import Quizzes from "./components/Quizzes";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -79,6 +80,16 @@ export default function App() {
                 </button>
                 <ManageUsers currentUsername={user.username} />
               </div>
+            ) : view === "quizzes" ? (
+              <div className="relative h-full w-full">
+                <button
+                  onClick={() => setView("chat")}
+                  className="absolute right-4 top-4 z-10 rounded border border-[#FF6B4A] px-3 py-1 font-mono text-xs uppercase text-[#FF8F6B] transition-colors hover:bg-[#FF6B4A] hover:text-[#0A0916]"
+                >
+                  back to chat
+                </button>
+                <Quizzes currentUsername={user.username} role={user.role} />
+              </div>
             ) : (
               <ChatWindow
                 currentUser={user.username}
@@ -87,6 +98,7 @@ export default function App() {
                 isAdmin={canUpload}
                 onOpenUpload={() => setView("upload")}
                 onOpenUsers={() => setView("users")}
+                onOpenQuizzes={() => setView("quizzes")}
                 sessionId={sessionId}
                 onSessionCreated={handleSessionCreated}
                 onNewChat={handleNewChat}

@@ -19,6 +19,7 @@ export default function DocumentUpload({
   const [listError, setListError] = useState(null);
 
   const [subject, setSubject] = useState("");
+  const [standard, setStandard] = useState("");
   const [queue, setQueue] = useState([]); // { id, file, status, error }
   const [isDragging, setIsDragging] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -35,10 +36,15 @@ export default function DocumentUpload({
   );
 
   const loadDocuments = useCallback(async () => {
+    if (!standard.trim()) {
+      setDocuments([]);
+      setListLoading(false);
+      return;
+    }
     setListLoading(true);
     setListError(null);
     try {
-      const res = await fetch(apiBase, { headers: authHeaders() });
+      const res = await fetch(`${apiBase}?standard=${encodeURIComponent(standard.trim())}`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = await res.json();
       setDocuments(Array.isArray(data) ? data : data.documents ?? []);
@@ -47,13 +53,14 @@ export default function DocumentUpload({
     } finally {
       setListLoading(false);
     }
-  }, [apiBase, authHeaders]);
+  }, [apiBase, authHeaders, standard]);
 
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
 
   const addFilesToQueue = (fileList) => {
+    if (!standard.trim()) return;
     const accepted = [".pdf", ".docx", ".pptx"];
     const items = Array.from(fileList)
       .filter((f) => accepted.some((ext) => f.name.toLowerCase().endsWith(ext)))
@@ -67,11 +74,19 @@ export default function DocumentUpload({
   };
 
   const uploadOne = async (item) => {
+    if (!standard.trim()) {
+      setQueue((q) =>
+        q.map((i) => (i.id === item.id ? { ...i, status: STATUS.ERROR, error: "Set a standard before uploading." } : i))
+      );
+      return;
+    }
+
     setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: STATUS.UPLOADING } : i)));
 
     const formData = new FormData();
     formData.append("file", item.file);
     if (subject.trim()) formData.append("subject", subject.trim());
+    formData.append("standard", standard.trim());
 
     try {
       const res = await fetch(apiBase + "/upload", {
@@ -190,6 +205,19 @@ export default function DocumentUpload({
           </button>
         </div>
 
+        {/* Standard field — required; every document is scoped to a class */}
+        <div className="mb-4">
+          <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">
+            standard / class (required — scopes which students & quizzes can use this)
+          </label>
+          <input
+            value={standard}
+            onChange={(e) => setStandard(e.target.value)}
+            placeholder='e.g. "5"'
+            className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+          />
+        </div>
+
         {/* Subject field */}
         <div className="mb-4">
           <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">
@@ -209,12 +237,15 @@ export default function DocumentUpload({
           onDragOver={(e) => e.preventDefault()}
           onDragEnter={onDragEnter}
           onDragLeave={onDragLeave}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => standard.trim() && fileInputRef.current?.click()}
           style={{ animation: isDragging ? "drop-pulse 1.4s ease-in-out infinite" : "none" }}
-          className={`cursor-pointer rounded-xl border-[1.5px] border-dashed px-4 py-8 text-center transition-all duration-150 sm:px-5 sm:py-9 ${
-            isDragging
-              ? "-translate-y-1 border-[#C89B3C] bg-[#C89B3C]/[0.07]"
-              : "border-[#2DD4BF]/15 bg-[#12151F]/50 hover:border-[#2DD4BF]/30"
+          className={`rounded-xl border-[1.5px] border-dashed px-4 py-8 text-center transition-all duration-150 sm:px-5 sm:py-9 ${
+            !standard.trim()
+              ? "cursor-not-allowed border-[#1B2333] bg-[#12151F]/30 opacity-60"
+              : "cursor-pointer " +
+                (isDragging
+                  ? "-translate-y-1 border-[#C89B3C] bg-[#C89B3C]/[0.07]"
+                  : "border-[#2DD4BF]/15 bg-[#12151F]/50 hover:border-[#2DD4BF]/30")
           }`}
         >
           <Upload
@@ -223,7 +254,11 @@ export default function DocumentUpload({
             className={`mx-auto mb-2.5 transition-colors ${isDragging ? "text-[#C89B3C]" : "text-[#9FB0AC]"}`}
           />
           <div className="mb-1 text-[13px] text-[#EDE6D6]">
-            drop files here, or <span className="text-[#C89B3C]">browse</span>
+            {standard.trim() ? (
+              <>drop files here, or <span className="text-[#C89B3C]">browse</span></>
+            ) : (
+              "set a standard above to enable uploads"
+            )}
           </div>
           <div className="text-[11px] text-[#6E7C79]">pdf, docx, pptx — re-uploading a source replaces its old chunks</div>
           <input
@@ -231,6 +266,7 @@ export default function DocumentUpload({
             type="file"
             multiple
             accept=".pdf,.docx,.pptx"
+            disabled={!standard.trim()}
             onChange={(e) => {
               if (e.target.files?.length) addFilesToQueue(e.target.files);
               e.target.value = "";
