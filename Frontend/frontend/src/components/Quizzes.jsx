@@ -20,6 +20,7 @@ import {
   submitQuiz,
   getQuizResults,
   closeQuiz,
+  listInstitutions,
 } from "../api/client";
 
 const OPTION_KEYS = ["A", "B", "C", "D"];
@@ -127,6 +128,7 @@ export default function Quizzes({ currentUsername, role }) {
 
         {view === "create" && canManage && (
           <CreateQuizForm
+            role={role}
             onCreated={(quiz) => {
               rememberCreatedQuiz(currentUsername, quiz);
               setView("list");
@@ -247,10 +249,19 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
 
 /* ---------------------------------- create quiz ---------------------------------- */
 
-function CreateQuizForm({ onCreated }) {
+function CreateQuizForm({ role, onCreated }) {
+  const isAdmin = role === "ADMIN";
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [standard, setStandard] = useState("");
+  // Only relevant for ADMIN — a TEACHER's quiz is scoped to their own
+  // institution automatically on the backend (QuizService.createQuiz), but
+  // an ADMIN isn't tied to one institution, so they must pick which one
+  // this quiz belongs to. Without this, the quiz was previously created
+  // with no institution at all and never matched any student.
+  const [institution, setInstitution] = useState("");
+  const [knownInstitutions, setKnownInstitutions] = useState([]);
+  const [loadingInstitutions, setLoadingInstitutions] = useState(isAdmin);
   const [mode, setMode] = useState("OPEN"); // OPEN | SCHEDULED
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
@@ -258,6 +269,24 @@ function CreateQuizForm({ onCreated }) {
   const [aiGenerateCount, setAiGenerateCount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listInstitutions();
+        if (!cancelled) setKnownInstitutions(data.map((i) => i.institution));
+      } catch {
+        if (!cancelled) setKnownInstitutions([]);
+      } finally {
+        if (!cancelled) setLoadingInstitutions(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   const addManualQuestion = () => setManualQuestions((qs) => [...qs, EMPTY_MANUAL_QUESTION()]);
   const removeManualQuestion = (clientId) =>
@@ -273,6 +302,9 @@ function CreateQuizForm({ onCreated }) {
 
     if (!title.trim()) return setError("Title is required.");
     if (!standard.trim()) return setError("Standard is required (e.g. \"5\").");
+    if (isAdmin && !institution.trim()) {
+      return setError("Institution is required — pick which school/institution this quiz is for.");
+    }
     const aiCount = aiGenerateCount ? parseInt(aiGenerateCount, 10) : 0;
     if (manualQuestions.length === 0 && aiCount <= 0) {
       return setError("Add at least one manual question, or set an AI question count.");
@@ -289,6 +321,7 @@ function CreateQuizForm({ onCreated }) {
         title: title.trim(),
         subject: subject.trim() || null,
         standard: standard.trim(),
+        institution: isAdmin ? institution.trim() : undefined,
         mode,
         opensAt: mode === "SCHEDULED" ? toIsoOrNull(opensAt) : null,
         closesAt: mode === "SCHEDULED" ? toIsoOrNull(closesAt) : null,
@@ -344,6 +377,25 @@ function CreateQuizForm({ onCreated }) {
             className="lm-input"
           />
         </Field>
+        {isAdmin && (
+          <Field label="institution (which school this quiz is for)">
+            <input
+              list="lm-known-institutions"
+              value={institution}
+              onChange={(e) => setInstitution(e.target.value)}
+              placeholder={loadingInstitutions ? "loading…" : "type or pick an institution"}
+              className="lm-input"
+            />
+            <datalist id="lm-known-institutions">
+              {knownInstitutions.map((inst) => (
+                <option key={inst} value={inst} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-[10px] text-[#6E7C79]">
+              must exactly match the institution set on students' profiles (see "manage users") or they won't see this quiz
+            </p>
+          </Field>
+        )}
         <Field label="mode">
           <select value={mode} onChange={(e) => setMode(e.target.value)} className="lm-input">
             <option value="OPEN">open — available immediately</option>

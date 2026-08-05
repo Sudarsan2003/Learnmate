@@ -122,10 +122,22 @@ export async function updateUserRole(username, role) {
   return data;
 }
 
-export async function updateUserProfile(username, { institution, standard } = {}) {
+export async function updateUserProfile(
+  username,
+  { institution, standard, email, mobile, gender, address } = {}
+) {
   const body = {};
   if (institution !== undefined) body.institution = institution;
   if (standard !== undefined) body.standard = standard;
+  if (email !== undefined) body.email = email;
+  if (mobile !== undefined) body.mobile = mobile;
+  if (gender !== undefined) body.gender = gender;
+  if (address !== undefined) body.address = address;
   const { data } = await api.put(`/api/admin/users/${username}/profile`, body);
+  return data;
+}
+
+export async function resetUserPassword(username, newPassword) {
+  const { data } = await api.put(`/api/admin/users/${username}/reset-password`, { newPassword });
   return data;
 }

@@ -3,6 +3,7 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,23 +20,30 @@ public class AdminController {
     private static final Set<String> ASSIGNABLE_ROLES = Set.of("USER", "TEACHER", "ADMIN");
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public AdminController(UserRepository userRepository) {
+    public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // Password hashes never leave this method — only safe fields go out.
     @GetMapping("/users")
     public List<Map<String, Object>> listUsers() {
         return userRepository.findAll().stream()
-                .map(u -> Map.<String, Object>of(
-                        "id", u.getId(),
-                        "username", u.getUsername(),
-                        "email", u.getEmail() == null ? "" : u.getEmail(),
-                        "role", u.getRole(),
-                        "institution", u.getInstitution() == null ? "" : u.getInstitution(),
-                        "standard", u.getStandard() == null ? "" : u.getStandard()
-                ))
+                .map(u -> {
+                    Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("id", u.getId());
+                    row.put("username", u.getUsername());
+                    row.put("email", u.getEmail() == null ? "" : u.getEmail());
+                    row.put("mobile", u.getMobile() == null ? "" : u.getMobile());
+                    row.put("gender", u.getGender() == null ? "" : u.getGender());
+                    row.put("address", u.getAddress() == null ? "" : u.getAddress());
+                    row.put("role", u.getRole());
+                    row.put("institution", u.getInstitution() == null ? "" : u.getInstitution());
+                    row.put("standard", u.getStandard() == null ? "" : u.getStandard());
+                    return row;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -124,13 +132,53 @@ public class AdminController {
         if (body.containsKey("standard")) {
             user.setStandard(body.get("standard")); // may be null/blank to clear it
         }
+        if (body.containsKey("email")) {
+            user.setEmail(emptyToNull(body.get("email")));
+        }
+        if (body.containsKey("mobile")) {
+            user.setMobile(emptyToNull(body.get("mobile")));
+        }
+        if (body.containsKey("gender")) {
+            user.setGender(emptyToNull(body.get("gender")));
+        }
+        if (body.containsKey("address")) {
+            user.setAddress(emptyToNull(body.get("address")));
+        }
 
         userRepository.save(user);
 
         return Map.of(
                 "username", user.getUsername(),
+                "email", user.getEmail() == null ? "" : user.getEmail(),
+                "mobile", user.getMobile() == null ? "" : user.getMobile(),
+                "gender", user.getGender() == null ? "" : user.getGender(),
+                "address", user.getAddress() == null ? "" : user.getAddress(),
                 "institution", user.getInstitution() == null ? "" : user.getInstitution(),
                 "standard", user.getStandard() == null ? "" : user.getStandard()
         );
+    }
+
+    private String emptyToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    // Admin-initiated password reset — e.g. a student is locked out and
+    // can't use the normal "change password" flow because that requires
+    // knowing the current password. Doesn't require the current password
+    // since the admin is presumed to already be a trusted party.
+    @PutMapping("/users/{username}/reset-password")
+    public Map<String, Object> resetPassword(@PathVariable String username, @RequestBody Map<String, String> body) {
+        String newPassword = body.get("newPassword");
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("newPassword must be at least 6 characters.");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return Map.of("username", user.getUsername(), "reset", true);
     }
 }

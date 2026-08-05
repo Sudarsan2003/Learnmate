@@ -8,6 +8,7 @@ public record QuizCreateRequest(
         String title,
         String subject,
         String standard,  // "1".."10" — which class this quiz targets
+        String institution, // only read when the creator is ADMIN — teachers use their own (see QuizService)
         Quiz.QuizMode mode,
         String opensAt,   // ISO-8601 string, only used when mode == SCHEDULED
         String closesAt,  // ISO-8601 string, optional even when scheduled

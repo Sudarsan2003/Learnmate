@@ -42,8 +42,22 @@ public class QuizService {
         User creator = userRepository.findByUsername(createdByUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        if (creator.getInstitution() == null || creator.getInstitution().isBlank()) {
-            throw new IllegalArgumentException("Set an institution on your profile before creating a quiz.");
+        // Teachers belong to one institution, so a quiz they create is
+        // scoped to it automatically. Admins manage across institutions and
+        // don't have one of their own — they must say which institution the
+        // quiz is for.
+        boolean isAdmin = "ADMIN".equals(creator.getRole());
+        String institution;
+        if (isAdmin) {
+            institution = req.institution();
+            if (institution == null || institution.isBlank()) {
+                throw new IllegalArgumentException("institution is required when creating a quiz as an admin.");
+            }
+        } else {
+            if (creator.getInstitution() == null || creator.getInstitution().isBlank()) {
+                throw new IllegalArgumentException("Set an institution on your profile before creating a quiz.");
+            }
+            institution = creator.getInstitution();
         }
         if (req.standard() == null || req.standard().isBlank()) {
             throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
@@ -52,8 +66,11 @@ public class QuizService {
         Quiz quiz = new Quiz();
         quiz.setTitle(req.title());
         quiz.setSubject(req.subject());
-        quiz.setStandard(req.standard());
-        quiz.setInstitution(creator.getInstitution());
+        // Trimmed so a stray trailing space typed into the quiz form (or a
+        // teacher's profile) can never silently mismatch a student's
+        // profile value later — see matchesScope() below.
+        quiz.setStandard(req.standard().trim());
+        quiz.setInstitution(institution.trim());
         quiz.setCreatedByUsername(createdByUsername);
         quiz.setMode(req.mode());
 
@@ -80,7 +97,7 @@ public class QuizService {
             var chunks = retrievalAgent.retrieve(
                     req.subject() == null ? req.title() : req.subject(),
                     req.subject(),
-                    creator.getInstitution(),
+                    institution,
                     req.standard(),
                     10);
             if (chunks.isEmpty()) {
@@ -120,12 +137,28 @@ public class QuizService {
         }
 
         Instant now = Instant.now();
-        return quizRepository.findByInstitutionOrderByCreatedAtDesc(user.getInstitution()).stream()
-                .filter(q -> q.getStandard() != null && q.getStandard().equals(user.getStandard()))
+        // Institution/standard are free-text fields (typed independently on
+        // the student's profile and on the quiz form), so we fetch broadly
+        // and compare with matchesScope() rather than relying on an exact,
+        // case-sensitive DB-level match — see matchesScope() for why.
+        return quizRepository.findAll().stream()
+                .filter(q -> matchesScope(q.getInstitution(), user.getInstitution())
+                        && matchesScope(q.getStandard(), user.getStandard()))
                 .filter(q -> q.getStatus() == Quiz.QuizStatus.OPEN)
                 .filter(q -> q.getMode() == Quiz.QuizMode.OPEN
                         || isWithinSchedule(q, now))
                 .toList();
+    }
+
+    // Institution and standard are both plain free-text fields (typed on
+    // registration, edited by admins, typed again on the quiz form), so a
+    // strict String.equals() is fragile: "Green Valley School" vs "green
+    // valley school " (extra space, different case) would previously make a
+    // quiz silently invisible to every student with no error anywhere. This
+    // trims and ignores case so near-identical values still match.
+    private boolean matchesScope(String quizValue, String userValue) {
+        if (quizValue == null || userValue == null) return false;
+        return quizValue.trim().equalsIgnoreCase(userValue.trim());
     }
 
     private boolean isWithinSchedule(Quiz q, Instant now) {
@@ -231,8 +264,8 @@ public class QuizService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        if (!quiz.getInstitution().equals(user.getInstitution())
-                || !quiz.getStandard().equals(user.getStandard())) {
+        if (!matchesScope(quiz.getInstitution(), user.getInstitution())
+                || !matchesScope(quiz.getStandard(), user.getStandard())) {
             throw new IllegalArgumentException("This quiz is not available to you.");
         }
         if (quiz.getStatus() != Quiz.QuizStatus.OPEN) {

@@ -22,8 +22,10 @@ public class Quiz {
     private String subject;
 
     // Scopes visibility: only students sharing this institution string can
-    // see/take the quiz. Set from the creating admin/teacher's own
-    // institution at creation time — not user-editable.
+    // see/take the quiz. For a TEACHER-created quiz this is taken from
+    // their own profile; for an ADMIN-created quiz it's chosen explicitly
+    // at creation time, since admins aren't scoped to one institution. See
+    // QuizService.createQuiz.
     @Column(nullable = false)
     private String institution;
 

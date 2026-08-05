@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X } from "lucide-react";
-import { listUsers, updateUserRole, updateUserProfile, listInstitutions } from "../api/client";
+import { createPortal } from "react-dom";
+import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound } from "lucide-react";
+import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions } from "../api/client";
 
 const ROLES = ["USER", "TEACHER", "ADMIN"];
 
@@ -12,6 +13,7 @@ export default function ManageUsers({ currentUsername }) {
   const [updatingUsername, setUpdatingUsername] = useState(null);
   const [profileDrafts, setProfileDrafts] = useState({}); // username -> { institution, standard }
   const [savingProfileUsername, setSavingProfileUsername] = useState(null);
+  const [editingUser, setEditingUser] = useState(null); // full user object, or null when modal closed
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -181,6 +183,7 @@ export default function ManageUsers({ currentUsername }) {
                     <th className="px-3 py-2.5 font-medium">institution</th>
                     <th className="px-3 py-2.5 font-medium">standard</th>
                     <th className="px-3 py-2.5 font-medium">role</th>
+                    <th className="px-3 py-2.5 font-medium">edit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -272,6 +275,16 @@ export default function ManageUsers({ currentUsername }) {
                           )}
                         </div>
                       </td>
+                      <td className="px-3 py-2.5">
+                        <button
+                          onClick={() => setEditingUser(u)}
+                          title="Edit all details"
+                          className="flex items-center gap-1 rounded-md border border-[#2DD4BF]/20 px-2 py-1 text-[11px] text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
+                        >
+                          <Pencil size={12} />
+                          edit
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -282,7 +295,226 @@ export default function ManageUsers({ currentUsername }) {
           </>
         )}
       </div>
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSaved={(updated) => {
+            setUsers((prev) =>
+              prev.map((row) => (row.username === updated.username ? { ...row, ...updated } : row))
+            );
+            setEditingUser(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/* ---------------------------------- edit user modal ---------------------------------- */
+
+function EditUserModal({ user, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    email: user.email || "",
+    mobile: user.mobile || "",
+    gender: user.gender || "",
+    address: user.address || "",
+    institution: user.institution || "",
+    standard: user.standard || "",
+  });
+  const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState(null);
+  const [passwordMessage, setPasswordMessage] = useState(null);
+
+  const setField = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (user.role !== "ADMIN" && !form.institution.trim()) {
+      setError("Institution cannot be blank for a non-admin user.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateUserProfile(user.username, {
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        gender: form.gender.trim(),
+        address: form.address.trim(),
+        institution: form.institution.trim(),
+        standard: form.standard.trim(),
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not save changes for ${user.username}.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
+      return;
+    }
+    setResetting(true);
+    setError(null);
+    setPasswordMessage(null);
+    try {
+      await resetUserPassword(user.username, newPassword);
+      setPasswordMessage("Password reset.");
+      setNewPassword("");
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not reset password for ${user.username}.`);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  // Portaled to <body> for the same reason as ChangePasswordModal — this
+  // page has no transform ancestor today, but keeping modals consistent
+  // avoids the class of bug where a future style change breaks positioning.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={handleSave}
+        className="doc-upload max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl border border-[#2DD4BF]/20 bg-[#12151F]/95 p-6 font-mono shadow-2xl shadow-black/50 backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm text-[#EDE6D6]">
+            edit <span className="text-[#C89B3C]">{user.username}</span>
+          </h2>
+          <button type="button" onClick={onClose} className="text-[#6E7C79] hover:text-[#EDE6D6]">
+            <X size={16} />
+          </button>
+        </div>
+
+        {error && (
+          <p className="rounded-md border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2 text-xs text-[#F3B9A8]">
+            {error}
+          </p>
+        )}
+
+        <ModalField label="email">
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setField("email", e.target.value)}
+            className="lm-modal-input"
+          />
+        </ModalField>
+        <ModalField label="mobile">
+          <input value={form.mobile} onChange={(e) => setField("mobile", e.target.value)} className="lm-modal-input" />
+        </ModalField>
+        <ModalField label="gender">
+          <select value={form.gender} onChange={(e) => setField("gender", e.target.value)} className="lm-modal-input">
+            <option value="">—</option>
+            <option value="female">female</option>
+            <option value="male">male</option>
+            <option value="other">other</option>
+            <option value="prefer_not_to_say">prefer not to say</option>
+          </select>
+        </ModalField>
+        <ModalField label="address">
+          <textarea
+            rows={2}
+            value={form.address}
+            onChange={(e) => setField("address", e.target.value)}
+            className="lm-modal-input resize-none"
+          />
+        </ModalField>
+        {user.role === "ADMIN" ? (
+          <p className="text-[11px] text-[#6E7C79]">
+            institution / standard don't apply to admins — clear them from the main table if stale.
+          </p>
+        ) : (
+          <>
+            <ModalField label="institution">
+              <input
+                value={form.institution}
+                onChange={(e) => setField("institution", e.target.value)}
+                className="lm-modal-input"
+              />
+            </ModalField>
+            <ModalField label="standard / class">
+              <input
+                value={form.standard}
+                onChange={(e) => setField("standard", e.target.value)}
+                className="lm-modal-input"
+              />
+            </ModalField>
+          </>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] py-2.5 text-sm font-medium text-[#0B0E14] disabled:opacity-40"
+        >
+          {saving && <Loader2 size={14} className="animate-spin" />}
+          save changes
+        </button>
+
+        <div className="my-1 h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
+
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-[#6E7C79]">
+            <KeyRound size={12} />
+            reset password
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="new password (min 6 chars)"
+              className="lm-modal-input flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              disabled={resetting || !newPassword}
+              className="flex-shrink-0 rounded-lg border border-[#2DD4BF]/20 px-3 py-2.5 text-xs text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10 disabled:opacity-40"
+            >
+              {resetting ? <Loader2 size={13} className="animate-spin" /> : "reset"}
+            </button>
+          </div>
+          {passwordMessage && <p className="mt-1.5 text-xs text-[#2DD4BF]">{passwordMessage}</p>}
+        </div>
+
+        <style>{`
+          .lm-modal-input {
+            width: 100%;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(45,212,191,0.15);
+            background: rgba(11,14,20,0.5);
+            padding: 0.55rem 0.75rem;
+            font-size: 12px;
+            color: #EDE6D6;
+            outline: none;
+            transition: box-shadow 140ms ease, border-color 140ms ease;
+          }
+          .lm-modal-input:focus {
+            border-color: rgba(200,155,60,0.6);
+            box-shadow: 0 0 0 3px rgba(200,155,60,0.15);
+          }
+        `}</style>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
+function ModalField({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] uppercase tracking-wide text-[#6E7C79]">{label}</span>
+      {children}
+    </label>
   );
 }
 
