@@ -37,6 +37,11 @@ export async function getMe() {
   return data;
 }
 
+export async function updateMyStandard(standard) {
+  const { data } = await api.put("/api/auth/me/standard", { standard });
+  return data;
+}
+
 export async function sendChatMessage(request) {
   const { data } = await api.post("/api/chat", request);
   return data;

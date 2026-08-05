@@ -71,6 +71,29 @@ public class AuthController {
         );
     }
 
+    // Self-service: a student can set their own class, but NOT their
+    // institution — institution stays admin-only (see AdminController) so a
+    // user can't assign themselves into a different school's quiz pool.
+    @PutMapping("/me/standard")
+    public java.util.Map<String, Object> updateMyStandard(@RequestBody java.util.Map<String, String> body,
+                                                          org.springframework.security.core.Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        String standard = body.get("standard");
+        if (standard == null || standard.isBlank()) {
+            throw new IllegalArgumentException("standard is required");
+        }
+
+        user.setStandard(standard.trim());
+        userRepository.save(user);
+
+        return java.util.Map.of(
+                "username", user.getUsername(),
+                "standard", user.getStandard()
+        );
+    }
+
     @PostMapping("/promote-teacher")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public AuthResponse promoteToTeacher(@RequestParam String username) {

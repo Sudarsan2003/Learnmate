@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { User, Building2, GraduationCap, Mail, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
-import { getMe } from "../api/client";
+import { User, Building2, GraduationCap, Mail, ShieldCheck, RefreshCw, AlertTriangle, Check, Loader2, Pencil } from "lucide-react";
+import { getMe, updateMyStandard } from "../api/client";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [editingStandard, setEditingStandard] = useState(false);
+  const [standardDraft, setStandardDraft] = useState("");
+  const [savingStandard, setSavingStandard] = useState(false);
+  const [standardError, setStandardError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -25,6 +30,35 @@ export default function ProfilePage() {
   }, [load]);
 
   const missingScope = profile && (!profile.institution || !profile.standard) && profile.role === "USER";
+
+  const startEditingStandard = () => {
+    setStandardDraft(profile?.standard || "");
+    setStandardError(null);
+    setEditingStandard(true);
+  };
+
+  const cancelEditingStandard = () => {
+    setEditingStandard(false);
+    setStandardError(null);
+  };
+
+  const saveStandard = async () => {
+    if (!standardDraft.trim()) {
+      setStandardError("Standard can't be blank.");
+      return;
+    }
+    setSavingStandard(true);
+    setStandardError(null);
+    try {
+      const updated = await updateMyStandard(standardDraft.trim());
+      setProfile((prev) => ({ ...prev, standard: updated.standard }));
+      setEditingStandard(false);
+    } catch (err) {
+      setStandardError(err.response?.data?.message ?? "Could not update your class.");
+    } finally {
+      setSavingStandard(false);
+    }
+  };
 
   return (
     <div className="min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
@@ -88,12 +122,70 @@ export default function ProfilePage() {
               value={profile.institution || "— not set —"}
               warn={!profile.institution}
             />
-            <Row
-              icon={<GraduationCap size={14} />}
-              label="standard / class"
-              value={profile.standard || "— not set —"}
-              warn={!profile.standard}
-            />
+            {profile.role === "USER" ? (
+              <div className="rounded-lg border border-[#1B2333] bg-[#12151F]/60 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-[11px] uppercase tracking-wide text-[#6E7C79]">
+                    <span className="text-[#9FB0AC]"><GraduationCap size={14} /></span>
+                    standard / class
+                  </div>
+
+                  {!editingStandard && (
+                    <div className="flex items-center gap-2.5">
+                      <span className={`text-sm ${!profile.standard ? "text-[#E2725B]" : "text-[#EDE6D6]"}`}>
+                        {profile.standard || "— not set —"}
+                      </span>
+                      <button
+                        onClick={startEditingStandard}
+                        title="Edit your class"
+                        className="text-[#6E7C79] transition-colors hover:text-[#C89B3C]"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingStandard && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={standardDraft}
+                      onChange={(e) => setStandardDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveStandard()}
+                      placeholder="e.g. 5"
+                      className="w-24 rounded-md border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-2.5 py-1.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                    />
+                    <button
+                      onClick={saveStandard}
+                      disabled={savingStandard}
+                      className="flex items-center gap-1 rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-2.5 py-1.5 text-[11px] font-medium text-[#0B0E14] disabled:opacity-40"
+                    >
+                      {savingStandard ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                      save
+                    </button>
+                    <button
+                      onClick={cancelEditingStandard}
+                      disabled={savingStandard}
+                      className="px-2 py-1.5 text-[11px] text-[#6E7C79] transition-colors hover:text-[#EDE6D6]"
+                    >
+                      cancel
+                    </button>
+                  </div>
+                )}
+
+                {standardError && (
+                  <p className="mt-2 text-xs text-[#F3B9A8]">{standardError}</p>
+                )}
+              </div>
+            ) : (
+              <Row
+                icon={<GraduationCap size={14} />}
+                label="standard / class"
+                value={profile.standard || "— not set —"}
+                warn={!profile.standard}
+              />
+            )}
           </div>
         ) : null}
       </div>
