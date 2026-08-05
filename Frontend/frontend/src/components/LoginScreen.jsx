@@ -7,7 +7,6 @@ export default function LoginScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("USER");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [gender, setGender] = useState("");
@@ -25,7 +24,7 @@ export default function LoginScreen({ onAuthenticated }) {
     try {
       const result = mode === "login"
         ? await login(username, password)
-        : await register(username, password, role, { email, mobile, gender, address, institution });
+        : await register(username, password, { email, mobile, gender, address, institution });
       localStorage.setItem("learnmate_token", result.token);
       localStorage.setItem("learnmate_username", result.username);
       onAuthenticated(result);
@@ -119,20 +118,7 @@ export default function LoginScreen({ onAuthenticated }) {
               className="space-y-3"
               style={{ animation: "unfurl 220ms cubic-bezier(0.22,1,0.36,1) both" }}
             >
-              <div className="relative">
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
-                >
-                  <option value="USER">Learner</option>
-                  <option value="ADMIN">Admin (can upload documents)</option>
-                </select>
-                {role === "ADMIN" && (
-                  <ShieldCheck size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#C89B3C]" />
-                )}
-              </div>
-
+            
               <input
                 type="email"
                 value={email}

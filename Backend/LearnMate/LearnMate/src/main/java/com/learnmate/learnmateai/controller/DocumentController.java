@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/documents")
 @CrossOrigin(origins = "*")
-@PreAuthorize("hasRole('ADMIN')") // belt-and-suspenders on top of SecurityConfig's matcher
+@PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
 public class DocumentController {
 
     private final IngestionService ingestionService;

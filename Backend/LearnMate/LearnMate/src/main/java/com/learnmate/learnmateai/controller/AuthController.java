@@ -36,17 +36,13 @@ public class AuthController {
             throw new IllegalArgumentException("Username already taken");
         }
 
-        // NOTE: letting the caller pick their own role is fine for this
-        // dev/demo phase so you can create an ADMIN account to test
-        // document upload. Before any real deployment, remove the `role`
-        // field from RegisterRequest entirely and assign ADMIN manually
-        // (e.g. directly in the DB) instead of trusting client input.
-        String role = (request.role() == null || request.role().isBlank()) ? "USER" : request.role().toUpperCase();
-
+        // Public self-registration is always a plain USER. TEACHER/ADMIN can
+        // only be granted via promoteToTeacher() below, which requires an
+        // existing ADMIN's token — never trust role from client input here.
         User user = new User();
         user.setUsername(request.username());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setRole(role);
+        user.setRole("USER");
         user.setEmail(request.email());
         user.setMobile(request.mobile());
         user.setGender(request.gender());
@@ -56,6 +52,20 @@ public class AuthController {
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token, user.getUsername(), user.getRole());
+    }
+
+    // Admin-only: promote an existing user to TEACHER so they can upload
+// documents. Called from an admin dashboard, not public signup.
+    @PostMapping("/promote-teacher")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public AuthResponse promoteToTeacher(@RequestParam String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+
+        user.setRole("TEACHER");
+        userRepository.save(user);
+
+        return new AuthResponse(null, user.getUsername(), user.getRole());
     }
 
     @PostMapping("/login")

@@ -36,7 +36,7 @@ export default function App() {
     setView("chat");
   }
 
-  const isAdmin = user?.role === "ADMIN";
+  const canUpload = user?.role === "ADMIN" || user?.role === "TEACHER";
 
   return (
     <div className="h-screen w-screen">
@@ -63,6 +63,7 @@ export default function App() {
                 </button>
                <DocumentUpload
     token={user.token}
+    role={user.role}
     apiBase={`${import.meta.env.VITE_API_BASE_URL}/api/documents`}
 />
               </div>
@@ -71,7 +72,7 @@ export default function App() {
                 currentUser={user.username}
                 currentRole={user.role}
                 onLogout={handleLogout}
-                isAdmin={isAdmin}
+                isAdmin={canUpload}
                 onOpenUpload={() => setView("upload")}
                 sessionId={sessionId}
                 onSessionCreated={handleSessionCreated}

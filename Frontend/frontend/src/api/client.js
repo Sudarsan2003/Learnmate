@@ -13,11 +13,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export async function register(username, password, role, profile = {}) {
+export async function register(username, password, profile = {}) {
   const { data } = await api.post("/api/auth/register", {
     username,
     password,
-    role,
     email: profile.email || undefined,
     mobile: profile.mobile || undefined,
     gender: profile.gender || undefined,

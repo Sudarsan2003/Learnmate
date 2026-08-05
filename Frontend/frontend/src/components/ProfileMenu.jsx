@@ -63,12 +63,12 @@ export default function ProfileMenu({ username, role }) {
             <User size={14} className="text-[#2DD4BF]" />
             <span className="truncate">{username}</span>
           </div>
-          {role === "ADMIN" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#C89B3C]">
-              <ShieldCheck size={13} />
-              admin
-            </div>
-          )}
+         {(role === "ADMIN" || role === "TEACHER") && (
+  <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#C89B3C]">
+    <ShieldCheck size={13} />
+    {role === "ADMIN" ? "admin" : "teacher"}
+  </div>
+)}
           <div className="my-1 h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
           <button
             onClick={() => {

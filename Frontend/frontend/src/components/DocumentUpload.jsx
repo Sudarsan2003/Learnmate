@@ -11,6 +11,7 @@ const STATUS = {
 
 export default function DocumentUpload({
     token,
+    role,
     apiBase = `${import.meta.env.VITE_API_BASE_URL}/api/documents`
 }){
   const [documents, setDocuments] = useState([]);
@@ -114,15 +115,6 @@ export default function DocumentUpload({
     }
   };
 
-  const handleReprocess = async (id) => {
-    try {
-      const res = await fetch(`${apiBase}/${id}/reprocess`, { method: "POST", headers: authHeaders() });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      loadDocuments();
-    } catch (err) {
-      setListError(err.message || "Could not reprocess that document.");
-    }
-  };
 
   const onDrop = (e) => {
     e.preventDefault();
@@ -183,7 +175,7 @@ export default function DocumentUpload({
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
                 <Feather size={12} className="text-[#0B0E14]" />
               </span>
-              document ingestion <span className="text-[#C89B3C]">·</span> admin
+              document ingestion <span className="text-[#C89B3C]">·</span> {role === "TEACHER" ? "teacher" : "admin"}
             </h1>
             <p className="mt-1.5 text-[13px] text-[#9FB0AC]">
               upload subject material for the knowledge base — parsed, chunked, embedded automatically
@@ -360,14 +352,7 @@ export default function DocumentUpload({
                         <td className="px-3 py-2.5 text-[#9FB0AC]">{formatDate(doc.uploadDate ?? doc.createdAt)}</td>
                         <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.chunkCount ?? "—"}</td>
                         <td className="px-3 py-2.5">
-                          <div className="flex justify-end gap-2.5">
-                            <button
-                              onClick={() => handleReprocess(doc.id)}
-                              title="Re-chunk and re-embed this document"
-                              className="bg-transparent p-0.5 text-[#9FB0AC] transition-colors hover:text-[#2DD4BF]"
-                            >
-                              <RefreshCw size={13} />
-                            </button>
+                          <div className="flex justify-end">
                             <button
                               onClick={() => handleDelete(doc.id)}
                               disabled={deletingId === doc.id}
