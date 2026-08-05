@@ -35,7 +35,9 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String address;
 
-    @Column(nullable = false)
+    // Required for USER/TEACHER (drives quiz visibility/creation scoping),
+    // but ADMIN accounts manage across institutions so they don't have one —
+    // see AdminController for the role-aware validation.
     private String institution;
 
     // A student's class (1–10). Null/blank for ADMIN/TEACHER accounts —

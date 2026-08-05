@@ -39,6 +39,34 @@ public class AdminController {
                 .collect(Collectors.toList());
     }
 
+    // Admins manage across institutions rather than belonging to one, so
+    // this is how they see who's grouped under each institution.
+    @GetMapping("/institutions")
+    public List<Map<String, Object>> listInstitutions() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getInstitution() != null && !u.getInstitution().isBlank())
+                .collect(Collectors.groupingBy(User::getInstitution))
+                .entrySet().stream()
+                .map(entry -> {
+                    List<Map<String, Object>> members = entry.getValue().stream()
+                            .sorted((a, b) -> a.getUsername().compareToIgnoreCase(b.getUsername()))
+                            .map(u -> Map.<String, Object>of(
+                                    "username", u.getUsername(),
+                                    "email", u.getEmail() == null ? "" : u.getEmail(),
+                                    "role", u.getRole(),
+                                    "standard", u.getStandard() == null ? "" : u.getStandard()
+                            ))
+                            .collect(Collectors.toList());
+                    return Map.<String, Object>of(
+                            "institution", entry.getKey(),
+                            "userCount", members.size(),
+                            "users", members
+                    );
+                })
+                .sorted((a, b) -> ((String) a.get("institution")).compareToIgnoreCase((String) b.get("institution")))
+                .collect(Collectors.toList());
+    }
+
     @PutMapping("/users/{username}/role")
     public Map<String, Object> updateRole(@PathVariable String username, @RequestBody Map<String, String> body) {
         String newRole = body.get("role");
@@ -66,6 +94,7 @@ public class AdminController {
         }
 
         List<User> affected = userRepository.findAll().stream()
+                .filter(u -> !"ADMIN".equals(u.getRole()))
                 .filter(u -> u.getInstitution() == null || u.getInstitution().isBlank())
                 .toList();
 
@@ -85,10 +114,12 @@ public class AdminController {
 
         if (body.containsKey("institution")) {
             String institution = body.get("institution");
-            if (institution == null || institution.isBlank()) {
+            boolean isAdmin = "ADMIN".equals(user.getRole());
+            if (!isAdmin && (institution == null || institution.isBlank())) {
                 throw new IllegalArgumentException("institution cannot be blank");
             }
-            user.setInstitution(institution);
+            // Admins aren't scoped to one institution — allow clearing it.
+            user.setInstitution(isAdmin && (institution == null || institution.isBlank()) ? null : institution);
         }
         if (body.containsKey("standard")) {
             user.setStandard(body.get("standard")); // may be null/blank to clear it
@@ -98,7 +129,7 @@ public class AdminController {
 
         return Map.of(
                 "username", user.getUsername(),
-                "institution", user.getInstitution(),
+                "institution", user.getInstitution() == null ? "" : user.getInstitution(),
                 "standard", user.getStandard() == null ? "" : user.getStandard()
         );
     }

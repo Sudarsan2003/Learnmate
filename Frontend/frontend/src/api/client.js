@@ -112,6 +112,11 @@ export async function listUsers() {
   return data;
 }
 
+export async function listInstitutions() {
+  const { data } = await api.get("/api/admin/institutions");
+  return data;
+}
+
 export async function updateUserRole(username, role) {
   const { data } = await api.put(`/api/admin/users/${username}/role`, { role });
   return data;
