@@ -1,6 +1,7 @@
 package com.learnmate.learnmateai.service;
 
 import com.learnmate.learnmateai.llm.EmbeddingClient;
+import com.learnmate.learnmateai.llm.OcrSpaceClient;
 import com.learnmate.learnmateai.model.DocumentChunk;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.pgvector.PGvector;
@@ -15,11 +16,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.tika.parser.ocr.TesseractOCRConfig;
 
 @Service
 public class IngestionService {
@@ -27,16 +26,23 @@ public class IngestionService {
     private static final int CHUNK_SIZE_WORDS = 250;
     private static final int CHUNK_OVERLAP_WORDS = 50;
 
+    // Below this many characters of native (non-OCR) text, we assume the
+    // PDF is scanned/image-based and fall back to OCR.space instead.
+    private static final int MIN_NATIVE_TEXT_CHARS = 300;
+
     private final DocumentChunkRepository repository;
     private final EmbeddingClient embeddingClient;
     private final IngestionStatusService statusService;
+    private final OcrSpaceClient ocrSpaceClient;
 
     public IngestionService(DocumentChunkRepository repository,
                             EmbeddingClient embeddingClient,
-                            IngestionStatusService statusService) {
+                            IngestionStatusService statusService,
+                            OcrSpaceClient ocrSpaceClient) {
         this.repository = repository;
         this.embeddingClient = embeddingClient;
         this.statusService = statusService;
+        this.ocrSpaceClient = ocrSpaceClient;
     }
 
     /**
@@ -65,12 +71,11 @@ public class IngestionService {
         try {
             String text;
             try {
-                text = extractTextWithOcrFallback(new ByteArrayInputStream(fileBytes));
+                text = extractTextWithOcrFallback(fileBytes, sourceId);
 
                 System.out.println("[Ingestion] Raw extracted length for " + sourceId + ": " + text.length());
                 if (text.length() < 500) {
-                    System.out.println("[Ingestion] WARNING: very little text extracted from " + sourceId
-                            + " — check that Tesseract is installed and on PATH.");
+                    System.out.println("[Ingestion] WARNING: very little text extracted from " + sourceId);
                 }
 
                 text = text.replaceAll("(?m)^.*\\.{3,}\\s*\\d+\\s*$", "");
@@ -137,34 +142,42 @@ public class IngestionService {
         }
     }
 
-    private String extractTextWithOcrFallback(InputStream stream) throws Exception {
+    /**
+     * Step 1: try Tika's native text layer only (no OCR, no external calls,
+     * near-instant, works for any normal text-based PDF).
+     * Step 2: only if that yields too little text (scanned/image-based PDF),
+     * fall back to OCR.space's API so we never run Tesseract locally again.
+     */
+    private String extractTextWithOcrFallback(byte[] fileBytes, String sourceId) throws Exception {
 
         PDFParserConfig pdfConfig = new PDFParserConfig();
-
-        // AUTO: use the existing text layer when present, and only fall back to
-        // Tesseract OCR for pages that don't have one (e.g. scanned images).
-        pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.AUTO);
-
-        TesseractOCRConfig tesseractConfig = new TesseractOCRConfig();
-        tesseractConfig.setLanguage("eng+hin+tel");
+        pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
 
         ParseContext context = new ParseContext();
         context.set(PDFParserConfig.class, pdfConfig);
-        context.set(TesseractOCRConfig.class, tesseractConfig);
 
         AutoDetectParser parser = new AutoDetectParser();
-
         Metadata metadata = new Metadata();
         BodyContentHandler handler = new BodyContentHandler(-1);
 
-        parser.parse(stream, handler, metadata, context);
+        parser.parse(new ByteArrayInputStream(fileBytes), handler, metadata, context);
+        String nativeText = handler.toString().trim();
 
-        String text = handler.toString().trim();
-
-        if (text.isBlank()) {
-            throw new IOException("No text could be extracted from the document.");
+        if (nativeText.length() >= MIN_NATIVE_TEXT_CHARS) {
+            System.out.println("[Ingestion] Native text layer found for " + sourceId
+                    + " (" + nativeText.length() + " chars) — skipping OCR.space call");
+            return nativeText;
         }
 
-        return text;
+        System.out.println("[Ingestion] Little/no native text for " + sourceId
+                + " (" + nativeText.length() + " chars) — falling back to OCR.space");
+
+        String ocrText = ocrSpaceClient.extractText(fileBytes, sourceId);
+
+        if (ocrText.isBlank()) {
+            throw new IOException("No text could be extracted from the document (native or OCR).");
+        }
+
+        return ocrText;
     }
 }
