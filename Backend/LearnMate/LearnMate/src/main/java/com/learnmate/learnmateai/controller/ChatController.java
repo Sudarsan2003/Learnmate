@@ -33,7 +33,7 @@ public class ChatController {
 
     @PostMapping("/api/chat")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, Authentication auth) {
-        ChatResponse response = orchestrator.handle(request);
+        ChatResponse response = orchestrator.handle(request, auth.getName());
 
         String sessionId = (request.sessionId() == null || request.sessionId().isBlank())
                 ? UUID.randomUUID().toString()

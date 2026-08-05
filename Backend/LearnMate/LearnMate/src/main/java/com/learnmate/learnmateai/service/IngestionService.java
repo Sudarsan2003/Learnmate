@@ -78,10 +78,10 @@ public class IngestionService {
                     System.out.println("[Ingestion] WARNING: very little text extracted from " + sourceId);
                 }
 
-                text = text.replaceAll("(?m)^.*\\.{3,}\\s*\\d+\\s*$", "");
-                text = text.replaceAll("(?m)^.*\\t\\d+\\s*$", "");
+                text = text.replaceAll("\\.{3,}\\s*\\d{1,4}\\b", "");
+                text = text.replaceAll("\\.\\s(?:\\.\\s){2,}\\d{1,4}\\b", "");
+                text = text.replaceAll("(?i)\\bpage\\s+\\d{1,4}\\b", "");
                 text = text.replaceAll("(?m)^\\d+\\s*$", "");
-                text = text.replaceAll("(?i)Page \\d+", "");
                 text = text.replaceAll("\\s{2,}", " ").trim();
 
                 System.out.println("[Ingestion] Cleaned length for " + sourceId + ": " + text.length());
