@@ -72,12 +72,14 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
   );
 }
 
+// update the function signature:
 export default function ChatWindow({
   currentUser,
   currentRole,
   onLogout,
   isAdmin,
   onOpenUpload,
+  onOpenUsers,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -106,6 +108,14 @@ export default function ChatWindow({
     document.addEventListener("learnmate:logout", onLogout);
     return () => document.removeEventListener("learnmate:logout", onLogout);
   }, [onLogout]);
+  // add alongside the existing logout listener:
+useEffect(() => {
+  function handleOpenUsers() {
+    onOpenUsers?.();
+  }
+  document.addEventListener("learnmate:open-users", handleOpenUsers);
+  return () => document.removeEventListener("learnmate:open-users", handleOpenUsers);
+}, [onOpenUsers]);
 
   useEffect(() => {
     if (!sessionId) {

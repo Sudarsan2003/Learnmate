@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect } from "react";
-import { LogOut, ShieldCheck, User, KeyRound } from "lucide-react";
+import { LogOut, ShieldCheck, User, KeyRound, Users } from "lucide-react";
 import ChangePasswordModal from "./ChangePasswordModal";
 
 function initialsFor(name) {
@@ -63,13 +62,16 @@ export default function ProfileMenu({ username, role }) {
             <User size={14} className="text-[#2DD4BF]" />
             <span className="truncate">{username}</span>
           </div>
-         {(role === "ADMIN" || role === "TEACHER") && (
-  <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#C89B3C]">
-    <ShieldCheck size={13} />
-    {role === "ADMIN" ? "admin" : "teacher"}
-  </div>
-)}
+
+          {(role === "ADMIN" || role === "TEACHER") && (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#C89B3C]">
+              <ShieldCheck size={13} />
+              {role === "ADMIN" ? "admin" : "teacher"}
+            </div>
+          )}
+
           <div className="my-1 h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
+
           <button
             onClick={() => {
               setOpen(false);
@@ -80,6 +82,20 @@ export default function ProfileMenu({ username, role }) {
             <KeyRound size={14} />
             change password
           </button>
+
+          {role === "ADMIN" && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                document.dispatchEvent(new CustomEvent("learnmate:open-users"));
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+            >
+              <Users size={14} />
+              manage users
+            </button>
+          )}
+
           <button
             onClick={() => {
               setOpen(false);

@@ -3,6 +3,7 @@ import ChatWindow from "./components/ChatWindow";
 import LoginScreen from "./components/LoginScreen";
 import DocumentUpload from "./components/DocumentUpload";
 import Sidebar from "./components/Sidebar";
+import ManageUsers from "./components/ManageUsers";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -13,7 +14,7 @@ export default function App() {
     return username && token ? { username, token, role } : null;
   });
 
-  const [view, setView] = useState("chat"); // "chat" | "upload"
+  const [view, setView] = useState("chat"); // "chat" | "upload" | "users"
   const [sessionId, setSessionId] = useState(null);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
 
@@ -36,7 +37,8 @@ export default function App() {
     setView("chat");
   }
 
-  const canUpload = user?.role === "ADMIN" || user?.role === "TEACHER";
+  const isAdmin = user?.role === "ADMIN";
+  const canUpload = isAdmin || user?.role === "TEACHER";
 
   return (
     <div className="h-screen w-screen">
@@ -53,7 +55,7 @@ export default function App() {
           />
 
           <div className="relative flex-1">
-            {view === "upload" && isAdmin ? (
+            {view === "upload" && canUpload ? (
               <div className="relative h-full w-full">
                 <button
                   onClick={() => setView("chat")}
@@ -61,11 +63,21 @@ export default function App() {
                 >
                   back to chat
                 </button>
-               <DocumentUpload
-    token={user.token}
-    role={user.role}
-    apiBase={`${import.meta.env.VITE_API_BASE_URL}/api/documents`}
-/>
+                <DocumentUpload
+                  token={user.token}
+                  role={user.role}
+                  apiBase={`${import.meta.env.VITE_API_BASE_URL}/api/documents`}
+                />
+              </div>
+            ) : view === "users" && isAdmin ? (
+              <div className="relative h-full w-full">
+                <button
+                  onClick={() => setView("chat")}
+                  className="absolute right-4 top-4 z-10 rounded border border-[#FF6B4A] px-3 py-1 font-mono text-xs uppercase text-[#FF8F6B] transition-colors hover:bg-[#FF6B4A] hover:text-[#0A0916]"
+                >
+                  back to chat
+                </button>
+                <ManageUsers currentUsername={user.username} />
               </div>
             ) : (
               <ChatWindow
@@ -74,6 +86,7 @@ export default function App() {
                 onLogout={handleLogout}
                 isAdmin={canUpload}
                 onOpenUpload={() => setView("upload")}
+                onOpenUsers={() => setView("users")}
                 sessionId={sessionId}
                 onSessionCreated={handleSessionCreated}
                 onNewChat={handleNewChat}

@@ -67,3 +67,12 @@ export async function getSessionHistory(sessionId) {
 export async function deleteSession(sessionId) {
   await api.delete("/api/chat/history", { params: { sessionId } });
 }
+export async function listUsers() {
+  const { data } = await api.get("/api/admin/users");
+  return data;
+}
+
+export async function updateUserRole(username, role) {
+  const { data } = await api.put(`/api/admin/users/${username}/role`, { role });
+  return data;
+}
