@@ -82,6 +82,19 @@ public class DocumentController {
         ));
     }
 
+    // Powers the folder picker in the upload UI: every standard that
+    // already has at least one document for this admin/teacher's school.
+    // The frontend shows these as selectable "folders" plus a "create new"
+    // option, instead of a free-text box that lets the same class get
+    // fragmented into differently-typed standards ("5", "Grade 5", "5th").
+    @GetMapping("/standards")
+    public List<String> listStandards(Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        return repository.findDistinctStandardsByInstitution(user.getInstitution());
+    }
+
     // Scoped by institution + standard now — any teacher/admin at the same
     // school sees the same class folder's documents, not just their own uploads.
     @GetMapping

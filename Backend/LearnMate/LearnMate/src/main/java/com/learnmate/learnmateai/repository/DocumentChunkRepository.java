@@ -45,6 +45,17 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
 
     List<DocumentChunk> findByInstitutionAndStandard(String institution, String standard);
 
+    // Powers the "folder list" in the upload UI — every distinct standard
+    // that already has material for this school, so admins/teachers pick
+    // from existing folders instead of retyping (and accidentally forking)
+    // the same class into two differently-spelled standards.
+    @Query("""
+            SELECT DISTINCT d.standard FROM DocumentChunk d
+            WHERE d.institution = :institution
+            ORDER BY d.standard
+            """)
+    List<String> findDistinctStandardsByInstitution(@Param("institution") String institution);
+
     void deleteBySourceId(String sourceId);
 
     @Modifying

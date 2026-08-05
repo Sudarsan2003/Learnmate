@@ -24,6 +24,15 @@ export default function DocumentUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
+  // "Folders" are just distinct `standard` values that already have material
+  // for this school. We fetch the existing ones so admins/teachers pick from
+  // a list instead of retyping — retyping is how "5", "Grade 5", and "5th"
+  // end up as three different folders that can't see each other's docs.
+  const [standards, setStandards] = useState([]);
+  const [standardsLoading, setStandardsLoading] = useState(true);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
   const fileInputRef = useRef(null);
   const dragCounter = useRef(0);
 
@@ -58,6 +67,50 @@ export default function DocumentUpload({
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  const loadStandards = useCallback(async () => {
+    setStandardsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/standards`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = await res.json();
+      setStandards(Array.isArray(data) ? data : []);
+    } catch {
+      setStandards([]);
+    } finally {
+      setStandardsLoading(false);
+    }
+  }, [apiBase, authHeaders]);
+
+  useEffect(() => {
+    loadStandards();
+  }, [loadStandards]);
+
+  const handleSelectFolder = (value) => {
+    if (value === "__create_new__") {
+      setIsCreatingFolder(true);
+      setNewFolderName("");
+      return;
+    }
+    setStandard(value);
+  };
+
+  const handleConfirmNewFolder = () => {
+    const trimmed = newFolderName.trim();
+    if (!trimmed) return;
+    // Optimistically add it to the folder list so it's there immediately —
+    // it becomes a "real" folder as soon as the first document is uploaded
+    // into it and shows up for everyone on the next /standards refresh.
+    setStandards((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed].sort()));
+    setStandard(trimmed);
+    setIsCreatingFolder(false);
+    setNewFolderName("");
+  };
+
+  const handleCancelNewFolder = () => {
+    setIsCreatingFolder(false);
+    setNewFolderName("");
+  };
 
   const addFilesToQueue = (fileList) => {
     if (!standard.trim()) return;
@@ -100,6 +153,7 @@ export default function DocumentUpload({
       }
       setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: STATUS.DONE } : i)));
       loadDocuments();
+      loadStandards();
     } catch (err) {
       setQueue((q) =>
         q.map((i) =>
@@ -205,17 +259,61 @@ export default function DocumentUpload({
           </button>
         </div>
 
-        {/* Standard field — required; every document is scoped to a class */}
+        {/* Folder (standard) picker — required; every document is scoped to a
+            class. Backed by /api/documents/standards so admins/teachers pick
+            an existing folder instead of retyping it (and risking a typo
+            forking the same class into two folders that can't see each
+            other's docs), or create a brand new one explicitly. */}
         <div className="mb-4">
           <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">
-            standard / class (required — scopes which students & quizzes can use this)
+            standard / class folder (required — scopes which students & quizzes can use this)
           </label>
-          <input
-            value={standard}
-            onChange={(e) => setStandard(e.target.value)}
-            placeholder='e.g. "5"'
-            className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
-          />
+
+          {isCreatingFolder ? (
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); handleConfirmNewFolder(); }
+                  if (e.key === "Escape") handleCancelNewFolder();
+                }}
+                placeholder='new folder name, e.g. "5"'
+                className="flex-1 rounded-md border border-[#C89B3C]/40 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+              />
+              <button
+                type="button"
+                onClick={handleConfirmNewFolder}
+                disabled={!newFolderName.trim()}
+                className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-2 text-xs font-semibold text-[#0B0E14] transition-all disabled:opacity-30"
+              >
+                create
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelNewFolder}
+                className="rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-colors hover:text-[#EDE6D6]"
+              >
+                cancel
+              </button>
+            </div>
+          ) : (
+            <select
+              value={standard}
+              onChange={(e) => handleSelectFolder(e.target.value)}
+              disabled={standardsLoading}
+              className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)] disabled:opacity-50"
+            >
+              <option value="" disabled>
+                {standardsLoading ? "loading folders…" : "select a folder"}
+              </option>
+              {standards.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+              <option value="__create_new__">+ create new folder…</option>
+            </select>
+          )}
         </div>
 
         {/* Subject field */}
