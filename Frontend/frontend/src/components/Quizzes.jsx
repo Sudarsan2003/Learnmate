@@ -650,13 +650,11 @@ function TakeQuiz({ quizId, onDone }) {
     setSubmitting(true);
     setError(null);
     try {
-      const payload = {
-        answers: Object.entries(answers).map(([questionId, selectedOption]) => ({
-          questionId: Number(questionId),
-          selectedOption,
-        })),
-      };
-      const res = await submitQuiz(quizId, payload);
+      const answerList = Object.entries(answers).map(([questionId, selectedOption]) => ({
+        questionId: Number(questionId),
+        selectedOption,
+      }));
+      const res = await submitQuiz(quizId, answerList);
       setResult(res);
     } catch (err) {
       setError(err.response?.data?.message ?? "Could not submit this quiz.");
