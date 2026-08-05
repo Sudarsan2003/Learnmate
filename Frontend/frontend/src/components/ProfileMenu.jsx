@@ -1,6 +1,6 @@
+import { useState, useRef, useEffect } from "react";
 import { LogOut, ShieldCheck, User, KeyRound, Users } from "lucide-react";
 import ChangePasswordModal from "./ChangePasswordModal";
-
 function initialsFor(name) {
   if (!name) return "?";
   return name.trim().slice(0, 2).toUpperCase();
