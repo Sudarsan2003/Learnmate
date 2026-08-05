@@ -3,7 +3,9 @@ package com.learnmate.learnmateai.service;
 import com.learnmate.learnmateai.llm.EmbeddingClient;
 import com.learnmate.learnmateai.llm.OcrSpaceClient;
 import com.learnmate.learnmateai.model.DocumentChunk;
+import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
+import com.learnmate.learnmateai.repository.UserRepository;
 import com.pgvector.PGvector;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
@@ -25,49 +27,54 @@ public class IngestionService {
 
     private static final int CHUNK_SIZE_WORDS = 250;
     private static final int CHUNK_OVERLAP_WORDS = 50;
-
-    // Below this many characters of native (non-OCR) text, we assume the
-    // PDF is scanned/image-based and fall back to OCR.space instead.
     private static final int MIN_NATIVE_TEXT_CHARS = 300;
 
     private final DocumentChunkRepository repository;
     private final EmbeddingClient embeddingClient;
     private final IngestionStatusService statusService;
     private final OcrSpaceClient ocrSpaceClient;
+    private final UserRepository userRepository;
 
     public IngestionService(DocumentChunkRepository repository,
                             EmbeddingClient embeddingClient,
                             IngestionStatusService statusService,
-                            OcrSpaceClient ocrSpaceClient) {
+                            OcrSpaceClient ocrSpaceClient,
+                            UserRepository userRepository) {
         this.repository = repository;
         this.embeddingClient = embeddingClient;
         this.statusService = statusService;
         this.ocrSpaceClient = ocrSpaceClient;
+        this.userRepository = userRepository;
     }
 
     /**
      * Called synchronously from the controller. Does the minimum needed
      * before the HTTP response can return: validate the filename and read
-     * the file into memory (MultipartFile's underlying stream/temp file
-     * won't survive past the request, so we must copy the bytes now).
-     * The actual parsing/OCR/embedding happens in ingestAsync().
+     * the file into memory. The actual parsing/OCR/embedding happens in
+     * ingestAsync().
      */
-    public String startIngestion(MultipartFile file, String subject, String ownerUsername) throws IOException {
+    public String startIngestion(MultipartFile file, String subject, String standard, String ownerUsername) throws IOException {
+        User user = userRepository.findByUsername(ownerUsername)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + ownerUsername));
+
         String sourceId = file.getOriginalFilename();
         if (sourceId == null || sourceId.isBlank()) {
             throw new IllegalArgumentException("File must have a name");
+        }
+        if (standard == null || standard.isBlank()) {
+            throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
         }
 
         byte[] fileBytes = file.getBytes();
 
         statusService.markProcessing(ownerUsername, sourceId);
-        ingestAsync(fileBytes, sourceId, subject, ownerUsername);
+        ingestAsync(fileBytes, sourceId, subject, standard, user.getInstitution(), ownerUsername);
 
         return sourceId;
     }
 
     @Async("ingestionExecutor")
-    void ingestAsync(byte[] fileBytes, String sourceId, String subject, String ownerUsername) {
+    void ingestAsync(byte[] fileBytes, String sourceId, String subject, String standard, String institution, String ownerUsername) {
         try {
             String text;
             try {
@@ -114,17 +121,14 @@ public class IngestionService {
                 if (end == words.length) break;
             }
 
-            // Embed all chunks in batched requests rather than one HTTP call
-            // per chunk. Large documents can produce hundreds of chunks, and
-            // calling the embeddings API once per chunk in a loop blew
-            // through Voyage's per-minute rate limit and failed partway
-            // through with 429 Too Many Requests.
             List<float[]> vectors = embeddingClient.embedBatch(pieces);
 
             for (int i = 0; i < pieces.size(); i++) {
                 DocumentChunk chunk = new DocumentChunk();
                 chunk.setSourceId(sourceId);
                 chunk.setSubject(subject);
+                chunk.setStandard(standard);
+                chunk.setInstitution(institution);
                 chunk.setContent(pieces.get(i));
                 chunk.setOwnerUsername(ownerUsername);
                 chunk.setEmbedding(new PGvector(vectors.get(i)));
@@ -142,12 +146,6 @@ public class IngestionService {
         }
     }
 
-    /**
-     * Step 1: try Tika's native text layer only (no OCR, no external calls,
-     * near-instant, works for any normal text-based PDF).
-     * Step 2: only if that yields too little text (scanned/image-based PDF),
-     * fall back to OCR.space's API so we never run Tesseract locally again.
-     */
     private String extractTextWithOcrFallback(byte[] fileBytes, String sourceId) throws Exception {
 
         PDFParserConfig pdfConfig = new PDFParserConfig();

@@ -1,12 +1,19 @@
 package com.learnmate.learnmateai.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnmate.learnmateai.dto.QuizCreateRequest;
+import com.learnmate.learnmateai.dto.RetrievedChunk;
 import com.learnmate.learnmateai.llm.LlmClient;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class EvaluationAgent {
 
     private final LlmClient llmClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public EvaluationAgent(LlmClient llmClient) {
         this.llmClient = llmClient;
@@ -28,5 +35,52 @@ public class EvaluationAgent {
                 """;
         String userPrompt = "Question: %s\nLearner answer: %s".formatted(question, learnerAnswer);
         return llmClient.complete(systemPrompt, userPrompt);
+    }
+
+    /**
+     * Generates `count` multiple-choice questions strictly from the given
+     * study material chunks. Used when an admin requests AI-generated
+     * questions for a quiz (either alone or mixed with manual ones).
+     */
+    public List<QuizCreateRequest.ManualQuestion> generateMcqQuestions(List<RetrievedChunk> chunks, int count) {
+        String context = chunks.stream()
+                .map(RetrievedChunk::content)
+                .collect(Collectors.joining("\n\n---\n\n"));
+
+        String system = """
+                You write exam-style multiple-choice questions strictly from the study
+                material provided. Each question must have exactly 4 options and exactly
+                one correct answer.
+
+                Respond with ONLY a raw JSON array, no markdown fences, no commentary,
+                in exactly this shape:
+                [
+                  {
+                    "questionText": "...",
+                    "optionA": "...",
+                    "optionB": "...",
+                    "optionC": "...",
+                    "optionD": "...",
+                    "correctOption": "A"
+                  }
+                ]
+
+                Generate exactly %d questions. Vary difficulty. Do not repeat the same
+                fact across multiple questions. correctOption must be exactly one of
+                "A", "B", "C", "D".
+                """.formatted(count);
+
+        String user = "STUDY MATERIAL:\n" + context;
+
+        String raw = llmClient.complete(system, user);
+        String cleaned = raw.replaceAll("```json", "").replaceAll("```", "").trim();
+
+        try {
+            QuizCreateRequest.ManualQuestion[] parsed =
+                    objectMapper.readValue(cleaned, QuizCreateRequest.ManualQuestion[].class);
+            return List.of(parsed);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse AI-generated quiz questions: " + e.getMessage(), e);
+        }
     }
 }

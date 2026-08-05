@@ -15,7 +15,7 @@ public class RetrievalAgent {
         this.hybridSearchService = hybridSearchService;
     }
 
-    public List<RetrievedChunk> retrieve(String query, String subject, int topK) {
-        return hybridSearchService.search(query, subject, topK);
+    public List<RetrievedChunk> retrieve(String query, String subject, String institution, String standard, int topK) {
+        return hybridSearchService.search(query, subject, institution, standard, topK);
     }
 }

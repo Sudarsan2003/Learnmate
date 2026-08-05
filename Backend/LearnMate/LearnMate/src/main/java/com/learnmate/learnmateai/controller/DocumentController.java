@@ -1,7 +1,9 @@
 package com.learnmate.learnmateai.controller;
 
 import com.learnmate.learnmateai.model.DocumentChunk;
+import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
+import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.IngestionService;
 import com.learnmate.learnmateai.service.IngestionStatusService;
 import jakarta.transaction.Transactional;
@@ -26,27 +28,29 @@ public class DocumentController {
     private final IngestionService ingestionService;
     private final DocumentChunkRepository repository;
     private final IngestionStatusService statusService;
+    private final UserRepository userRepository;
 
     public DocumentController(IngestionService ingestionService,
                               DocumentChunkRepository repository,
-                              IngestionStatusService statusService) {
+                              IngestionStatusService statusService,
+                              UserRepository userRepository) {
         this.ingestionService = ingestionService;
         this.repository = repository;
         this.statusService = statusService;
+        this.userRepository = userRepository;
     }
 
     // Returns immediately once the file is read into memory; parsing, OCR,
     // and embedding happen on a background thread. Poll /status/{sourceId}
-    // for progress instead of waiting on this response — large/scanned
-    // documents can take several minutes and would otherwise hit Render's
-    // proxy timeout.
+    // for progress instead of waiting on this response.
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "subject", required = false, defaultValue = "general") String subject,
+            @RequestParam("standard") String standard, // "1".."10" — which class folder this belongs to
             Authentication auth
     ) throws IOException {
-        String sourceId = ingestionService.startIngestion(file, subject, auth.getName());
+        String sourceId = ingestionService.startIngestion(file, subject, standard, auth.getName());
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
                 "sourceId", sourceId,
@@ -59,8 +63,6 @@ public class DocumentController {
         IngestionStatusService.IngestionStatus status = statusService.getStatus(auth.getName(), sourceId);
 
         if (status == null) {
-            // No in-memory record (e.g. app restarted, or ingestion finished
-            // a while ago) — fall back to checking whether chunks exist.
             boolean exists = !repository.findByOwnerUsername(auth.getName()).stream()
                     .filter(c -> c.getSourceId().equals(sourceId))
                     .toList().isEmpty();
@@ -80,18 +82,23 @@ public class DocumentController {
         ));
     }
 
-    // Scoped: an admin only ever sees documents they personally uploaded.
+    // Scoped by institution + standard now — any teacher/admin at the same
+    // school sees the same class folder's documents, not just their own uploads.
     @GetMapping
-    public List<Map<String, Object>> list(Authentication auth) {
-        List<DocumentChunk> mine = repository.findByOwnerUsername(auth.getName());
+    public List<Map<String, Object>> list(@RequestParam String standard, Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        return mine.stream()
+        List<DocumentChunk> docs = repository.findByInstitutionAndStandard(user.getInstitution(), standard);
+
+        return docs.stream()
                 .collect(Collectors.groupingBy(DocumentChunk::getSourceId))
                 .entrySet().stream()
                 .map(e -> Map.<String, Object>of(
-                        "id", e.getKey(),          // frontend uses this for delete/reprocess/key
-                        "source", e.getKey(),      // frontend displays this
+                        "id", e.getKey(),
+                        "source", e.getKey(),
                         "subject", e.getValue().get(0).getSubject(),
+                        "standard", e.getValue().get(0).getStandard(),
                         "chunkCount", e.getValue().size(),
                         "uploadedAt", e.getValue().get(0).getUploadedAt()
                 ))
@@ -100,13 +107,7 @@ public class DocumentController {
 
     @DeleteMapping("/{sourceId}")
     @Transactional
-    public void delete(@PathVariable String sourceId,
-                       Authentication auth) {
-
-        repository.deleteBySourceIdAndOwnerUsername(
-                sourceId,
-                auth.getName()
-        );
+    public void delete(@PathVariable String sourceId, Authentication auth) {
+        repository.deleteBySourceIdAndOwnerUsername(sourceId, auth.getName());
     }
-
 }

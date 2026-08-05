@@ -19,23 +19,16 @@ public class HybridSearchService {
         this.embeddingClient = embeddingClient;
     }
 
-    public List<RetrievedChunk> search(String query, String subject, int topK) {
+    public List<RetrievedChunk> search(String query, String subject, String institution, String standard, int topK) {
         float[] vector = embeddingClient.embed(query);
-        System.out.println(vector.length);
         String pgVectorLiteral = toPgVectorLiteral(vector);
 
-        List<DocumentChunk> chunks = repository.hybridSearch(pgVectorLiteral, query, subject, topK);
+        List<DocumentChunk> chunks = repository.hybridSearch(pgVectorLiteral, query, subject, institution, standard, topK);
+
         System.out.println("=================================");
         System.out.println("Question = " + query);
-        System.out.println("Subject = " + subject);
-
+        System.out.println("Institution = " + institution + ", Standard = " + standard + ", Subject = " + subject);
         System.out.println("Retrieved = " + chunks.size());
-
-        chunks.forEach(c -> {
-            System.out.println("----------------");
-            System.out.println(c.getSourceId());
-            System.out.println(c.getContent());
-        });
 
         return chunks.stream()
                 .map(c -> new RetrievedChunk(c.getId(), c.getSourceId(), c.getContent(), 0.0))

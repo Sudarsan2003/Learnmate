@@ -36,6 +36,10 @@ public class DocumentChunk {
 
     @Column(nullable = false)
     private String ownerUsername;
+    @Column(nullable = false)
+    private String institution;
+    @Column(nullable = false)
+    private String standard;
 
     @Column(nullable = false)
     private Instant uploadedAt = Instant.now();

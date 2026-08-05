@@ -1,4 +1,5 @@
 package com.learnmate.learnmateai.config;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -61,6 +62,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/health").permitAll()
                         .requestMatchers("/api/documents/**").hasAnyRole("ADMIN", "TEACHER")
+                        .requestMatchers(HttpMethod.POST, "/api/quizzes").hasAnyRole("ADMIN", "TEACHER")
+                        .requestMatchers("/api/quizzes/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

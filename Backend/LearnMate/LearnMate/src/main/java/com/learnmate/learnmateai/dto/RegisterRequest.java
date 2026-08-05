@@ -10,6 +10,7 @@ public record RegisterRequest(
         String mobile,
         String gender,
         String address,
-        String institution
+        @NotBlank String institution,
+        String standard // student's class, e.g. "5" — optional, only meaningful for USER role
 ) {
 }
