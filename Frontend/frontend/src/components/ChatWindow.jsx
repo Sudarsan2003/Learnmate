@@ -81,6 +81,7 @@ export default function ChatWindow({
   onOpenUpload,
   onOpenUsers,
   onOpenQuizzes,
+  onOpenProfile,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -125,6 +126,14 @@ useEffect(() => {
   document.addEventListener("learnmate:open-quizzes", handleOpenQuizzes);
   return () => document.removeEventListener("learnmate:open-quizzes", handleOpenQuizzes);
 }, [onOpenQuizzes]);
+
+useEffect(() => {
+  function handleOpenProfile() {
+    onOpenProfile?.();
+  }
+  document.addEventListener("learnmate:open-profile", handleOpenProfile);
+  return () => document.removeEventListener("learnmate:open-profile", handleOpenProfile);
+}, [onOpenProfile]);
 
   useEffect(() => {
     if (!sessionId) {

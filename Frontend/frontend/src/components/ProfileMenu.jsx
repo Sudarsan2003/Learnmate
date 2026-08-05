@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { LogOut, ShieldCheck, User, KeyRound, Users, ClipboardList, Building2, GraduationCap } from "lucide-react";
+import { LogOut, ShieldCheck, User, KeyRound, Users, ClipboardList } from "lucide-react";
 import ChangePasswordModal from "./ChangePasswordModal";
-import { getMe } from "../api/client";
 function initialsFor(name) {
   if (!name) return "?";
   return name.trim().slice(0, 2).toUpperCase();
@@ -13,22 +12,6 @@ export default function ProfileMenu({ username, role }) {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const avatarRef = useRef(null);
   const containerRef = useRef(null);
-
-  // Own institution/standard, fetched lazily the first time the menu opens —
-  // lets a student (or anyone) confirm at a glance what class they're
-  // registered under, without needing admin access to "manage users".
-  const [profile, setProfile] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-
-  useEffect(() => {
-    if (open && !profile && !profileLoading) {
-      setProfileLoading(true);
-      getMe()
-        .then(setProfile)
-        .catch(() => setProfile(null))
-        .finally(() => setProfileLoading(false));
-    }
-  }, [open, profile, profileLoading]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -80,30 +63,16 @@ export default function ProfileMenu({ username, role }) {
             <span className="truncate">{username}</span>
           </div>
 
-          {profileLoading && (
-            <p className="px-3 pb-1.5 text-[11px] text-[#6E7C79]">loading profile…</p>
-          )}
-          {profile && (profile.institution || profile.standard) && (
-            <div className="space-y-1 px-3 pb-1.5">
-              {profile.institution && (
-                <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0AC]">
-                  <Building2 size={11} className="flex-shrink-0" />
-                  <span className="truncate">{profile.institution}</span>
-                </div>
-              )}
-              {profile.standard && (
-                <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0AC]">
-                  <GraduationCap size={11} className="flex-shrink-0" />
-                  <span className="truncate">standard {profile.standard}</span>
-                </div>
-              )}
-            </div>
-          )}
-          {profile && !profile.institution && !profile.standard && (
-            <p className="px-3 pb-1.5 text-[11px] text-[#E2725B]">
-              no institution/standard set — ask an admin to fix this
-            </p>
-          )}
+          <button
+            onClick={() => {
+              setOpen(false);
+              document.dispatchEvent(new CustomEvent("learnmate:open-profile"));
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+          >
+            <User size={14} />
+            view profile
+          </button>
 
           {(role === "ADMIN" || role === "TEACHER") && (
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#C89B3C]">
