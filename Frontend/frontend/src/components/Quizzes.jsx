@@ -32,6 +32,8 @@ import {
 const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
 
 const OPTION_KEYS = ["A", "B", "C", "D"];
+// Admin-selectable quiz timer choices — 15 to 60 minutes in 5-minute steps.
+const DURATION_OPTIONS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
 const EMPTY_MANUAL_QUESTION = () => ({
   clientId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   questionText: "",
@@ -327,8 +329,8 @@ function CreateQuizForm({ role, onCreated }) {
     let parsedDuration = null;
     if (durationMinutes !== "") {
       parsedDuration = parseInt(durationMinutes, 10);
-      if (Number.isNaN(parsedDuration) || parsedDuration < 1 || parsedDuration > 180) {
-        return setError("Timer must be between 1 and 180 minutes (or left blank for no timer).");
+      if (!DURATION_OPTIONS.includes(parsedDuration)) {
+        return setError("Pick a valid timer option, or choose \"no timer\".");
       }
     }
     for (const q of manualQuestions) {
@@ -425,22 +427,19 @@ function CreateQuizForm({ role, onCreated }) {
             <option value="SCHEDULED">scheduled</option>
           </select>
         </Field>
-        <Field label="timer (minutes, optional — blank = no time limit)">
-          <div className="flex items-center gap-2">
-            <Timer size={14} className="text-[#C89B3C]" />
-            <input
-              type="number"
-              min="1"
-              max="180"
-              value={durationMinutes}
-              onChange={(e) => setDurationMinutes(e.target.value)}
-              placeholder="e.g. 20"
-              className="lm-input"
-            />
-          </div>
-          <p className="mt-1 text-[10px] text-[#6E7C79]">
-            once a student starts, they must submit within this many minutes (1–180) or the quiz auto-submits
-          </p>
+        <Field label="timer (student must submit within this many minutes)">
+          <select
+            value={durationMinutes}
+            onChange={(e) => setDurationMinutes(e.target.value)}
+            className="lm-input"
+          >
+            <option value="">no timer — unlimited time</option>
+            {DURATION_OPTIONS.map((mins) => (
+              <option key={mins} value={mins}>
+                {mins} minutes
+              </option>
+            ))}
+          </select>
         </Field>
       </div>
 
