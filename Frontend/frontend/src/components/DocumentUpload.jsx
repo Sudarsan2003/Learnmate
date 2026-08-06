@@ -116,7 +116,16 @@ export default function DocumentUpload({
       const res = await fetch(`${adminBase}/admin/institutions`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = await res.json();
-      setInstitutions(Array.isArray(data) ? data : []);
+      // /api/admin/institutions returns objects like
+      // { institution, userCount, users }, not plain strings — pull the
+      // name out (falling back to the raw value in case it's ever a plain
+      // string array instead).
+      const names = Array.isArray(data)
+        ? data
+            .map((item) => (typeof item === "string" ? item : item?.institution))
+            .filter((name) => typeof name === "string" && name.trim().length > 0)
+        : [];
+      setInstitutions(names);
     } catch {
       setInstitutions([]);
     } finally {
