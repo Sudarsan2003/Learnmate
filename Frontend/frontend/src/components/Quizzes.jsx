@@ -33,7 +33,7 @@ import {
   getMyCreatedQuizzes,
   getMyResults,
   getMyAttemptDetail,
-} from "../api/client.js";
+} from "../api/client";
 
 // Used to hand a quiz explanation off to the chat page. ChatWindow reads
 // this once on mount, drops it into the conversation, and clears it, so
@@ -264,11 +264,12 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
       ) : (
         <div className="overflow-hidden rounded-lg border border-[#1B2333]">
           <div className="lm-scroll max-h-[420px] overflow-x-auto overflow-y-auto">
-            <table className="w-full min-w-[680px] border-collapse text-xs">
+            <table className="w-full min-w-[820px] border-collapse text-xs">
               <thead>
                 <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                   <th className="px-3 py-2.5 font-medium">title</th>
                   <th className="px-3 py-2.5 font-medium">subject</th>
+                  <th className="px-3 py-2.5 font-medium">institution</th>
                   <th className="px-3 py-2.5 font-medium">standard</th>
                   <th className="px-3 py-2.5 font-medium">mode</th>
                   <th className="px-3 py-2.5 font-medium">status</th>
@@ -283,6 +284,9 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
                       {q.title}
                     </td>
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.subject || "—"}</td>
+                    <td className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-[#9FB0AC]" title={q.institution}>
+                      {q.institution || "—"}
+                    </td>
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.standard || "—"}</td>
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.mode}</td>
                     <td className="px-3 py-2.5">
