@@ -119,6 +119,24 @@ export async function closeQuiz(quizId) {
   await api.put(`/api/quizzes/${quizId}/close`);
 }
 
+// Every quiz the calling admin/teacher created — persisted server-side.
+export async function getMyCreatedQuizzes() {
+  const { data } = await api.get("/api/quizzes/mine");
+  return data;
+}
+
+// Every quiz the calling student has submitted, with marks + date.
+export async function getMyResults() {
+  const { data } = await api.get("/api/quizzes/my-results");
+  return data;
+}
+
+// Full per-question review of the caller's own submitted attempt.
+export async function getMyAttemptDetail(quizId) {
+  const { data } = await api.get(`/api/quizzes/${quizId}/my-attempt`);
+  return data;
+}
+
 export async function listUsers() {
   const { data } = await api.get("/api/admin/users");
   return data;
