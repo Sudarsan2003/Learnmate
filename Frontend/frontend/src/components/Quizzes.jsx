@@ -77,8 +77,16 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   return (
     <div className="quiz-view min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        .quiz-view { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+        .quiz-view { font-family: 'JetBrains Mono', 'Fira Code', 'Noto Sans Telugu', 'Noto Sans Devanagari', ui-monospace, monospace; }
+        /* Question/option text needs to render Telugu and Hindi cleanly, so it
+           gets its own stack (script fonts first) plus extra line-height —
+           Telugu and Devanagari vowel signs/matras get clipped at the tight
+           line-height that works fine for Latin monospace text. */
+        .lm-script-input {
+          font-family: 'Noto Sans Telugu', 'Noto Sans Devanagari', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+          line-height: 1.6;
+        }
         .lm-row { transition: background 140ms ease; }
         .lm-row:hover { background: rgba(45,212,191,0.05); }
         .lm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -382,8 +390,9 @@ function CreateQuizForm({ role, onCreated }) {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Chapter 4 checkpoint"
-            className="lm-input"
+            placeholder="e.g. Chapter 4 checkpoint / Ch. 4 పరీక్ష / अध्याय 4 जाँच"
+            lang="und"
+            className="lm-input lm-script-input"
           />
         </Field>
         <Field label="standard (class this targets)">
@@ -493,8 +502,9 @@ function CreateQuizForm({ role, onCreated }) {
                 <input
                   value={q.questionText}
                   onChange={(e) => updateManualQuestion(q.clientId, "questionText", e.target.value)}
-                  placeholder="question text"
-                  className="lm-input mb-2"
+                  placeholder="question text — types in Telugu, Hindi, or English"
+                  lang="und"
+                  className="lm-input lm-script-input mb-2"
                 />
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {OPTION_KEYS.map((key) => (
@@ -503,7 +513,8 @@ function CreateQuizForm({ role, onCreated }) {
                       value={q[`option${key}`]}
                       onChange={(e) => updateManualQuestion(q.clientId, `option${key}`, e.target.value)}
                       placeholder={`option ${key}`}
-                      className="lm-input"
+                      lang="und"
+                      className="lm-input lm-script-input"
                     />
                   ))}
                 </div>
