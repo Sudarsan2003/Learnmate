@@ -5,6 +5,10 @@ import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
 
+// Matches the key Quizzes.jsx writes to when a student clicks
+// "Ask LearnMate" after submitting a quiz.
+const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
+
 const EXAMPLE_PROMPTS = [
   "Explain a concept from scratch",
   "Quiz me on recent material",
@@ -168,6 +172,34 @@ useEffect(() => {
       }
     })();
   }, [sessionId]);
+
+  // One-time hand-off from the quiz page: a student who clicked "Ask
+  // LearnMate" after submitting a quiz arrives here with an explanation
+  // already generated (scoped server-side to their own attempt). Drop it
+  // straight into the conversation as a learner/tutor turn and clear the
+  // storage slot so it doesn't reappear on a later visit.
+  useEffect(() => {
+    let raw;
+    try {
+      raw = sessionStorage.getItem(PENDING_QUIZ_CHAT_KEY);
+    } catch {
+      raw = null;
+    }
+    if (!raw) return;
+    sessionStorage.removeItem(PENDING_QUIZ_CHAT_KEY);
+    try {
+      const pending = JSON.parse(raw);
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "learner", text: pending.question },
+        { id: crypto.randomUUID(), role: "tutor", text: pending.answer, isNew: true },
+      ]);
+    } catch {
+      // malformed payload — ignore
+    }
+    // Intentionally runs once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (isAtBottom) {

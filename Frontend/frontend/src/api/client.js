@@ -88,8 +88,20 @@ export async function getAvailableQuizzes() {
   return data;
 }
 
-export async function getQuizQuestions(quizId) {
-  const { data } = await api.get(`/api/quizzes/${quizId}/questions`);
+// Starts (or resumes) the caller's attempt at a quiz. Creates the
+// QuizAttempt server-side on first call so the timer has a fixed
+// startedAt/deadline; safe to call again (e.g. on refresh) since the
+// backend just returns the same attempt instead of resetting the clock.
+export async function startQuiz(quizId) {
+  const { data } = await api.post(`/api/quizzes/${quizId}/start`);
+  return data;
+}
+
+// "Ask LearnMate" about a submitted quiz — scoped strictly to that
+// student's own attempt on the backend. `payload` is
+// { question, questionId? } (questionId narrows to one question).
+export async function askAboutQuiz(quizId, payload) {
+  const { data } = await api.post(`/api/quizzes/${quizId}/ask`, payload);
   return data;
 }
 

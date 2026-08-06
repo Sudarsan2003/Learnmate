@@ -89,7 +89,11 @@ export default function App() {
                 >
                   back to chat
                 </button>
-                <Quizzes currentUsername={user.username} role={user.role} />
+                <Quizzes
+                  currentUsername={user.username}
+                  role={user.role}
+                  onAskLearnMate={() => setView("chat")}
+                />
               </div>
             ) : view === "profile" ? (
               <div className="relative h-full w-full">

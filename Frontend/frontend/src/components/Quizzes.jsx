@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ClipboardList,
   Plus,
@@ -12,16 +12,24 @@ import {
   Sparkles,
   Lock,
   BarChart3,
+  Timer,
+  MessageCircleQuestion,
 } from "lucide-react";
 import {
   createQuiz,
   getAvailableQuizzes,
-  getQuizQuestions,
+  startQuiz,
   submitQuiz,
   getQuizResults,
   closeQuiz,
   listInstitutions,
+  askAboutQuiz,
 } from "../api/client";
+
+// Used to hand a quiz explanation off to the chat page. ChatWindow reads
+// this once on mount, drops it into the conversation, and clears it, so
+// this only ever "arrives" once per Ask LearnMate click.
+const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
 
 const OPTION_KEYS = ["A", "B", "C", "D"];
 const EMPTY_MANUAL_QUESTION = () => ({
@@ -58,7 +66,7 @@ function rememberCreatedQuiz(username, quiz) {
   return next;
 }
 
-export default function Quizzes({ currentUsername, role }) {
+export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   const canManage = role === "ADMIN" || role === "TEACHER";
   // "list" (default) | "create" | "take" | "results"
   const [view, setView] = useState("list");
@@ -137,7 +145,11 @@ export default function Quizzes({ currentUsername, role }) {
         )}
 
         {view === "take" && activeQuizId && (
-          <TakeQuiz quizId={activeQuizId} onDone={() => setView("list")} />
+          <TakeQuiz
+            quizId={activeQuizId}
+            onDone={() => setView("list")}
+            onAskLearnMate={onAskLearnMate}
+          />
         )}
 
         {view === "results" && activeQuizId && canManage && (
@@ -265,6 +277,9 @@ function CreateQuizForm({ role, onCreated }) {
   const [mode, setMode] = useState("OPEN"); // OPEN | SCHEDULED
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
+  // Optional per-attempt timer, in minutes. Backend enforces 1-180 and
+  // treats blank/null as "no timer" (student can take as long as they like).
+  const [durationMinutes, setDurationMinutes] = useState("");
   const [manualQuestions, setManualQuestions] = useState([]);
   const [aiGenerateCount, setAiGenerateCount] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -309,6 +324,13 @@ function CreateQuizForm({ role, onCreated }) {
     if (manualQuestions.length === 0 && aiCount <= 0) {
       return setError("Add at least one manual question, or set an AI question count.");
     }
+    let parsedDuration = null;
+    if (durationMinutes !== "") {
+      parsedDuration = parseInt(durationMinutes, 10);
+      if (Number.isNaN(parsedDuration) || parsedDuration < 1 || parsedDuration > 180) {
+        return setError("Timer must be between 1 and 180 minutes (or left blank for no timer).");
+      }
+    }
     for (const q of manualQuestions) {
       if (!q.questionText.trim() || !q.optionA.trim() || !q.optionB.trim() || !q.optionC.trim() || !q.optionD.trim()) {
         return setError("Every manual question needs text and all 4 options filled in.");
@@ -325,6 +347,7 @@ function CreateQuizForm({ role, onCreated }) {
         mode,
         opensAt: mode === "SCHEDULED" ? toIsoOrNull(opensAt) : null,
         closesAt: mode === "SCHEDULED" ? toIsoOrNull(closesAt) : null,
+        durationMinutes: parsedDuration,
         manualQuestions: manualQuestions.map((q) => ({
           questionText: q.questionText.trim(),
           optionA: q.optionA.trim(),
@@ -401,6 +424,23 @@ function CreateQuizForm({ role, onCreated }) {
             <option value="OPEN">open — available immediately</option>
             <option value="SCHEDULED">scheduled</option>
           </select>
+        </Field>
+        <Field label="timer (minutes, optional — blank = no time limit)">
+          <div className="flex items-center gap-2">
+            <Timer size={14} className="text-[#C89B3C]" />
+            <input
+              type="number"
+              min="1"
+              max="180"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              placeholder="e.g. 20"
+              className="lm-input"
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-[#6E7C79]">
+            once a student starts, they must submit within this many minutes (1–180) or the quiz auto-submits
+          </p>
         </Field>
       </div>
 
@@ -616,13 +656,26 @@ function StudentQuizList({ onTakeQuiz }) {
   );
 }
 
-function TakeQuiz({ quizId, onDone }) {
+function formatCountdown(totalSeconds) {
+  const s = Math.max(0, totalSeconds);
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${mm}:${String(ss).padStart(2, "0")}`;
+}
+
+function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
+  const [quizTitle, setQuizTitle] = useState("");
   const [questions, setQuestions] = useState(null);
   const [answers, setAnswers] = useState({}); // questionId -> "A".."D"
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [deadline, setDeadline] = useState(null); // Date | null
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [askingLearnMate, setAskingLearnMate] = useState(false);
+  const [askError, setAskError] = useState(null);
+  const autoSubmittedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -630,8 +683,11 @@ function TakeQuiz({ quizId, onDone }) {
       setLoading(true);
       setError(null);
       try {
-        const data = await getQuizQuestions(quizId);
-        if (!cancelled) setQuestions(data);
+        const data = await startQuiz(quizId);
+        if (cancelled) return;
+        setQuizTitle(data.title);
+        setQuestions(data.questions);
+        setDeadline(data.deadline ? new Date(data.deadline) : null);
       } catch (err) {
         if (!cancelled) setError(err.response?.data?.message ?? "Could not load this quiz.");
       } finally {
@@ -646,7 +702,7 @@ function TakeQuiz({ quizId, onDone }) {
   const selectAnswer = (questionId, option) =>
     setAnswers((a) => ({ ...a, [questionId]: option }));
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setSubmitting(true);
     setError(null);
     try {
@@ -660,6 +716,59 @@ function TakeQuiz({ quizId, onDone }) {
       setError(err.response?.data?.message ?? "Could not submit this quiz.");
     } finally {
       setSubmitting(false);
+    }
+  }, [answers, quizId]);
+
+  // Countdown ticker — recomputed from the fixed server deadline every
+  // second (rather than counting down a local number) so it stays correct
+  // even if the tab was backgrounded. Auto-submits exactly once when time
+  // runs out, using whatever answers were selected so far.
+  useEffect(() => {
+    if (!deadline || result) return;
+
+    const tick = () => {
+      const remaining = Math.round((deadline.getTime() - Date.now()) / 1000);
+      setSecondsLeft(remaining);
+      if (remaining <= 0 && !autoSubmittedRef.current && !submitting) {
+        autoSubmittedRef.current = true;
+        handleSubmit();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [deadline, result, submitting, handleSubmit]);
+
+  const handleAskLearnMate = async () => {
+    setAskingLearnMate(true);
+    setAskError(null);
+    try {
+      const { answer } = await askAboutQuiz(quizId, {
+        question:
+          "Please walk me through this quiz — explain the reasoning behind the correct answer for " +
+          "every question, and call out anywhere I went wrong.",
+      });
+      sessionStorage.setItem(
+        PENDING_QUIZ_CHAT_KEY,
+        JSON.stringify({
+          quizTitle,
+          question: `Explain my answers on "${quizTitle}"`,
+          answer,
+        })
+      );
+      // Let the app switch views to chat. If no navigation callback was
+      // wired up by the parent, fall back to a global event so a listener
+      // elsewhere in the app can pick it up.
+      if (onAskLearnMate) {
+        onAskLearnMate();
+      } else {
+        document.dispatchEvent(new CustomEvent("learnmate:open-chat"));
+      }
+    } catch (err) {
+      setAskError(err.response?.data?.message ?? "Could not reach LearnMate about this quiz.");
+    } finally {
+      setAskingLearnMate(false);
     }
   };
 
@@ -681,18 +790,54 @@ function TakeQuiz({ quizId, onDone }) {
           {result.score} / {result.totalQuestions}
         </p>
         <p className="text-xs text-[#9FB0AC]">submitted successfully</p>
-        <button
-          onClick={onDone}
-          className="mt-2 rounded-md border border-[#2DD4BF]/20 px-4 py-2 text-xs text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
-        >
-          back to quizzes
-        </button>
+
+        {askError && (
+          <p className="rounded-md border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2 text-xs text-[#F3B9A8]">
+            {askError}
+          </p>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2.5">
+          <button
+            onClick={handleAskLearnMate}
+            disabled={askingLearnMate}
+            className="flex items-center gap-2 rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-4 py-2 text-xs font-semibold text-[#0B0E14] shadow-[0_4px_14px_-4px_rgba(200,155,60,0.55)] transition-all hover:-translate-y-0.5 disabled:opacity-40"
+          >
+            {askingLearnMate ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <MessageCircleQuestion size={13} />
+            )}
+            ask learnmate
+          </button>
+          <button
+            onClick={onDone}
+            className="rounded-md border border-[#2DD4BF]/20 px-4 py-2 text-xs text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
+          >
+            back to quizzes
+          </button>
+        </div>
       </div>
     );
   }
 
+  const timeIsShort = secondsLeft !== null && secondsLeft <= 60;
+
   return (
     <div className="space-y-4">
+      {deadline && secondsLeft !== null && (
+        <div
+          className={`sticky top-0 z-10 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold backdrop-blur-sm ${
+            timeIsShort
+              ? "border-[#E2725B]/40 bg-[#2A1620]/80 text-[#F3B9A8]"
+              : "border-[#2DD4BF]/20 bg-[#12151F]/80 text-[#EDE6D6]"
+          }`}
+        >
+          <Timer size={14} className={timeIsShort ? "text-[#E2725B]" : "text-[#C89B3C]"} />
+          time left: {formatCountdown(secondsLeft)}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
