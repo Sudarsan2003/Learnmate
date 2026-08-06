@@ -3,10 +3,10 @@ package com.learnmate.learnmateai.service;
 import com.learnmate.learnmateai.llm.EmbeddingClient;
 import com.learnmate.learnmateai.llm.OcrSpaceClient;
 import com.learnmate.learnmateai.model.DocumentChunk;
-import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
-import com.learnmate.learnmateai.repository.UserRepository;
 import com.pgvector.PGvector;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
@@ -16,10 +16,19 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 @Service
@@ -29,22 +38,26 @@ public class IngestionService {
     private static final int CHUNK_OVERLAP_WORDS = 50;
     private static final int MIN_NATIVE_TEXT_CHARS = 300;
 
+    // OCR.space's free tier rejects any single request over 1MB with a 413.
+    // Leave some headroom under the actual cap for multipart overhead.
+    private static final long OCR_SPACE_MAX_BYTES = 950_000;
+    // Tried in order per page until the rendered JPEG fits under the cap.
+    private static final int[] RENDER_DPI_STEPS = {150, 110, 85};
+    private static final float[] JPEG_QUALITY_STEPS = {0.7f, 0.5f, 0.35f};
+
     private final DocumentChunkRepository repository;
     private final EmbeddingClient embeddingClient;
     private final IngestionStatusService statusService;
     private final OcrSpaceClient ocrSpaceClient;
-    private final UserRepository userRepository;
 
     public IngestionService(DocumentChunkRepository repository,
                             EmbeddingClient embeddingClient,
                             IngestionStatusService statusService,
-                            OcrSpaceClient ocrSpaceClient,
-                            UserRepository userRepository) {
+                            OcrSpaceClient ocrSpaceClient) {
         this.repository = repository;
         this.embeddingClient = embeddingClient;
         this.statusService = statusService;
         this.ocrSpaceClient = ocrSpaceClient;
-        this.userRepository = userRepository;
     }
 
     /**
@@ -53,9 +66,10 @@ public class IngestionService {
      * the file into memory. The actual parsing/OCR/embedding happens in
      * ingestAsync().
      */
-    public String startIngestion(MultipartFile file, String subject, String standard, String ownerUsername) throws IOException {
-        User user = userRepository.findByUsername(ownerUsername)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + ownerUsername));
+    public String startIngestion(MultipartFile file, String subject, String standard, String institution, String ownerUsername) throws IOException {
+        if (institution == null || institution.isBlank()) {
+            throw new IllegalArgumentException("institution is required");
+        }
 
         String sourceId = file.getOriginalFilename();
         if (sourceId == null || sourceId.isBlank()) {
@@ -68,7 +82,7 @@ public class IngestionService {
         byte[] fileBytes = file.getBytes();
 
         statusService.markProcessing(ownerUsername, sourceId);
-        ingestAsync(fileBytes, sourceId, subject, standard, user.getInstitution(), ownerUsername);
+        ingestAsync(fileBytes, sourceId, subject, standard, institution, ownerUsername);
 
         return sourceId;
     }
@@ -170,12 +184,85 @@ public class IngestionService {
         System.out.println("[Ingestion] Little/no native text for " + sourceId
                 + " (" + nativeText.length() + " chars) — falling back to OCR.space");
 
-        String ocrText = ocrSpaceClient.extractText(fileBytes, sourceId);
+        // OCR.space's free tier rejects anything over ~1MB with a 413, and a
+        // scanned PDF (which is exactly the case we're in, since Tika found
+        // no native text) is very often several MB. Sending the whole file
+        // in one request either times out or gets rejected outright — see
+        // ocrPdfPageByPage() for the per-page workaround.
+        String ocrText = ocrPdfPageByPage(fileBytes, sourceId);
 
         if (ocrText.isBlank()) {
             throw new IOException("No text could be extracted from the document (native or OCR).");
         }
 
         return ocrText;
+    }
+
+    // Renders each page to an image and OCRs them one at a time, instead of
+    // sending the whole PDF to OCR.space in a single request. This is what
+    // keeps every individual request under OCR.space's free-tier 1MB cap
+    // regardless of how large or how many pages the source PDF has.
+    private String ocrPdfPageByPage(byte[] fileBytes, String sourceId) throws IOException {
+        StringBuilder combined = new StringBuilder();
+
+        try (PDDocument document = PDDocument.load(fileBytes)) {
+            PDFRenderer renderer = new PDFRenderer(document);
+            int pageCount = document.getNumberOfPages();
+
+            for (int page = 0; page < pageCount; page++) {
+                byte[] jpegBytes = renderPageUnderSizeLimit(renderer, page, sourceId);
+                String pageText = ocrSpaceClient.extractTextFromImage(
+                        jpegBytes, sourceId + "-p" + (page + 1) + ".jpg");
+                combined.append(pageText).append("\n");
+
+                System.out.println("[Ingestion] OCR'd page " + (page + 1) + "/" + pageCount
+                        + " of " + sourceId + " (" + jpegBytes.length + " bytes)");
+            }
+        }
+
+        return combined.toString().trim();
+    }
+
+    // Steps down DPI, and within each DPI steps down JPEG quality, until the
+    // page fits under OCR_SPACE_MAX_BYTES. Higher DPI is tried first since it
+    // gives OCR the best accuracy; we only sacrifice quality as needed.
+    private byte[] renderPageUnderSizeLimit(PDFRenderer renderer, int pageIndex, String sourceId) throws IOException {
+        for (int dpi : RENDER_DPI_STEPS) {
+            BufferedImage image = renderer.renderImageWithDPI(pageIndex, dpi);
+
+            for (float quality : JPEG_QUALITY_STEPS) {
+                byte[] jpeg = toJpeg(image, quality);
+                if (jpeg.length <= OCR_SPACE_MAX_BYTES) {
+                    return jpeg;
+                }
+            }
+        }
+
+        throw new IOException("Could not compress page " + (pageIndex + 1) + " of " + sourceId
+                + " under OCR.space's size limit even at the lowest quality setting");
+    }
+
+    private byte[] toJpeg(BufferedImage image, float quality) throws IOException {
+        BufferedImage rgb = image;
+        if (image.getType() != BufferedImage.TYPE_INT_RGB) {
+            rgb = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+            rgb.createGraphics().drawImage(image, 0, 0, Color.WHITE, null);
+        }
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+        ImageWriter writer = writers.next();
+        ImageWriteParam param = writer.getDefaultWriteParam();
+        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        param.setCompressionQuality(quality);
+
+        try (MemoryCacheImageOutputStream ios = new MemoryCacheImageOutputStream(out)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(rgb, null, null), param);
+        } finally {
+            writer.dispose();
+        }
+
+        return out.toByteArray();
     }
 }

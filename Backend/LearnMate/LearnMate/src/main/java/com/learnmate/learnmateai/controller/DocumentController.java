@@ -48,14 +48,39 @@ public class DocumentController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "subject", required = false, defaultValue = "general") String subject,
             @RequestParam("standard") String standard, // "1".."10" — which class folder this belongs to
+            @RequestParam(value = "institution", required = false) String institutionParam,
             Authentication auth
     ) throws IOException {
-        String sourceId = ingestionService.startIngestion(file, subject, standard, auth.getName());
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        String institution = resolveInstitution(user, institutionParam, auth);
+
+        String sourceId = ingestionService.startIngestion(file, subject, standard, institution, auth.getName());
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
                 "sourceId", sourceId,
                 "status", "PROCESSING"
         ));
+    }
+
+    // Admins upload material on behalf of any school, so their request must
+    // say explicitly which institution it's for — there's no "their own
+    // school" to default to. Teachers are always scoped to their own
+    // account's institution; any institution value they send is ignored so a
+    // teacher can never upload into another school's knowledge base.
+    private String resolveInstitution(User user, String institutionParam, Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (isAdmin) {
+            if (institutionParam == null || institutionParam.isBlank()) {
+                throw new IllegalArgumentException("institution is required for admin uploads");
+            }
+            return institutionParam.trim();
+        }
+
+        return user.getInstitution();
     }
 
     @GetMapping("/status/{sourceId}")
@@ -88,21 +113,43 @@ public class DocumentController {
     // option, instead of a free-text box that lets the same class get
     // fragmented into differently-typed standards ("5", "Grade 5", "5th").
     @GetMapping("/standards")
-    public List<String> listStandards(Authentication auth) {
+    public List<String> listStandards(@RequestParam(value = "institution", required = false) String institutionParam,
+                                      Authentication auth) {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        return repository.findDistinctStandardsByInstitution(user.getInstitution());
+        String institution = resolveInstitutionForRead(user, institutionParam, auth);
+
+        return repository.findDistinctStandardsByInstitution(institution);
+    }
+
+    // Same admin-vs-teacher institution scoping as uploads, but for reads:
+    // an admin can look at any school's folders by passing ?institution=,
+    // a teacher always sees only their own school's regardless of what's
+    // passed.
+    private String resolveInstitutionForRead(User user, String institutionParam, Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (isAdmin && institutionParam != null && !institutionParam.isBlank()) {
+            return institutionParam.trim();
+        }
+
+        return user.getInstitution();
     }
 
     // Scoped by institution + standard now — any teacher/admin at the same
     // school sees the same class folder's documents, not just their own uploads.
     @GetMapping
-    public List<Map<String, Object>> list(@RequestParam String standard, Authentication auth) {
+    public List<Map<String, Object>> list(@RequestParam String standard,
+                                          @RequestParam(value = "institution", required = false) String institutionParam,
+                                          Authentication auth) {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        List<DocumentChunk> docs = repository.findByInstitutionAndStandard(user.getInstitution(), standard);
+        String institution = resolveInstitutionForRead(user, institutionParam, auth);
+
+        List<DocumentChunk> docs = repository.findByInstitutionAndStandard(institution, standard);
 
         return docs.stream()
                 .collect(Collectors.groupingBy(DocumentChunk::getSourceId))

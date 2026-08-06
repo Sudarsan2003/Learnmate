@@ -36,14 +36,28 @@ public class OcrSpaceClient {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
+    // Kept for callers that already know their file is small enough (e.g. a
+    // native PDF under OCR.space's free-tier 1MB/request cap). For anything
+    // larger, prefer extractTextFromImage() called once per rendered page —
+    // see IngestionService.ocrPdfPageByPage().
     public String extractText(byte[] fileBytes, String filename) {
+        return extractText(fileBytes, filename, "PDF", MediaType.APPLICATION_PDF);
+    }
+
+    // Used for per-page OCR: each page is rendered + JPEG-compressed down to
+    // under OCR.space's 1MB/request limit before it ever reaches this call.
+    public String extractTextFromImage(byte[] jpegBytes, String filename) {
+        return extractText(jpegBytes, filename, "JPG", MediaType.IMAGE_JPEG);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractText(byte[] fileBytes, String filename, String filetype, MediaType contentType) {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("apikey", apiKey);
         builder.part("file", fileBytes)
                 .filename(filename)
-                .contentType(MediaType.APPLICATION_PDF);
-        builder.part("filetype", "PDF");
+                .contentType(contentType);
+        builder.part("filetype", filetype);
         builder.part("OCREngine", "2");
         builder.part("scale", "true");
 

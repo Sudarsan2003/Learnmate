@@ -18,6 +18,17 @@ export default function DocumentUpload({
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
 
+  const isAdmin = role === "ADMIN";
+
+  // Admins upload on behalf of any school and must pick one explicitly —
+  // there's no "their own institution" to default to. Teachers never see
+  // this; they're always scoped server-side to their own account's school.
+  const [institution, setInstitution] = useState("");
+  const [institutions, setInstitutions] = useState([]);
+  const [institutionsLoading, setInstitutionsLoading] = useState(isAdmin);
+  const [isCreatingInstitution, setIsCreatingInstitution] = useState(false);
+  const [newInstitutionName, setNewInstitutionName] = useState("");
+
   const [subject, setSubject] = useState("");
   const [standard, setStandard] = useState("");
   const [queue, setQueue] = useState([]); // { id, file, status, error }
@@ -45,7 +56,7 @@ export default function DocumentUpload({
   );
 
   const loadDocuments = useCallback(async () => {
-    if (!standard.trim()) {
+    if (!standard.trim() || (isAdmin && !institution.trim())) {
       setDocuments([]);
       setListLoading(false);
       return;
@@ -53,7 +64,9 @@ export default function DocumentUpload({
     setListLoading(true);
     setListError(null);
     try {
-      const res = await fetch(`${apiBase}?standard=${encodeURIComponent(standard.trim())}`, { headers: authHeaders() });
+      const params = new URLSearchParams({ standard: standard.trim() });
+      if (isAdmin && institution.trim()) params.set("institution", institution.trim());
+      const res = await fetch(`${apiBase}?${params.toString()}`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = await res.json();
       setDocuments(Array.isArray(data) ? data : data.documents ?? []);
@@ -62,16 +75,22 @@ export default function DocumentUpload({
     } finally {
       setListLoading(false);
     }
-  }, [apiBase, authHeaders, standard]);
+  }, [apiBase, authHeaders, standard, isAdmin, institution]);
 
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
 
   const loadStandards = useCallback(async () => {
+    if (isAdmin && !institution.trim()) {
+      setStandards([]);
+      setStandardsLoading(false);
+      return;
+    }
     setStandardsLoading(true);
     try {
-      const res = await fetch(`${apiBase}/standards`, { headers: authHeaders() });
+      const qs = isAdmin ? `?institution=${encodeURIComponent(institution.trim())}` : "";
+      const res = await fetch(`${apiBase}/standards${qs}`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = await res.json();
       setStandards(Array.isArray(data) ? data : []);
@@ -80,11 +99,59 @@ export default function DocumentUpload({
     } finally {
       setStandardsLoading(false);
     }
-  }, [apiBase, authHeaders]);
+  }, [apiBase, authHeaders, isAdmin, institution]);
 
   useEffect(() => {
     loadStandards();
   }, [loadStandards]);
+
+  // Institutions come from existing user accounts (schools onboard by having
+  // a user registered under that institution name) — this powers the admin
+  // picker the same way /standards powers the folder picker.
+  const loadInstitutions = useCallback(async () => {
+    if (!isAdmin) return;
+    setInstitutionsLoading(true);
+    try {
+      const adminBase = apiBase.replace(/\/documents$/, "");
+      const res = await fetch(`${adminBase}/admin/institutions`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = await res.json();
+      setInstitutions(Array.isArray(data) ? data : []);
+    } catch {
+      setInstitutions([]);
+    } finally {
+      setInstitutionsLoading(false);
+    }
+  }, [apiBase, authHeaders, isAdmin]);
+
+  useEffect(() => {
+    loadInstitutions();
+  }, [loadInstitutions]);
+
+  const handleSelectInstitution = (value) => {
+    if (value === "__create_new__") {
+      setIsCreatingInstitution(true);
+      setNewInstitutionName("");
+      return;
+    }
+    setInstitution(value);
+    setStandard(""); // folders are institution-scoped — force re-pick
+  };
+
+  const handleConfirmNewInstitution = () => {
+    const trimmed = newInstitutionName.trim();
+    if (!trimmed) return;
+    setInstitutions((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed].sort()));
+    setInstitution(trimmed);
+    setStandard("");
+    setIsCreatingInstitution(false);
+    setNewInstitutionName("");
+  };
+
+  const handleCancelNewInstitution = () => {
+    setIsCreatingInstitution(false);
+    setNewInstitutionName("");
+  };
 
   const handleSelectFolder = (value) => {
     if (value === "__create_new__") {
@@ -112,8 +179,10 @@ export default function DocumentUpload({
     setNewFolderName("");
   };
 
+  const canUpload = standard.trim() && (!isAdmin || institution.trim());
+
   const addFilesToQueue = (fileList) => {
-    if (!standard.trim()) return;
+    if (!canUpload) return;
     const accepted = [".pdf", ".docx", ".pptx"];
     const items = Array.from(fileList)
       .filter((f) => accepted.some((ext) => f.name.toLowerCase().endsWith(ext)))
@@ -127,9 +196,15 @@ export default function DocumentUpload({
   };
 
   const uploadOne = async (item) => {
-    if (!standard.trim()) {
+    if (!canUpload) {
       setQueue((q) =>
-        q.map((i) => (i.id === item.id ? { ...i, status: STATUS.ERROR, error: "Set a standard before uploading." } : i))
+        q.map((i) =>
+          i.id === item.id
+            ? { ...i, status: STATUS.ERROR, error: isAdmin && !institution.trim()
+                ? "Select an institution before uploading."
+                : "Set a standard before uploading." }
+            : i
+        )
       );
       return;
     }
@@ -140,6 +215,7 @@ export default function DocumentUpload({
     formData.append("file", item.file);
     if (subject.trim()) formData.append("subject", subject.trim());
     formData.append("standard", standard.trim());
+    if (isAdmin) formData.append("institution", institution.trim());
 
     try {
       const res = await fetch(apiBase + "/upload", {
@@ -259,6 +335,65 @@ export default function DocumentUpload({
           </button>
         </div>
 
+        {/* Institution picker — admin only. Admins upload on behalf of any
+            school and must say which one explicitly; teachers never see
+            this, they're always scoped server-side to their own account's
+            institution. Folder options below are scoped to whichever
+            institution is picked here. */}
+        {isAdmin && (
+          <div className="mb-4">
+            <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">
+              institution (required — which school this upload belongs to)
+            </label>
+
+            {isCreatingInstitution ? (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  value={newInstitutionName}
+                  onChange={(e) => setNewInstitutionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); handleConfirmNewInstitution(); }
+                    if (e.key === "Escape") handleCancelNewInstitution();
+                  }}
+                  placeholder='new institution name, e.g. "SRV"'
+                  className="flex-1 rounded-md border border-[#C89B3C]/40 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+                />
+                <button
+                  type="button"
+                  onClick={handleConfirmNewInstitution}
+                  disabled={!newInstitutionName.trim()}
+                  className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-2 text-xs font-semibold text-[#0B0E14] transition-all disabled:opacity-30"
+                >
+                  create
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelNewInstitution}
+                  className="rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-colors hover:text-[#EDE6D6]"
+                >
+                  cancel
+                </button>
+              </div>
+            ) : (
+              <select
+                value={institution}
+                onChange={(e) => handleSelectInstitution(e.target.value)}
+                disabled={institutionsLoading}
+                className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)] disabled:opacity-50"
+              >
+                <option value="" disabled>
+                  {institutionsLoading ? "loading institutions…" : "select an institution"}
+                </option>
+                {institutions.map((i) => (
+                  <option key={i} value={i}>{i}</option>
+                ))}
+                <option value="__create_new__">+ create new institution…</option>
+              </select>
+            )}
+          </div>
+        )}
+
         {/* Folder (standard) picker — required; every document is scoped to a
             class. Backed by /api/documents/standards so admins/teachers pick
             an existing folder instead of retyping it (and risking a typo
@@ -302,11 +437,13 @@ export default function DocumentUpload({
             <select
               value={standard}
               onChange={(e) => handleSelectFolder(e.target.value)}
-              disabled={standardsLoading}
+              disabled={standardsLoading || (isAdmin && !institution.trim())}
               className="w-full rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-3 py-2.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)] disabled:opacity-50"
             >
               <option value="" disabled>
-                {standardsLoading ? "loading folders…" : "select a folder"}
+                {isAdmin && !institution.trim()
+                  ? "select an institution first"
+                  : standardsLoading ? "loading folders…" : "select a folder"}
               </option>
               {standards.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -335,10 +472,10 @@ export default function DocumentUpload({
           onDragOver={(e) => e.preventDefault()}
           onDragEnter={onDragEnter}
           onDragLeave={onDragLeave}
-          onClick={() => standard.trim() && fileInputRef.current?.click()}
+          onClick={() => canUpload && fileInputRef.current?.click()}
           style={{ animation: isDragging ? "drop-pulse 1.4s ease-in-out infinite" : "none" }}
           className={`rounded-xl border-[1.5px] border-dashed px-4 py-8 text-center transition-all duration-150 sm:px-5 sm:py-9 ${
-            !standard.trim()
+            !canUpload
               ? "cursor-not-allowed border-[#1B2333] bg-[#12151F]/30 opacity-60"
               : "cursor-pointer " +
                 (isDragging
@@ -352,8 +489,10 @@ export default function DocumentUpload({
             className={`mx-auto mb-2.5 transition-colors ${isDragging ? "text-[#C89B3C]" : "text-[#9FB0AC]"}`}
           />
           <div className="mb-1 text-[13px] text-[#EDE6D6]">
-            {standard.trim() ? (
+            {canUpload ? (
               <>drop files here, or <span className="text-[#C89B3C]">browse</span></>
+            ) : isAdmin && !institution.trim() ? (
+              "select an institution above to enable uploads"
             ) : (
               "set a standard above to enable uploads"
             )}
@@ -364,7 +503,7 @@ export default function DocumentUpload({
             type="file"
             multiple
             accept=".pdf,.docx,.pptx"
-            disabled={!standard.trim()}
+            disabled={!canUpload}
             onChange={(e) => {
               if (e.target.files?.length) addFilesToQueue(e.target.files);
               e.target.value = "";
