@@ -136,8 +136,12 @@ public class QuizService {
                         && matchesScope(q.getStandard(), user.getStandard()))
                 .filter(q -> q.getStatus() == Quiz.QuizStatus.OPEN)
                 .filter(q -> q.getMode() == Quiz.QuizMode.OPEN || isWithinSchedule(q, now))
-                // NEW: hide quizzes this student has already started/submitted
-                .filter(q -> attemptRepository.findByQuizIdAndUsername(q.getId(), username).isEmpty())
+                // Hide only once actually submitted — a started-but-not-submitted
+                // attempt should still show up so the student can resume it,
+                // rather than the quiz silently disappearing.
+                .filter(q -> attemptRepository.findByQuizIdAndUsername(q.getId(), username)
+                        .map(a -> a.getSubmittedAt() == null)
+                        .orElse(true))
                 .toList();
     }
 
