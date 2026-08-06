@@ -38,7 +38,14 @@ public class AgentOrchestrator {
 
         String retrievalQuery = buildRetrievalQuery(req.query(), history);
 
-        var chunks = retrievalAgent.retrieve(retrievalQuery, req.subject(), user.getInstitution(), user.getStandard(), 3);
+        // Retrieval is scoped by institution + standard only. Subject is an
+        // optional free-text tag set at upload time (see DocumentController),
+        // so it's inconsistent across documents and easy to mismatch against
+        // whatever the chat request happens to send — that mismatch was
+        // silently filtering out every chunk for a student's own class
+        // folder. A student should be able to ask about anything ingested
+        // for their standard, not just docs tagged with one exact subject.
+        var chunks = retrievalAgent.retrieve(retrievalQuery, null, user.getInstitution(), user.getStandard(), 5);
         var answer = learningAgent.explain(req.query(), req.level(), chunks, history);
         return new ChatResponse(answer, chunks, null);
     }
