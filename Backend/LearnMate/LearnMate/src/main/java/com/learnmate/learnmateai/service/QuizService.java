@@ -299,7 +299,7 @@ public class QuizService {
 
         List<QuizResultsDto.StudentScore> scores = attemptRepository.findByQuizIdOrderByScoreDesc(quizId).stream()
                 .filter(a -> a.getSubmittedAt() != null) // exclude in-progress attempts from results
-                .map(a -> new QuizResultsDto.StudentScore(a.getUsername(), a.getScore(), a.getTotalQuestions()))
+                .map(a -> new QuizResultsDto.StudentScore(a.getUsername(), a.getScore(), a.getTotalQuestions(), a.getSubmittedAt()))
                 .toList();
 
         List<QuizResultsDto.MissedQuestion> missed = answerRepository.findMissCountsByQuiz(quizId).stream()
@@ -307,6 +307,66 @@ public class QuizService {
                 .toList();
 
         return new QuizResultsDto(quiz.getId(), quiz.getTitle(), scores, missed);
+    }
+
+    /**
+     * Every quiz this admin/teacher has created, with a live submission
+     * count — backs the "quizzes you've created" dashboard so it survives
+     * across browsers/devices instead of living only in localStorage.
+     */
+    public List<QuizSummaryDto> listMyQuizzes(String username) {
+        return quizRepository.findByCreatedByUsernameOrderByCreatedAtDesc(username).stream()
+                .map(q -> new QuizSummaryDto(
+                        q.getId(), q.getTitle(), q.getSubject(), q.getStandard(), q.getInstitution(),
+                        q.getMode(), q.getStatus(), q.getDurationMinutes(),
+                        attemptRepository.countByQuizIdAndSubmittedAtIsNotNull(q.getId())))
+                .toList();
+    }
+
+    /**
+     * Every quiz this student has submitted, with their marks and the date
+     * they submitted — so results stay visible to the student long after
+     * the "submitted successfully" screen is gone.
+     */
+    public List<QuizMyResultDto> listMyResults(String username) {
+        return attemptRepository.findByUsernameAndSubmittedAtIsNotNullOrderBySubmittedAtDesc(username).stream()
+                .map(a -> new QuizMyResultDto(
+                        a.getQuiz().getId(), a.getQuiz().getTitle(), a.getQuiz().getSubject(),
+                        a.getQuiz().getStandard(), a.getScore(), a.getTotalQuestions(), a.getSubmittedAt()))
+                .toList();
+    }
+
+    /**
+     * Full per-question review of a student's own submitted attempt —
+     * scoped strictly to that student's own attempt, same as askAboutQuiz.
+     */
+    public QuizAttemptDetailDto getMyAttemptDetail(Long quizId, String username) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+
+        QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
+                .filter(a -> a.getSubmittedAt() != null)
+                .orElseThrow(() -> new IllegalArgumentException("You haven't submitted this quiz yet."));
+
+        List<QuizQuestion> questions = questionRepository.findByQuizIdOrderByOrderIndexAsc(quizId);
+        Map<Long, QuizAnswer> answersByQuestion = new HashMap<>();
+        for (QuizAnswer a : answerRepository.findByAttemptId(attempt.getId())) {
+            answersByQuestion.put(a.getQuestion().getId(), a);
+        }
+
+        List<QuizAttemptDetailDto.QuestionReview> reviews = questions.stream()
+                .map(q -> {
+                    QuizAnswer ans = answersByQuestion.get(q.getId());
+                    return new QuizAttemptDetailDto.QuestionReview(
+                            q.getId(), q.getQuestionText(), q.getOptionA(), q.getOptionB(),
+                            q.getOptionC(), q.getOptionD(), q.getCorrectOption(),
+                            ans != null ? ans.getSelectedOption() : null,
+                            ans != null && ans.isCorrect());
+                })
+                .toList();
+
+        return new QuizAttemptDetailDto(quiz.getId(), quiz.getTitle(), attempt.getScore(),
+                attempt.getTotalQuestions(), attempt.getSubmittedAt(), reviews);
     }
 
     public void closeQuiz(Long quizId, String username) {

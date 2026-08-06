@@ -14,6 +14,12 @@ import {
   BarChart3,
   Timer,
   MessageCircleQuestion,
+  History,
+  ListChecks,
+  ChevronDown,
+  ChevronUp,
+  CalendarClock,
+  Award,
 } from "lucide-react";
 import {
   createQuiz,
@@ -24,6 +30,9 @@ import {
   closeQuiz,
   listInstitutions,
   askAboutQuiz,
+  getMyCreatedQuizzes,
+  getMyResults,
+  getMyAttemptDetail,
 } from "../api/client";
 
 // Used to hand a quiz explanation off to the chat page. ChatWindow reads
@@ -44,35 +53,14 @@ const EMPTY_MANUAL_QUESTION = () => ({
   correctOption: "A",
 });
 
-// The backend has no "list my quizzes" endpoint — results/close require a
-// quizId the caller already knows. We remember quizzes an admin/teacher
-// creates (per browser, per username) purely so they don't have to copy the
-// id down manually right after creating one.
-function createdQuizzesKey(username) {
-  return `learnmate_created_quizzes_${username}`;
-}
-function loadCreatedQuizzes(username) {
-  try {
-    return JSON.parse(localStorage.getItem(createdQuizzesKey(username)) || "[]");
-  } catch {
-    return [];
-  }
-}
-function rememberCreatedQuiz(username, quiz) {
-  const existing = loadCreatedQuizzes(username);
-  const next = [
-    { id: quiz.id, title: quiz.title, subject: quiz.subject, standard: quiz.standard, mode: quiz.mode },
-    ...existing.filter((q) => q.id !== quiz.id),
-  ];
-  localStorage.setItem(createdQuizzesKey(username), JSON.stringify(next));
-  return next;
-}
-
 export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   const canManage = role === "ADMIN" || role === "TEACHER";
   // "list" (default) | "create" | "take" | "results"
   const [view, setView] = useState("list");
   const [activeQuizId, setActiveQuizId] = useState(null);
+  // Students switch between quizzes they can still take and quizzes
+  // they've already submitted (with marks + date).
+  const [studentTab, setStudentTab] = useState("available"); // "available" | "results"
 
   return (
     <div className="quiz-view min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
@@ -136,21 +124,49 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
         )}
 
         {view === "list" && !canManage && (
-          <StudentQuizList
-            onTakeQuiz={(id) => {
-              setActiveQuizId(id);
-              setView("take");
-            }}
-          />
+          <div>
+            <div className="mb-5 flex gap-1.5 rounded-lg border border-[#1B2333] bg-[#12151F]/60 p-1">
+              <button
+                onClick={() => setStudentTab("available")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors ${
+                  studentTab === "available"
+                    ? "bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] text-[#0B0E14]"
+                    : "text-[#9FB0AC] hover:text-[#EDE6D6]"
+                }`}
+              >
+                <ListChecks size={13} />
+                available
+              </button>
+              <button
+                onClick={() => setStudentTab("results")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors ${
+                  studentTab === "results"
+                    ? "bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] text-[#0B0E14]"
+                    : "text-[#9FB0AC] hover:text-[#EDE6D6]"
+                }`}
+              >
+                <History size={13} />
+                my results
+              </button>
+            </div>
+
+            {studentTab === "available" ? (
+              <StudentQuizList
+                onTakeQuiz={(id) => {
+                  setActiveQuizId(id);
+                  setView("take");
+                }}
+              />
+            ) : (
+              <MyResultsList />
+            )}
+          </div>
         )}
 
         {view === "create" && canManage && (
           <CreateQuizForm
             role={role}
-            onCreated={(quiz) => {
-              rememberCreatedQuiz(currentUsername, quiz);
-              setView("list");
-            }}
+            onCreated={() => setView("list")}
           />
         )}
 
@@ -173,15 +189,34 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
 /* ---------------------------------- admin dashboard ---------------------------------- */
 
 function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
-  const [createdQuizzes, setCreatedQuizzes] = useState(() => loadCreatedQuizzes(currentUsername));
+  const [quizzes, setQuizzes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [closingId, setClosingId] = useState(null);
   const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMyCreatedQuizzes();
+      setQuizzes(data);
+    } catch (err) {
+      setError(err.response?.data?.message ?? "Could not load your quizzes.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleClose = async (id) => {
     setClosingId(id);
     setError(null);
     try {
       await closeQuiz(id);
+      setQuizzes((qs) => qs.map((q) => (q.id === id ? { ...q, status: "CLOSED" } : q)));
     } catch (err) {
       setError(err.response?.data?.message ?? `Could not close quiz ${id}.`);
     } finally {
@@ -191,13 +226,22 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
 
   return (
     <div>
-      <button
-        onClick={onCreate}
-        className="mb-6 flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-4 py-2.5 text-sm font-medium text-[#0B0E14] shadow-[0_4px_14px_-4px_rgba(200,155,60,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(200,155,60,0.65)]"
-      >
-        <Plus size={15} />
-        new quiz
-      </button>
+      <div className="mb-6 flex flex-wrap items-center gap-2.5">
+        <button
+          onClick={onCreate}
+          className="flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-4 py-2.5 text-sm font-medium text-[#0B0E14] shadow-[0_4px_14px_-4px_rgba(200,155,60,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(200,155,60,0.65)]"
+        >
+          <Plus size={15} />
+          new quiz
+        </button>
+        <button
+          onClick={load}
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2.5 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+        >
+          <RefreshCw size={13} strokeWidth={2} />
+          refresh
+        </button>
+      </div>
 
       {error && (
         <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
@@ -207,29 +251,33 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
 
       <h2 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
         <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
-        quizzes you've created (this browser)
+        quizzes you've created
       </h2>
 
-      {createdQuizzes.length === 0 ? (
+      {loading ? (
+        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+      ) : quizzes.length === 0 ? (
         <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
-          nothing created yet — quizzes you create here will show up in this list so you can
-          jump to their results or close them
+          nothing created yet — quizzes you create will show up here, with live submission
+          counts, so you can always jump to their results or close them
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-[#1B2333]">
           <div className="lm-scroll max-h-[420px] overflow-x-auto overflow-y-auto">
-            <table className="w-full min-w-[560px] border-collapse text-xs">
+            <table className="w-full min-w-[680px] border-collapse text-xs">
               <thead>
                 <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                   <th className="px-3 py-2.5 font-medium">title</th>
                   <th className="px-3 py-2.5 font-medium">subject</th>
                   <th className="px-3 py-2.5 font-medium">standard</th>
                   <th className="px-3 py-2.5 font-medium">mode</th>
+                  <th className="px-3 py-2.5 font-medium">status</th>
+                  <th className="px-3 py-2.5 font-medium">submissions</th>
                   <th className="px-3 py-2.5 text-right font-medium">actions</th>
                 </tr>
               </thead>
               <tbody>
-                {createdQuizzes.map((q) => (
+                {quizzes.map((q) => (
                   <tr key={q.id} className="lm-row border-t border-[#1B2333]">
                     <td className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
                       {q.title}
@@ -237,6 +285,18 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.subject || "—"}</td>
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.standard || "—"}</td>
                     <td className="px-3 py-2.5 text-[#9FB0AC]">{q.mode}</td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                          q.status === "OPEN"
+                            ? "bg-[#2DD4BF]/10 text-[#2DD4BF]"
+                            : "bg-[#E2725B]/10 text-[#E2725B]"
+                        }`}
+                      >
+                        {q.status.toLowerCase()}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-[#9FB0AC]">{q.submittedAttempts}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-2">
                         <button
@@ -249,7 +309,7 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
                         </button>
                         <button
                           onClick={() => handleClose(q.id)}
-                          disabled={closingId === q.id}
+                          disabled={closingId === q.id || q.status === "CLOSED"}
                           title="Close quiz"
                           className="flex items-center gap-1 rounded-md border border-[#E2725B]/30 px-2 py-1 text-[11px] text-[#E2725B] transition-colors hover:bg-[#E2725B]/10 disabled:opacity-40"
                         >
@@ -666,6 +726,175 @@ function StudentQuizList({ onTakeQuiz }) {
   );
 }
 
+/* ---------------------------------- my results (student) ---------------------------------- */
+
+function MyResultsList() {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expandedQuizId, setExpandedQuizId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMyResults();
+      setResults(data);
+    } catch (err) {
+      setError(err.response?.data?.message ?? "Could not load your results.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <button
+          onClick={load}
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+        >
+          <RefreshCw size={13} strokeWidth={2} />
+          refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+      ) : results.length === 0 ? (
+        <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+          no quizzes submitted yet — your marks and submission date will show up here as soon
+          as you submit one
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {results.map((r) => {
+            const isOpen = expandedQuizId === r.quizId;
+            const pct = r.totalQuestions > 0 ? Math.round((r.score / r.totalQuestions) * 100) : 0;
+            return (
+              <div key={r.quizId} className="overflow-hidden rounded-lg border border-[#1B2333] bg-[#12151F]/60">
+                <button
+                  onClick={() => setExpandedQuizId(isOpen ? null : r.quizId)}
+                  className="lm-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-[#EDE6D6]">{r.title}</p>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#6E7C79]">
+                      <CalendarClock size={11} />
+                      submitted {formatDate(r.submittedAt)}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-3">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Award size={13} className={pct >= 50 ? "text-[#2DD4BF]" : "text-[#E2725B]"} />
+                      <span className={pct >= 50 ? "text-[#EDE6D6]" : "text-[#F3B9A8]"}>
+                        {r.score} / {r.totalQuestions}
+                      </span>
+                    </div>
+                    {isOpen ? (
+                      <ChevronUp size={14} className="text-[#6E7C79]" />
+                    ) : (
+                      <ChevronDown size={14} className="text-[#6E7C79]" />
+                    )}
+                  </div>
+                </button>
+                {isOpen && <AttemptReview quizId={r.quizId} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AttemptReview({ quizId }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getMyAttemptDetail(quizId);
+        if (!cancelled) setDetail(data);
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.message ?? "Could not load this review.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [quizId]);
+
+  if (loading) {
+    return <div className="border-t border-[#1B2333] px-4 py-4 text-xs text-[#6E7C79]">loading review…</div>;
+  }
+  if (error) {
+    return (
+      <div className="border-t border-[#1B2333] px-4 py-3 text-xs text-[#F3B9A8]">{error}</div>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5 border-t border-[#1B2333] px-4 py-4">
+      {detail.questions.map((q, idx) => (
+        <div
+          key={q.questionId}
+          className={`rounded-md border px-3 py-2.5 text-xs ${
+            q.correct ? "border-[#2DD4BF]/20 bg-[#2DD4BF]/5" : "border-[#E2725B]/30 bg-[#2A1620]/40"
+          }`}
+        >
+          <p className="mb-1.5 text-[#EDE6D6]">
+            <span className="text-[#C89B3C]">{idx + 1}.</span> {q.questionText}
+          </p>
+          <p className="text-[#9FB0AC]">
+            your answer:{" "}
+            <span className={q.correct ? "text-[#2DD4BF]" : "text-[#E2725B]"}>
+              {q.selectedOption ? `${q.selectedOption}) ${q[`option${q.selectedOption}`]}` : "not answered"}
+            </span>
+          </p>
+          {!q.correct && (
+            <p className="mt-0.5 text-[#9FB0AC]">
+              correct answer:{" "}
+              <span className="text-[#2DD4BF]">
+                {q.correctOption}) {q[`option${q.correctOption}`]}
+              </span>
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return value;
+  }
+}
+
 function formatCountdown(totalSeconds) {
   const s = Math.max(0, totalSeconds);
   const mm = Math.floor(s / 60);
@@ -955,6 +1184,7 @@ function QuizResultsPanel({ quizId }) {
                 <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                   <th className="px-3 py-2.5 font-medium">student</th>
                   <th className="px-3 py-2.5 font-medium">score</th>
+                  <th className="px-3 py-2.5 font-medium">submitted</th>
                 </tr>
               </thead>
               <tbody>
@@ -964,6 +1194,7 @@ function QuizResultsPanel({ quizId }) {
                     <td className="px-3 py-2.5 text-[#9FB0AC]">
                       {s.score} / {s.totalQuestions}
                     </td>
+                    <td className="px-3 py-2.5 text-[#9FB0AC]">{formatDate(s.submittedAt)}</td>
                   </tr>
                 ))}
               </tbody>

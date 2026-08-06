@@ -31,6 +31,26 @@ public class QuizController {
         return quizService.listAvailableQuizzesForStudent(auth.getName());
     }
 
+    // Every quiz the calling admin/teacher created, persisted server-side so
+    // it's visible from any browser/device instead of relying on localStorage.
+    @GetMapping("/mine")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public List<QuizSummaryDto> mine(Authentication auth) {
+        return quizService.listMyQuizzes(auth.getName());
+    }
+
+    // Every quiz the calling student has submitted, with marks + submission date.
+    @GetMapping("/my-results")
+    public List<QuizMyResultDto> myResults(Authentication auth) {
+        return quizService.listMyResults(auth.getName());
+    }
+
+    // Full per-question review of the caller's own submitted attempt.
+    @GetMapping("/{quizId}/my-attempt")
+    public QuizAttemptDetailDto myAttempt(@PathVariable Long quizId, Authentication auth) {
+        return quizService.getMyAttemptDetail(quizId, auth.getName());
+    }
+
     // NOTE: no more GET /{quizId}/questions — starting a quiz now has a
     // side effect (creating the attempt + timer), so it's a POST.
     @PostMapping("/{quizId}/start")
