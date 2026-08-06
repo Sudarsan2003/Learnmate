@@ -33,7 +33,7 @@ import {
   getMyCreatedQuizzes,
   getMyResults,
   getMyAttemptDetail,
-} from "../api/client";
+} from "../api/client.js";
 
 // Used to hand a quiz explanation off to the chat page. ChatWindow reads
 // this once on mount, drops it into the conversation, and clears it, so
