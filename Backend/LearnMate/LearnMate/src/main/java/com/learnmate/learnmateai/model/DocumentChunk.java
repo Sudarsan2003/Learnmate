@@ -23,6 +23,13 @@ public class DocumentChunk {
     @Column(nullable = false)
     private String sourceId;
 
+    // The real, human-readable filename — shown in the UI. Separate from
+    // sourceId because sourceId is now a hash of institution+standard+
+    // filename (see IngestionService) so the same filename can exist in
+    // different schools/classes without colliding; this field is what the
+    // person actually uploaded and what they expect to see in a list.
+    private String fileName;
+
     @Column(nullable = false)
     private String subject;
 

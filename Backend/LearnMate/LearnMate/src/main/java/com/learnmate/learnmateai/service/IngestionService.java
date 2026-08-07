@@ -26,10 +26,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class IngestionService {
@@ -71,32 +73,48 @@ public class IngestionService {
             throw new IllegalArgumentException("institution is required");
         }
 
-        String sourceId = file.getOriginalFilename();
-        if (sourceId == null || sourceId.isBlank()) {
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || fileName.isBlank()) {
             throw new IllegalArgumentException("File must have a name");
         }
         if (standard == null || standard.isBlank()) {
             throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
         }
 
+        // sourceId used to just be the filename, which meant two different
+        // schools (or two different classes at the same school) uploading a
+        // file with the same name collided on the same id — deleting one
+        // silently deleted the other, anywhere in the system. Hashing
+        // institution+standard+filename together scopes the id to that
+        // exact folder: identical filenames in different folders now get
+        // different ids, while re-uploading the *same* file into the *same*
+        // folder still produces the same id, so the existing "re-uploading
+        // a source replaces its old chunks" behavior is unchanged.
+        String sourceId = buildSourceId(institution, standard, fileName);
+
         byte[] fileBytes = file.getBytes();
 
         statusService.markProcessing(ownerUsername, sourceId);
-        ingestAsync(fileBytes, sourceId, subject, standard, institution, ownerUsername);
+        ingestAsync(fileBytes, sourceId, fileName, subject, standard, institution, ownerUsername);
 
         return sourceId;
     }
 
+    private String buildSourceId(String institution, String standard, String fileName) {
+        String key = institution.trim() + '\u0000' + standard.trim() + '\u0000' + fileName;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
     @Async("ingestionExecutor")
-    void ingestAsync(byte[] fileBytes, String sourceId, String subject, String standard, String institution, String ownerUsername) {
+    void ingestAsync(byte[] fileBytes, String sourceId, String fileName, String subject, String standard, String institution, String ownerUsername) {
         try {
             String text;
             try {
-                text = extractTextWithOcrFallback(fileBytes, sourceId);
+                text = extractTextWithOcrFallback(fileBytes, fileName);
 
-                System.out.println("[Ingestion] Raw extracted length for " + sourceId + ": " + text.length());
+                System.out.println("[Ingestion] Raw extracted length for " + fileName + ": " + text.length());
                 if (text.length() < 500) {
-                    System.out.println("[Ingestion] WARNING: very little text extracted from " + sourceId);
+                    System.out.println("[Ingestion] WARNING: very little text extracted from " + fileName);
                 }
 
                 text = text.replaceAll("\\.{3,}\\s*\\d{1,4}\\b", "");
@@ -105,18 +123,21 @@ public class IngestionService {
                 text = text.replaceAll("(?m)^\\d+\\s*$", "");
                 text = text.replaceAll("\\s{2,}", " ").trim();
 
-                System.out.println("[Ingestion] Cleaned length for " + sourceId + ": " + text.length());
+                System.out.println("[Ingestion] Cleaned length for " + fileName + ": " + text.length());
             } catch (Exception e) {
                 throw new IOException("Failed to parse document: " + e.getMessage(), e);
             }
 
-            repository.deleteBySourceIdAndOwnerUsername(sourceId, ownerUsername);
+            // Now scoped implicitly: sourceId already encodes institution+
+            // standard+filename, so this only ever matches chunks from this
+            // exact folder's prior version of this exact file.
+            repository.deleteBySourceId(sourceId);
 
             List<DocumentChunk> chunks = new ArrayList<>();
             String[] words = text.split("\\s+");
 
             if (words.length == 0 || (words.length == 1 && words[0].isBlank())) {
-                System.out.println("[Ingestion] WARNING: no words to chunk for " + sourceId);
+                System.out.println("[Ingestion] WARNING: no words to chunk for " + fileName);
                 repository.saveAll(chunks);
                 statusService.markDone(ownerUsername, sourceId, 0);
                 return;
@@ -140,6 +161,7 @@ public class IngestionService {
             for (int i = 0; i < pieces.size(); i++) {
                 DocumentChunk chunk = new DocumentChunk();
                 chunk.setSourceId(sourceId);
+                chunk.setFileName(fileName);
                 chunk.setSubject(subject);
                 chunk.setStandard(standard);
                 chunk.setInstitution(institution);
@@ -149,18 +171,18 @@ public class IngestionService {
                 chunks.add(chunk);
             }
 
-            System.out.println("[Ingestion] Produced " + chunks.size() + " chunks for " + sourceId);
+            System.out.println("[Ingestion] Produced " + chunks.size() + " chunks for " + fileName);
 
             repository.saveAll(chunks);
             statusService.markDone(ownerUsername, sourceId, chunks.size());
 
         } catch (Exception e) {
-            System.out.println("[Ingestion] FAILED for " + sourceId + ": " + e.getMessage());
+            System.out.println("[Ingestion] FAILED for " + fileName + ": " + e.getMessage());
             statusService.markFailed(ownerUsername, sourceId, e.getMessage());
         }
     }
 
-    private String extractTextWithOcrFallback(byte[] fileBytes, String sourceId) throws Exception {
+    private String extractTextWithOcrFallback(byte[] fileBytes, String fileName) throws Exception {
 
         PDFParserConfig pdfConfig = new PDFParserConfig();
         pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
@@ -176,12 +198,12 @@ public class IngestionService {
         String nativeText = handler.toString().trim();
 
         if (nativeText.length() >= MIN_NATIVE_TEXT_CHARS) {
-            System.out.println("[Ingestion] Native text layer found for " + sourceId
+            System.out.println("[Ingestion] Native text layer found for " + fileName
                     + " (" + nativeText.length() + " chars) — skipping OCR.space call");
             return nativeText;
         }
 
-        System.out.println("[Ingestion] Little/no native text for " + sourceId
+        System.out.println("[Ingestion] Little/no native text for " + fileName
                 + " (" + nativeText.length() + " chars) — falling back to OCR.space");
 
         // OCR.space's free tier rejects anything over ~1MB with a 413, and a
@@ -189,7 +211,7 @@ public class IngestionService {
         // no native text) is very often several MB. Sending the whole file
         // in one request either times out or gets rejected outright — see
         // ocrPdfPageByPage() for the per-page workaround.
-        String ocrText = ocrPdfPageByPage(fileBytes, sourceId);
+        String ocrText = ocrPdfPageByPage(fileBytes, fileName);
 
         if (ocrText.isBlank()) {
             throw new IOException("No text could be extracted from the document (native or OCR).");
@@ -202,7 +224,7 @@ public class IngestionService {
     // sending the whole PDF to OCR.space in a single request. This is what
     // keeps every individual request under OCR.space's free-tier 1MB cap
     // regardless of how large or how many pages the source PDF has.
-    private String ocrPdfPageByPage(byte[] fileBytes, String sourceId) throws IOException {
+    private String ocrPdfPageByPage(byte[] fileBytes, String fileName) throws IOException {
         StringBuilder combined = new StringBuilder();
 
         try (PDDocument document = PDDocument.load(fileBytes)) {
@@ -210,13 +232,13 @@ public class IngestionService {
             int pageCount = document.getNumberOfPages();
 
             for (int page = 0; page < pageCount; page++) {
-                byte[] jpegBytes = renderPageUnderSizeLimit(renderer, page, sourceId);
+                byte[] jpegBytes = renderPageUnderSizeLimit(renderer, page, fileName);
                 String pageText = ocrSpaceClient.extractTextFromImage(
-                        jpegBytes, sourceId + "-p" + (page + 1) + ".jpg");
+                        jpegBytes, fileName + "-p" + (page + 1) + ".jpg");
                 combined.append(pageText).append("\n");
 
                 System.out.println("[Ingestion] OCR'd page " + (page + 1) + "/" + pageCount
-                        + " of " + sourceId + " (" + jpegBytes.length + " bytes)");
+                        + " of " + fileName + " (" + jpegBytes.length + " bytes)");
             }
         }
 
@@ -226,7 +248,7 @@ public class IngestionService {
     // Steps down DPI, and within each DPI steps down JPEG quality, until the
     // page fits under OCR_SPACE_MAX_BYTES. Higher DPI is tried first since it
     // gives OCR the best accuracy; we only sacrifice quality as needed.
-    private byte[] renderPageUnderSizeLimit(PDFRenderer renderer, int pageIndex, String sourceId) throws IOException {
+    private byte[] renderPageUnderSizeLimit(PDFRenderer renderer, int pageIndex, String fileName) throws IOException {
         for (int dpi : RENDER_DPI_STEPS) {
             BufferedImage image = renderer.renderImageWithDPI(pageIndex, dpi);
 
@@ -238,7 +260,7 @@ public class IngestionService {
             }
         }
 
-        throw new IOException("Could not compress page " + (pageIndex + 1) + " of " + sourceId
+        throw new IOException("Could not compress page " + (pageIndex + 1) + " of " + fileName
                 + " under OCR.space's size limit even at the lowest quality setting");
     }
 

@@ -156,7 +156,11 @@ public class DocumentController {
                 .entrySet().stream()
                 .map(e -> Map.<String, Object>of(
                         "id", e.getKey(),
-                        "source", e.getKey(),
+                        // Prefer the real filename now that sourceId is a
+                        // hash (institution+standard+filename) rather than
+                        // the filename itself; fall back to the id for any
+                        // pre-existing rows ingested before fileName existed.
+                        "source", firstNonBlank(e.getValue().get(0).getFileName(), e.getKey()),
                         "subject", e.getValue().get(0).getSubject(),
                         "standard", e.getValue().get(0).getStandard(),
                         "chunkCount", e.getValue().size(),
@@ -178,7 +182,7 @@ public class DocumentController {
                 .entrySet().stream()
                 .map(e -> Map.<String, Object>of(
                         "id", e.getKey(),
-                        "source", e.getKey(),
+                        "source", firstNonBlank(e.getValue().get(0).getFileName(), e.getKey()),
                         "subject", e.getValue().get(0).getSubject(),
                         "standard", e.getValue().get(0).getStandard(),
                         "institution", e.getValue().get(0).getInstitution(),
@@ -187,6 +191,10 @@ public class DocumentController {
                         "uploadedAt", e.getValue().get(0).getUploadedAt()
                 ))
                 .toList();
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        return (a != null && !a.isBlank()) ? a : b;
     }
 
     // Admins can delete any document regardless of who uploaded it or which
