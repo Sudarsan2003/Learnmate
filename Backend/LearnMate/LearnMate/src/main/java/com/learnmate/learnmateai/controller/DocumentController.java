@@ -165,9 +165,42 @@ public class DocumentController {
                 .toList();
     }
 
+    // Admin-only: every document across every institution and standard, so
+    // an admin can audit or clean up the whole knowledge base from one view
+    // instead of paging through institution/standard filters one at a time.
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/all")
+    public List<Map<String, Object>> listAll() {
+        List<DocumentChunk> docs = repository.findAll();
+
+        return docs.stream()
+                .collect(Collectors.groupingBy(DocumentChunk::getSourceId))
+                .entrySet().stream()
+                .map(e -> Map.<String, Object>of(
+                        "id", e.getKey(),
+                        "source", e.getKey(),
+                        "subject", e.getValue().get(0).getSubject(),
+                        "standard", e.getValue().get(0).getStandard(),
+                        "institution", e.getValue().get(0).getInstitution(),
+                        "ownerUsername", e.getValue().get(0).getOwnerUsername(),
+                        "chunkCount", e.getValue().size(),
+                        "uploadedAt", e.getValue().get(0).getUploadedAt()
+                ))
+                .toList();
+    }
+
+    // Admins can delete any document regardless of who uploaded it or which
+    // school it belongs to; teachers can still only delete their own uploads.
     @DeleteMapping("/{sourceId}")
     @Transactional
     public void delete(@PathVariable String sourceId, Authentication auth) {
-        repository.deleteBySourceIdAndOwnerUsername(sourceId, auth.getName());
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (isAdmin) {
+            repository.deleteBySourceId(sourceId);
+        } else {
+            repository.deleteBySourceIdAndOwnerUsername(sourceId, auth.getName());
+        }
     }
 }

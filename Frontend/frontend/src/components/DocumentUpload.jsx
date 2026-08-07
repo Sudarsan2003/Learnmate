@@ -35,6 +35,12 @@ export default function DocumentUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
+  // Admins can browse one school/folder at a time (the default, same as
+  // teachers) or flip to "all documents" to audit/clean up the entire
+  // knowledge base across every institution and standard in one list.
+  // Irrelevant for teachers — they're always scoped to their own school.
+  const [viewMode, setViewMode] = useState("folder"); // "folder" | "all"
+
   // "Folders" are just distinct `standard` values that already have material
   // for this school. We fetch the existing ones so admins/teachers pick from
   // a list instead of retyping — retyping is how "5", "Grade 5", and "5th"
@@ -56,6 +62,24 @@ export default function DocumentUpload({
   );
 
   const loadDocuments = useCallback(async () => {
+    // Admin "all documents" view ignores the folder/institution pickers
+    // entirely — it's meant to show literally everything in one place.
+    if (isAdmin && viewMode === "all") {
+      setListLoading(true);
+      setListError(null);
+      try {
+        const res = await fetch(`${apiBase}/all`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        setDocuments(Array.isArray(data) ? data : data.documents ?? []);
+      } catch (err) {
+        setListError(err.message || "Could not load the document list.");
+      } finally {
+        setListLoading(false);
+      }
+      return;
+    }
+
     if (!standard.trim() || (isAdmin && !institution.trim())) {
       setDocuments([]);
       setListLoading(false);
@@ -75,7 +99,7 @@ export default function DocumentUpload({
     } finally {
       setListLoading(false);
     }
-  }, [apiBase, authHeaders, standard, isAdmin, institution]);
+  }, [apiBase, authHeaders, standard, isAdmin, institution, viewMode]);
 
   useEffect(() => {
     loadDocuments();
@@ -300,6 +324,10 @@ export default function DocumentUpload({
 
   const queuedCount = queue.filter((i) => i.status === STATUS.QUEUED).length;
   const hasFinished = queue.some((i) => i.status === STATUS.DONE || i.status === STATUS.ERROR);
+  // In "all documents" mode rows span every school/folder, so institution,
+  // standard, and owner columns are needed to tell them apart — in the
+  // normal single-folder view they'd all just repeat the same value.
+  const showScopeColumns = isAdmin && viewMode === "all";
 
   return (
     <div className="doc-upload min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8" style={{ perspective: "1400px" }}>
@@ -592,10 +620,42 @@ export default function DocumentUpload({
 
         {/* Ingested documents list */}
         <div className="mt-9">
-          <h2 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
-            <span className="thread-dot inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
-            ingested documents
-          </h2>
+          <div className="mb-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
+              <span className="thread-dot inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
+              ingested documents
+            </h2>
+
+            {/* Admin-only: flip between "this folder" (same scoping teachers
+                get) and "everything" — every document across every school,
+                for auditing or cleanup. */}
+            {isAdmin && (
+              <div className="flex overflow-hidden rounded-md border border-[#2DD4BF]/15 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("folder")}
+                  className={`px-3 py-1.5 transition-colors ${
+                    viewMode === "folder"
+                      ? "bg-[#2DD4BF]/15 text-[#EDE6D6]"
+                      : "bg-transparent text-[#9FB0AC] hover:text-[#EDE6D6]"
+                  }`}
+                >
+                  this folder
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("all")}
+                  className={`px-3 py-1.5 transition-colors ${
+                    viewMode === "all"
+                      ? "bg-[#2DD4BF]/15 text-[#EDE6D6]"
+                      : "bg-transparent text-[#9FB0AC] hover:text-[#EDE6D6]"
+                  }`}
+                >
+                  all documents
+                </button>
+              </div>
+            )}
+          </div>
 
           {listError && (
             <div className="mb-3 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
@@ -607,18 +667,23 @@ export default function DocumentUpload({
             <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
           ) : documents.length === 0 ? (
             <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
-              nothing ingested yet — upload a document above to start building the knowledge base
+              {isAdmin && viewMode === "all"
+                ? "no documents have been ingested anywhere yet"
+                : "nothing ingested yet — upload a document above to start building the knowledge base"}
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-[#1B2333]">
               {/* overflow-x-auto lets the table scroll sideways instead of
                   breaking the page layout on narrow screens */}
               <div className="lm-scroll max-h-[360px] overflow-x-auto overflow-y-auto">
-                <table className="w-full min-w-[560px] border-collapse text-xs">
+                <table className={`w-full ${showScopeColumns ? "min-w-[760px]" : "min-w-[560px]"} border-collapse text-xs`}>
                   <thead>
                     <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
                       <th className="px-3 py-2.5 font-medium">source</th>
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">institution</th>}
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">standard</th>}
                       <th className="px-3 py-2.5 font-medium">subject</th>
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">owner</th>}
                       <th className="px-3 py-2.5 font-medium">uploaded</th>
                       <th className="px-3 py-2.5 font-medium">chunks</th>
                       <th className="px-3 py-2.5 text-right font-medium">actions</th>
@@ -630,7 +695,16 @@ export default function DocumentUpload({
                         <td className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
                           {doc.source ?? doc.fileName ?? "untitled"}
                         </td>
+                        {showScopeColumns && (
+                          <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.institution || "—"}</td>
+                        )}
+                        {showScopeColumns && (
+                          <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.standard || "—"}</td>
+                        )}
                         <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.subject || "—"}</td>
+                        {showScopeColumns && (
+                          <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.ownerUsername || "—"}</td>
+                        )}
                         <td className="px-3 py-2.5 text-[#9FB0AC]">{formatDate(doc.uploadDate ?? doc.createdAt)}</td>
                         <td className="px-3 py-2.5 text-[#9FB0AC]">{doc.chunkCount ?? "—"}</td>
                         <td className="px-3 py-2.5">
