@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { Feather, ScrollText, ShieldCheck } from "lucide-react";
+import { Feather, ScrollText, ShieldCheck, ArrowLeft } from "lucide-react";
 import { login, register } from "../api/client";
 import AmbientBackground from "./AmbientBackground";
+import ThemeToggle from "./ThemeToggle";
 
-export default function LoginScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("login"); // "login" | "register"
+export default function LoginScreen({ onAuthenticated, initialMode = "login", onBack }) {
+  const [mode, setMode] = useState(initialMode); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -51,8 +52,22 @@ export default function LoginScreen({ onAuthenticated }) {
   }
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[#0B0E14] px-4 py-8 text-[#EDE6D6]" style={{ perspective: "1400px" }}>
+    <div className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[var(--bg)] px-4 py-8 text-[var(--text)]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
+
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
+
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-lg border border-[#2DD4BF]/15 px-3 py-1.5 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)] sm:left-6 sm:top-6"
+        >
+          <ArrowLeft size={13} />
+          back
+        </button>
+      )}
 
       <form
         ref={cardRef}
@@ -64,7 +79,7 @@ export default function LoginScreen({ onAuthenticated }) {
           transition: "transform 180ms ease-out",
           transformStyle: "preserve-3d",
         }}
-        className="login-card relative z-10 w-full max-w-sm space-y-5 rounded-2xl border border-[#2DD4BF]/15 bg-[#12151F]/80 p-5 backdrop-blur-xl sm:p-7 max-h-[90vh] overflow-y-auto"
+        className="login-card relative z-10 w-full max-w-sm space-y-5 rounded-2xl border border-[#2DD4BF]/15 bg-[var(--surface)]/80 p-5 backdrop-blur-xl sm:p-7 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center gap-2.5" style={{ transform: "translateZ(24px)" }}>
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22] shadow-[0_3px_10px_rgba(0,0,0,0.5)]">
@@ -74,11 +89,11 @@ export default function LoginScreen({ onAuthenticated }) {
             LearnMate<span className="text-[#C89B3C]">.</span>
           </h1>
         </div>
-        <p className="-mt-3 pl-[46px] font-mono text-[10px] uppercase tracking-[0.15em] text-[#6E7C79]" style={{ transform: "translateZ(16px)" }}>
+        <p className="-mt-3 pl-[46px] font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--dim)]" style={{ transform: "translateZ(16px)" }}>
           your tutor, grounded in sources
         </p>
 
-        <div className="relative flex overflow-hidden rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 font-mono text-xs uppercase" style={{ transform: "translateZ(16px)" }}>
+        <div className="relative flex overflow-hidden rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 font-mono text-xs uppercase" style={{ transform: "translateZ(16px)" }}>
           <span
             className="absolute inset-y-0 w-1/2 rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] transition-transform duration-300 ease-out"
             style={{ transform: mode === "login" ? "translateX(0%)" : "translateX(100%)" }}
@@ -86,14 +101,14 @@ export default function LoginScreen({ onAuthenticated }) {
           <button
             type="button"
             onClick={() => setMode("login")}
-            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "login" ? "text-[#0B0E14]" : "text-[#9FB0AC]"}`}
+            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "login" ? "text-[#0B0E14]" : "text-[var(--muted)]"}`}
           >
             Log in
           </button>
           <button
             type="button"
             onClick={() => setMode("register")}
-            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "register" ? "text-[#0B0E14]" : "text-[#9FB0AC]"}`}
+            className={`relative z-10 flex-1 py-2.5 transition-colors ${mode === "register" ? "text-[#0B0E14]" : "text-[var(--muted)]"}`}
           >
             Register
           </button>
@@ -104,14 +119,14 @@ export default function LoginScreen({ onAuthenticated }) {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Username"
-            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+            className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
           />
 
           {mode === "register" && (
@@ -125,20 +140,20 @@ export default function LoginScreen({ onAuthenticated }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
 
               <input
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 placeholder="Mobile number"
-                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
 
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full appearance-none rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               >
                 <option value="">Gender (optional)</option>
                 <option value="female">Female</option>
@@ -151,14 +166,14 @@ export default function LoginScreen({ onAuthenticated }) {
                 value={institution}
                 onChange={(e) => setInstitution(e.target.value)}
                 placeholder="Institution"
-                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
 
               <input
                 value={standard}
                 onChange={(e) => setStandard(e.target.value)}
                 placeholder="Class / standard (students only, e.g. 5)"
-                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
 
               <textarea
@@ -166,7 +181,7 @@ export default function LoginScreen({ onAuthenticated }) {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Address"
                 rows={2}
-                className="w-full resize-none rounded-lg border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-3.5 py-2.5 text-sm text-[#EDE6D6] placeholder:text-[#9FB0AC]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
+                className="w-full resize-none rounded-lg border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#2DD4BF]/50 focus:shadow-[0_0_0_3px_rgba(45,212,191,0.12)] focus:outline-none"
               />
             </div>
           )}

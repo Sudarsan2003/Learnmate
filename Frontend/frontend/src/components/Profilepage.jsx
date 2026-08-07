@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { User, Building2, GraduationCap, Mail, ShieldCheck, RefreshCw, AlertTriangle, Check, Loader2, Pencil } from "lucide-react";
 import { getMe, updateMyStandard } from "../api/client";
+import ThemeToggle from "./ThemeToggle";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
@@ -61,7 +62,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
+    <div className="min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         .profile-page { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
@@ -70,37 +71,40 @@ export default function ProfilePage() {
       <div className="profile-page mx-auto max-w-[560px]">
         <div className="mb-7 flex items-center justify-between">
           <div>
-            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[#EDE6D6] sm:text-[22px]">
+            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[var(--text)] sm:text-[22px]">
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
                 <User size={12} className="text-[#0B0E14]" />
               </span>
               my profile
             </h1>
-            <p className="mt-1.5 text-[13px] text-[#9FB0AC]">
+            <p className="mt-1.5 text-[13px] text-[var(--muted)]">
               what the system knows about your account
             </p>
           </div>
-          <button
-            onClick={load}
-            className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
-          >
-            <RefreshCw size={13} strokeWidth={2} />
-            refresh
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2 self-start">
+            <ThemeToggle />
+            <button
+              onClick={load}
+              className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
+            >
+              <RefreshCw size={13} strokeWidth={2} />
+              refresh
+            </button>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+          <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+          <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
         ) : profile ? (
           <div className="space-y-3">
             {missingScope && (
-              <div className="flex items-start gap-2.5 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-4 py-3 text-xs text-[#F3B9A8]">
+              <div className="flex items-start gap-2.5 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-4 py-3 text-xs text-[#F3B9A8]">
                 <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">institution and/or standard isn't set</p>
@@ -123,22 +127,22 @@ export default function ProfilePage() {
               warn={!profile.institution}
             />
             {profile.role === "USER" ? (
-              <div className="rounded-lg border border-[#1B2333] bg-[#12151F]/60 px-4 py-3">
+              <div className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 text-[11px] uppercase tracking-wide text-[#6E7C79]">
-                    <span className="text-[#9FB0AC]"><GraduationCap size={14} /></span>
+                  <div className="flex items-center gap-2.5 text-[11px] uppercase tracking-wide text-[var(--dim)]">
+                    <span className="text-[var(--muted)]"><GraduationCap size={14} /></span>
                     standard / class
                   </div>
 
                   {!editingStandard && (
                     <div className="flex items-center gap-2.5">
-                      <span className={`text-sm ${!profile.standard ? "text-[#E2725B]" : "text-[#EDE6D6]"}`}>
+                      <span className={`text-sm ${!profile.standard ? "text-[#E2725B]" : "text-[var(--text)]"}`}>
                         {profile.standard || "— not set —"}
                       </span>
                       <button
                         onClick={startEditingStandard}
                         title="Edit your class"
-                        className="text-[#6E7C79] transition-colors hover:text-[#C89B3C]"
+                        className="text-[var(--dim)] transition-colors hover:text-[#C89B3C]"
                       >
                         <Pencil size={13} />
                       </button>
@@ -154,7 +158,7 @@ export default function ProfilePage() {
                       onChange={(e) => setStandardDraft(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveStandard()}
                       placeholder="e.g. 5"
-                      className="w-24 rounded-md border border-[#2DD4BF]/15 bg-[#0B0E14]/50 px-2.5 py-1.5 text-[13px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                      className="w-24 rounded-md border border-[#2DD4BF]/15 bg-[var(--bg)]/50 px-2.5 py-1.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60"
                     />
                     <button
                       onClick={saveStandard}
@@ -167,7 +171,7 @@ export default function ProfilePage() {
                     <button
                       onClick={cancelEditingStandard}
                       disabled={savingStandard}
-                      className="px-2 py-1.5 text-[11px] text-[#6E7C79] transition-colors hover:text-[#EDE6D6]"
+                      className="px-2 py-1.5 text-[11px] text-[var(--dim)] transition-colors hover:text-[var(--text)]"
                     >
                       cancel
                     </button>
@@ -195,14 +199,14 @@ export default function ProfilePage() {
 
 function Row({ icon, label, value, accent, warn }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1B2333] bg-[#12151F]/60 px-4 py-3">
-      <div className="flex items-center gap-2.5 text-[11px] uppercase tracking-wide text-[#6E7C79]">
-        <span className="text-[#9FB0AC]">{icon}</span>
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-4 py-3">
+      <div className="flex items-center gap-2.5 text-[11px] uppercase tracking-wide text-[var(--dim)]">
+        <span className="text-[var(--muted)]">{icon}</span>
         {label}
       </div>
       <span
         className={`text-sm ${
-          warn ? "text-[#E2725B]" : accent ? "text-[#C89B3C] font-semibold" : "text-[#EDE6D6]"
+          warn ? "text-[#E2725B]" : accent ? "text-[#C89B3C] font-semibold" : "text-[var(--text)]"
         }`}
       >
         {value}

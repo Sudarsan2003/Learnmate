@@ -1,11 +1,13 @@
 import { useState } from "react";
 import ChatWindow from "./components/ChatWindow";
 import LoginScreen from "./components/LoginScreen";
+import LandingPage from "./components/LandingPages";
 import DocumentUpload from "./components/DocumentUpload";
 import Sidebar from "./components/Sidebar";
 import ManageUsers from "./components/ManageUsers";
 import Quizzes from "./components/Quizzes";
 import ProfilePage from "./components/Profilepage";
+import { ThemeProvider } from "./components/ThemeContext";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -15,6 +17,11 @@ export default function App() {
 
     return username && token ? { username, token, role } : null;
   });
+
+  // Visitors who aren't logged in land on the marketing page first.
+  // "landing" | "login" — logged-in users skip both and go straight to the app.
+  const [authScreen, setAuthScreen] = useState("landing");
+  const [authMode, setAuthMode] = useState("login"); // which tab LoginScreen opens on
 
   const [view, setView] = useState("chat"); // "chat" | "upload" | "users"
   const [sessionId, setSessionId] = useState(null);
@@ -27,6 +34,7 @@ export default function App() {
     setUser(null);
     setView("chat");
     setSessionId(null);
+    setAuthScreen("landing");
   }
 
   function handleSessionCreated(newSessionId) {
@@ -43,7 +51,8 @@ export default function App() {
   const canUpload = isAdmin || user?.role === "TEACHER";
 
   return (
-    <div className="h-screen w-screen">
+    <ThemeProvider>
+    <div className="h-screen w-screen bg-[var(--bg)] text-[var(--text)]">
       {user ? (
         <div className="flex h-full w-full">
           <Sidebar
@@ -122,8 +131,17 @@ export default function App() {
             )}
           </div>
         </div>
+      ) : authScreen === "landing" ? (
+        <LandingPage
+          onEnter={(mode) => {
+            setAuthMode(mode);
+            setAuthScreen("login");
+          }}
+        />
       ) : (
         <LoginScreen
+          initialMode={authMode}
+          onBack={() => setAuthScreen("landing")}
           onAuthenticated={(result) => {
             localStorage.setItem("learnmate_token", result.token);
             localStorage.setItem("learnmate_username", result.username);
@@ -138,5 +156,6 @@ export default function App() {
         />
       )}
     </div>
+    </ThemeProvider>
   );
 }

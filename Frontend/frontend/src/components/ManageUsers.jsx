@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound } from "lucide-react";
 import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions } from "../api/client";
+import ThemeToggle from "./ThemeToggle";
 
 const ROLES = ["USER", "TEACHER", "ADMIN"];
 
@@ -102,7 +103,7 @@ export default function ManageUsers({ currentUsername }) {
   };
 
   return (
-    <div className="doc-upload min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
+    <div className="doc-upload min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         .doc-upload { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
@@ -115,22 +116,23 @@ export default function ManageUsers({ currentUsername }) {
       <div className="mx-auto max-w-[820px]">
         <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
-            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[#EDE6D6] sm:text-[22px]">
+            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[var(--text)] sm:text-[22px]">
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
                 <Users size={12} className="text-[#0B0E14]" />
               </span>
               manage users <span className="text-[#C89B3C]">·</span> admin
             </h1>
-            <p className="mt-1.5 text-[13px] text-[#9FB0AC]">
+            <p className="mt-1.5 text-[13px] text-[var(--muted)]">
               promote learners to teacher so they can upload documents, or grant admin
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
+            <ThemeToggle />
             <div className="flex items-center gap-1 rounded-md border border-[#2DD4BF]/15 p-1">
               <button
                 onClick={() => setViewMode("all")}
                 className={`rounded px-2.5 py-1.5 text-[11px] transition-colors ${
-                  viewMode === "all" ? "bg-[#2DD4BF]/15 text-[#EDE6D6]" : "text-[#6E7C79] hover:text-[#9FB0AC]"
+                  viewMode === "all" ? "bg-[#2DD4BF]/15 text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--muted)]"
                 }`}
               >
                 all users
@@ -138,7 +140,7 @@ export default function ManageUsers({ currentUsername }) {
               <button
                 onClick={() => setViewMode("institutions")}
                 className={`rounded px-2.5 py-1.5 text-[11px] transition-colors ${
-                  viewMode === "institutions" ? "bg-[#2DD4BF]/15 text-[#EDE6D6]" : "text-[#6E7C79] hover:text-[#9FB0AC]"
+                  viewMode === "institutions" ? "bg-[#2DD4BF]/15 text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--muted)]"
                 }`}
               >
                 by institution
@@ -147,7 +149,7 @@ export default function ManageUsers({ currentUsername }) {
             {viewMode === "all" && (
               <button
                 onClick={loadUsers}
-                className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+                className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
               >
                 <RefreshCw size={13} strokeWidth={2} />
                 refresh
@@ -161,23 +163,23 @@ export default function ManageUsers({ currentUsername }) {
         ) : (
           <>
         {error && (
-          <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+          <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+          <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
         ) : users.length === 0 ? (
-          <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+          <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
             no users found
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-[#1B2333]">
+          <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
             <div className="lm-scroll max-h-[480px] overflow-x-auto overflow-y-auto">
               <table className="w-full min-w-[680px] border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
+                  <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
                     <th className="px-3 py-2.5 font-medium">username</th>
                     <th className="px-3 py-2.5 font-medium">email</th>
                     <th className="px-3 py-2.5 font-medium">institution</th>
@@ -188,25 +190,25 @@ export default function ManageUsers({ currentUsername }) {
                 </thead>
                 <tbody>
                   {users.map((u) => (
-                    <tr key={u.id} className="lm-row border-t border-[#1B2333]">
+                    <tr key={u.id} className="lm-row border-t border-[var(--divider)]">
                       <td className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
                         {u.username}
                         {u.username === currentUsername && (
-                          <span className="ml-1.5 text-[10px] text-[#6E7C79]">(you)</span>
+                          <span className="ml-1.5 text-[10px] text-[var(--dim)]">(you)</span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-[#9FB0AC]">{u.email || "—"}</td>
+                      <td className="px-3 py-2.5 text-[var(--muted)]">{u.email || "—"}</td>
                       {u.role === "ADMIN" ? (
                         <>
                           <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-1.5 text-[11px] text-[#6E7C79]">
+                            <div className="flex items-center gap-1.5 text-[11px] text-[var(--dim)]">
                               <span>{u.institution || "not applicable"}</span>
                               {(u.institution || u.standard) && (
                                 <button
                                   onClick={() => handleClearAdminScope(u)}
                                   disabled={savingProfileUsername === u.username}
                                   title="Admins aren't scoped to one institution — clear this"
-                                  className="flex-shrink-0 text-[#6E7C79] transition-colors hover:text-[#E2725B] disabled:opacity-40"
+                                  className="flex-shrink-0 text-[var(--dim)] transition-colors hover:text-[#E2725B] disabled:opacity-40"
                                 >
                                   {savingProfileUsername === u.username ? (
                                     <Loader2 size={12} className="animate-spin" />
@@ -217,7 +219,7 @@ export default function ManageUsers({ currentUsername }) {
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-[11px] text-[#6E7C79]">{u.standard || "—"}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-[var(--dim)]">{u.standard || "—"}</td>
                         </>
                       ) : (
                         <>
@@ -227,14 +229,14 @@ export default function ManageUsers({ currentUsername }) {
                                 value={profileDrafts[u.username]?.institution ?? ""}
                                 onChange={(e) => updateDraft(u.username, "institution", e.target.value)}
                                 placeholder="institution"
-                                className="w-28 rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-2 py-1.5 text-[11px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                                className="w-28 rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-2 py-1.5 text-[11px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60"
                               />
                               {draftChanged(u) && (
                                 <button
                                   onClick={() => handleProfileSave(u)}
                                   disabled={savingProfileUsername === u.username}
                                   title="Save institution/standard"
-                                  className="flex-shrink-0 text-[#2DD4BF] transition-colors hover:text-[#EDE6D6] disabled:opacity-40"
+                                  className="flex-shrink-0 text-[#2DD4BF] transition-colors hover:text-[var(--text)] disabled:opacity-40"
                                 >
                                   {savingProfileUsername === u.username ? (
                                     <Loader2 size={13} className="animate-spin" />
@@ -250,7 +252,7 @@ export default function ManageUsers({ currentUsername }) {
                               value={profileDrafts[u.username]?.standard ?? ""}
                               onChange={(e) => updateDraft(u.username, "standard", e.target.value)}
                               placeholder="e.g. 5"
-                              className="w-16 rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-2 py-1.5 text-[11px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60"
+                              className="w-16 rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-2 py-1.5 text-[11px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60"
                             />
                           </td>
                         </>
@@ -261,7 +263,7 @@ export default function ManageUsers({ currentUsername }) {
                             value={u.role}
                             disabled={updatingUsername === u.username || u.username === currentUsername}
                             onChange={(e) => handleRoleChange(u.username, e.target.value)}
-                            className="rounded-md border border-[#2DD4BF]/15 bg-[#12151F]/70 px-2 py-1.5 text-[11px] text-[#EDE6D6] outline-none transition-shadow focus:border-[#C89B3C]/60 disabled:opacity-40"
+                            className="rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-2 py-1.5 text-[11px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 disabled:opacity-40"
                           >
                             {ROLES.map((r) => (
                               <option key={r} value={r}>{r}</option>
@@ -382,19 +384,19 @@ function EditUserModal({ user, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={handleSave}
-        className="doc-upload max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl border border-[#2DD4BF]/20 bg-[#12151F]/95 p-6 font-mono shadow-2xl shadow-black/50 backdrop-blur-xl"
+        className="doc-upload max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl border border-[#2DD4BF]/20 bg-[var(--surface)]/95 p-6 font-mono shadow-2xl shadow-black/50 backdrop-blur-xl"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-sm text-[#EDE6D6]">
+          <h2 className="text-sm text-[var(--text)]">
             edit <span className="text-[#C89B3C]">{user.username}</span>
           </h2>
-          <button type="button" onClick={onClose} className="text-[#6E7C79] hover:text-[#EDE6D6]">
+          <button type="button" onClick={onClose} className="text-[var(--dim)] hover:text-[var(--text)]">
             <X size={16} />
           </button>
         </div>
 
         {error && (
-          <p className="rounded-md border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2 text-xs text-[#F3B9A8]">
+          <p className="rounded-md border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2 text-xs text-[#F3B9A8]">
             {error}
           </p>
         )}
@@ -428,7 +430,7 @@ function EditUserModal({ user, onClose, onSaved }) {
           />
         </ModalField>
         {user.role === "ADMIN" ? (
-          <p className="text-[11px] text-[#6E7C79]">
+          <p className="text-[11px] text-[var(--dim)]">
             institution / standard don't apply to admins — clear them from the main table if stale.
           </p>
         ) : (
@@ -462,7 +464,7 @@ function EditUserModal({ user, onClose, onSaved }) {
         <div className="my-1 h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
 
         <div>
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-[#6E7C79]">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-[var(--dim)]">
             <KeyRound size={12} />
             reset password
           </p>
@@ -512,7 +514,7 @@ function EditUserModal({ user, onClose, onSaved }) {
 function ModalField({ label, children }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] uppercase tracking-wide text-[#6E7C79]">{label}</span>
+      <span className="mb-1 block text-[10px] uppercase tracking-wide text-[var(--dim)]">{label}</span>
       {children}
     </label>
   );
@@ -547,7 +549,7 @@ function InstitutionsView() {
       <div className="mb-4 flex justify-end">
         <button
           onClick={load}
-          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
         >
           <RefreshCw size={13} strokeWidth={2} />
           refresh
@@ -555,34 +557,34 @@ function InstitutionsView() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+        <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
       ) : institutions.length === 0 ? (
-        <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+        <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
           no institutions yet — they show up here once users have one set
         </div>
       ) : (
         <div className="space-y-4">
           {institutions.map((inst) => (
-            <div key={inst.institution} className="overflow-hidden rounded-lg border border-[#1B2333]">
-              <div className="flex items-center justify-between bg-[#12151F]/70 px-4 py-2.5">
-                <span className="flex items-center gap-2 text-sm text-[#EDE6D6]">
+            <div key={inst.institution} className="overflow-hidden rounded-lg border border-[var(--divider)]">
+              <div className="flex items-center justify-between bg-[var(--surface)]/70 px-4 py-2.5">
+                <span className="flex items-center gap-2 text-sm text-[var(--text)]">
                   <Building2 size={13} className="text-[#C89B3C]" />
                   {inst.institution}
                 </span>
-                <span className="text-[11px] text-[#6E7C79]">
+                <span className="text-[11px] text-[var(--dim)]">
                   {inst.userCount} user{inst.userCount === 1 ? "" : "s"}
                 </span>
               </div>
               <div className="lm-scroll max-h-[320px] overflow-x-auto overflow-y-auto">
                 <table className="w-full min-w-[480px] border-collapse text-xs">
                   <thead>
-                    <tr className="text-left text-[#6E7C79]">
+                    <tr className="text-left text-[var(--dim)]">
                       <th className="px-4 py-2 font-medium">username</th>
                       <th className="px-4 py-2 font-medium">email</th>
                       <th className="px-4 py-2 font-medium">standard</th>
@@ -591,11 +593,11 @@ function InstitutionsView() {
                   </thead>
                   <tbody>
                     {inst.users.map((u) => (
-                      <tr key={u.username} className="lm-row border-t border-[#1B2333]">
+                      <tr key={u.username} className="lm-row border-t border-[var(--divider)]">
                         <td className="px-4 py-2">{u.username}</td>
-                        <td className="px-4 py-2 text-[#9FB0AC]">{u.email || "—"}</td>
-                        <td className="px-4 py-2 text-[#9FB0AC]">{u.standard || "—"}</td>
-                        <td className="px-4 py-2 text-[#9FB0AC]">{u.role}</td>
+                        <td className="px-4 py-2 text-[var(--muted)]">{u.email || "—"}</td>
+                        <td className="px-4 py-2 text-[var(--muted)]">{u.standard || "—"}</td>
+                        <td className="px-4 py-2 text-[var(--muted)]">{u.role}</td>
                       </tr>
                     ))}
                   </tbody>

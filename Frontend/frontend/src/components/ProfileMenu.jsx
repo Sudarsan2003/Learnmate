@@ -55,10 +55,10 @@ export default function ProfileMenu({ username, role }) {
 
       {open && (
         <div
-          className="absolute right-0 top-12 z-20 w-52 origin-top-right rounded-xl border border-[#2DD4BF]/20 bg-[#12151F]/95 p-1.5 normal-case shadow-2xl shadow-black/50 backdrop-blur-xl"
+          className="absolute right-0 top-12 z-20 w-52 origin-top-right rounded-xl border border-[#2DD4BF]/20 bg-[var(--surface)]/95 p-1.5 normal-case shadow-2xl shadow-black/50 backdrop-blur-xl"
           style={{ animation: "pop-in 160ms cubic-bezier(0.22,1,0.36,1) both" }}
         >
-          <div className="flex items-center gap-2 px-3 py-2 text-sm text-[#EDE6D6]">
+          <div className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text)]">
             <User size={14} className="text-[#2DD4BF]" />
             <span className="truncate">{username}</span>
           </div>
@@ -68,7 +68,7 @@ export default function ProfileMenu({ username, role }) {
               setOpen(false);
               document.dispatchEvent(new CustomEvent("learnmate:open-profile"));
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[var(--text)]"
           >
             <User size={14} />
             view profile
@@ -88,7 +88,7 @@ export default function ProfileMenu({ username, role }) {
               setOpen(false);
               document.dispatchEvent(new CustomEvent("learnmate:open-quizzes"));
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[var(--text)]"
           >
             <ClipboardList size={14} />
             quizzes
@@ -99,7 +99,7 @@ export default function ProfileMenu({ username, role }) {
               setOpen(false);
               setShowPasswordModal(true);
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[var(--text)]"
           >
             <KeyRound size={14} />
             change password
@@ -111,7 +111,7 @@ export default function ProfileMenu({ username, role }) {
                 setOpen(false);
                 document.dispatchEvent(new CustomEvent("learnmate:open-users"));
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#EDE6D6]"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[var(--text)]"
             >
               <Users size={14} />
               manage users
@@ -123,7 +123,7 @@ export default function ProfileMenu({ username, role }) {
               setOpen(false);
               document.dispatchEvent(new CustomEvent("learnmate:logout"));
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#9FB0AC] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#C89B3C]"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 hover:text-[#C89B3C]"
           >
             <LogOut size={14} />
             log out

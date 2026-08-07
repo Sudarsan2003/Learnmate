@@ -4,6 +4,7 @@ import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
+import ThemeToggle from "./ThemeToggle";
 
 // Matches the key Quizzes.jsx writes to when a student clicks
 // "Ask LearnMate" after submitting a quiz.
@@ -23,8 +24,8 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
     <div
       className={`message-card group relative max-w-[85%] rounded-xl px-4 py-3 font-body text-sm leading-relaxed backdrop-blur-sm sm:max-w-[75%] ${
         isError
-          ? "border border-[#FF6B81]/40 bg-[#2A1020]/70 text-[#FFC2CC]"
-          : "border border-[#5B8DEF]/20 bg-[#14122A]/80 text-[#F1EEFB]"
+          ? "border border-[#FF6B81]/40 bg-[var(--error-bg)]/70 text-[#FFC2CC]"
+          : "border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 text-[var(--text)]"
       }`}
     >
       <p className="whitespace-pre-wrap">
@@ -39,7 +40,7 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
           </p>
           <ul className="mt-1.5 space-y-1">
             {citations.map((c) => (
-              <li key={c.chunkId} className="font-mono text-[11px] text-[#9691B8]">
+              <li key={c.chunkId} className="font-mono text-[11px] text-[var(--muted)]">
                 <span className="text-[#FF8F6B]">[{c.sourceId}]</span> {c.content.slice(0, 90)}
                 {c.content.length > 90 ? "…" : ""}
               </li>
@@ -55,7 +56,7 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
               onClick={onCopy}
               aria-label="Copy answer"
               title="Copy answer"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[#9691B8] transition-colors hover:bg-[#5B8DEF]/15 hover:text-[#F1EEFB]"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[#5B8DEF]/15 hover:text-[var(--text)]"
             >
               {copied ? <Check size={12} className="text-[#5B8DEF]" /> : <Copy size={12} />}
             </button>
@@ -65,7 +66,7 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
               onClick={onRegenerate}
               aria-label="Regenerate answer"
               title="Regenerate answer"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[#9691B8] transition-colors hover:bg-[#FF6B4A]/15 hover:text-[#FF8F6B]"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[#FF6B4A]/15 hover:text-[#FF8F6B]"
             >
               <RotateCcw size={12} />
             </button>
@@ -315,26 +316,26 @@ useEffect(() => {
   const lastTutorIndex = [...messages].map((m) => m.role).lastIndexOf("tutor");
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-[#0A0916] text-[#F1EEFB]" style={{ perspective: "1400px" }}>
+    <div className="relative flex h-full w-full flex-col bg-[var(--bg-canvas)] text-[var(--text)]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
 
-      <header className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#5B8DEF]/15 bg-[#0A0916]/70 px-4 py-3 shadow-[0_8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
+      <header className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
         <div className="flex min-w-0 items-center gap-2">
           <button
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-[#9691B8] transition-colors hover:bg-[#14122A] hover:text-[#F1EEFB]"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
           >
             <Menu size={18} />
           </button>
-          <h1 className="hero-serif truncate text-xl text-[#F1EEFB] sm:text-2xl">
+          <h1 className="hero-serif truncate text-xl text-[var(--text)] sm:text-2xl">
             {sessionId ? "Chat" : "New chat"}
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-wide text-[#9691B8] sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-wide text-[var(--muted)] sm:gap-3">
           <button
             onClick={handleNewChatClick}
-            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[#9691B8] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[#F1EEFB]"
+            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
           >
             <Plus size={14} />
             <span className="hidden sm:inline">new chat</span>
@@ -342,7 +343,7 @@ useEffect(() => {
 
           <button
             onClick={onOpenQuizzes}
-            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[#9691B8] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[#F1EEFB]"
+            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
           >
             <span className="hidden sm:inline">quizzes</span>
             <span className="sm:hidden">quiz</span>
@@ -357,6 +358,8 @@ useEffect(() => {
             </button>
           )}
 
+          <ThemeToggle />
+
           <div className="ml-0 sm:ml-2">
             <ProfileMenu username={currentUser} role={currentRole} />
           </div>
@@ -365,7 +368,7 @@ useEffect(() => {
 
       <div ref={scrollRef} onScroll={handleScroll} className="relative z-10 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
         {historyLoading && (
-          <p className="font-mono text-xs text-[#9691B8]/60">mapping the knowledge graph…</p>
+          <p className="font-mono text-xs text-[var(--muted)]/60">mapping the knowledge graph…</p>
         )}
 
         {!historyLoading && messages.length === 0 && (
@@ -377,7 +380,7 @@ useEffect(() => {
               <div className="orbit-avatar flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#C4482B] shadow-[0_6px_20px_rgba(255,107,74,0.35)]">
                 <Orbit size={20} className="text-[#0A0916]" />
               </div>
-              <h2 className="hero-serif text-3xl italic leading-[1.15] text-[#F1EEFB] sm:text-[2.5rem]">
+              <h2 className="hero-serif text-3xl italic leading-[1.15] text-[var(--text)] sm:text-[2.5rem]">
                 What are we studying today?
               </h2>
               <svg width="128" height="12" viewBox="0 0 128 12" fill="none" className="opacity-70">
@@ -389,7 +392,7 @@ useEffect(() => {
                   className="spark-stroke"
                 />
               </svg>
-              <p className="max-w-md font-body text-sm text-[#9691B8]">
+              <p className="max-w-md font-body text-sm text-[var(--muted)]">
                 Ask anything — every answer traces a path back to a node in your knowledge base.
               </p>
             </div>
@@ -400,7 +403,7 @@ useEffect(() => {
                   key={p}
                   onClick={() => handlePromptClick(p)}
                   style={{ animation: "message-in 300ms cubic-bezier(0.22,1,0.36,1) both", animationDelay: `${180 + i * 60}ms` }}
-                  className="prompt-chip group flex items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[#14122A]/50 px-4 py-3 text-left text-sm text-[#9691B8] transition-all hover:-translate-y-0.5 hover:border-[#FF6B4A]/40 hover:bg-[#14122A]/85 hover:text-[#F1EEFB]"
+                  className="prompt-chip group flex items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/50 px-4 py-3 text-left text-sm text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#FF6B4A]/40 hover:bg-[var(--surface-2)]/85 hover:text-[var(--text)]"
                 >
                   <Sparkles size={14} className="flex-shrink-0 text-[#5B8DEF]/80 transition-colors group-hover:text-[#FF8F6B]" />
                   <span className="font-body">{p}</span>
@@ -447,7 +450,7 @@ useEffect(() => {
               <div className="mb-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#C4482B]">
                 <Orbit size={12} className="text-[#0A0916]" />
               </div>
-              <div className="flex items-center gap-1 rounded-xl border border-[#5B8DEF]/20 bg-[#14122A]/80 px-4 py-3 font-mono text-xs text-[#9691B8] backdrop-blur-sm">
+              <div className="flex items-center gap-1 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 px-4 py-3 font-mono text-xs text-[var(--muted)] backdrop-blur-sm">
                 <span>tracing the graph</span>
                 <span className="spark-dot" style={{ animationDelay: "0ms" }} />
                 <span className="spark-dot" style={{ animationDelay: "160ms" }} />
@@ -462,13 +465,13 @@ useEffect(() => {
         <button
           onClick={scrollToBottom}
           aria-label="Scroll to latest message"
-          className="scroll-fab absolute bottom-[92px] left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[#5B8DEF]/30 bg-[#14122A]/90 text-[#F1EEFB] shadow-[0_6px_16px_-4px_rgba(0,0,0,0.6)] backdrop-blur-md transition-transform hover:-translate-y-0.5"
+          className="scroll-fab absolute bottom-[92px] left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[#5B8DEF]/30 bg-[var(--surface-2)]/90 text-[var(--text)] shadow-[0_6px_16px_-4px_rgba(0,0,0,0.6)] backdrop-blur-md transition-transform hover:-translate-y-0.5"
         >
           <ArrowDown size={16} />
         </button>
       )}
 
-      <div className="relative z-10 border-t border-[#5B8DEF]/15 bg-[#0A0916]/70 px-4 py-3 shadow-[0_-8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
+      <div className="relative z-10 border-t border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_-8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
         <div className="mx-auto flex max-w-3xl items-end gap-2 sm:gap-3">
           <textarea
             ref={textareaRef}
@@ -477,12 +480,12 @@ useEffect(() => {
             onKeyDown={handleKeyDown}
             placeholder="Ask about anything in the knowledge base…"
             rows={1}
-            className="flex-1 resize-none rounded-2xl border border-[#5B8DEF]/20 bg-[#14122A]/60 px-4 py-3 font-body text-sm text-[#F1EEFB] placeholder:text-[#9691B8]/50 transition-shadow focus:border-[#FF6B4A]/50 focus:shadow-[0_0_0_3px_rgba(255,107,74,0.12)] focus:outline-none"
+            className="flex-1 resize-none rounded-2xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/60 px-4 py-3 font-body text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#FF6B4A]/50 focus:shadow-[0_0_0_3px_rgba(255,107,74,0.12)] focus:outline-none"
           />
           {isLoading ? (
             <button
               onClick={handleStop}
-              className="stop-btn flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[#5B8DEF]/40 bg-[#14122A] px-4 py-3 font-body text-sm font-medium text-[#F1EEFB] transition-all hover:border-[#FF6B81]/50 hover:text-[#FF8F6B] sm:px-5"
+              className="stop-btn flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[#5B8DEF]/40 bg-[var(--surface-2)] px-4 py-3 font-body text-sm font-medium text-[var(--text)] transition-all hover:border-[#FF6B81]/50 hover:text-[#FF8F6B] sm:px-5"
             >
               <Square size={13} fill="currentColor" />
               <span className="hidden sm:inline">Stop</span>

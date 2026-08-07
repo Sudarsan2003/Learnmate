@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTheme } from "./ThemeContext";
 
 /**
  * KnowledgeGraph — the signature element.
@@ -8,8 +9,16 @@ import { useEffect, useRef } from "react";
  * answer back to a citation. Pure canvas + a hand-rolled perspective
  * projection — no extra dependencies.
  */
-function KnowledgeGraph() {
+function KnowledgeGraph({ light }) {
   const canvasRef = useRef(null);
+  const lightRef = useRef(light);
+
+  // The draw loop below reads lightRef.current every frame, so flipping
+  // themes recolors the graph immediately without tearing down the canvas
+  // or restarting the node layout.
+  useEffect(() => {
+    lightRef.current = light;
+  }, [light]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -57,8 +66,12 @@ function KnowledgeGraph() {
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", onPointerMove);
 
-    const EMBER = [255, 143, 107];
-    const ELECTRIC = [110, 158, 255];
+    const EMBER_DARK = [255, 143, 107];
+    const ELECTRIC_DARK = [110, 158, 255];
+    // Softer, more saturated tones for light mode — the pale versions above
+    // wash out and nearly disappear against a light background.
+    const EMBER_LIGHT = [214, 96, 58];
+    const ELECTRIC_LIGHT = [58, 95, 203];
 
     function project(n) {
       // rotate around Y then X
@@ -78,6 +91,12 @@ function KnowledgeGraph() {
 
     function draw() {
       ctx.clearRect(0, 0, width, height);
+      const isLight = lightRef.current;
+      const EMBER = isLight ? EMBER_LIGHT : EMBER_DARK;
+      const ELECTRIC = isLight ? ELECTRIC_LIGHT : ELECTRIC_DARK;
+      // Everything reads much darker against white than against near-black,
+      // so pull intensity down considerably in light mode to keep it subtle.
+      const intensity = isLight ? 0.4 : 1;
 
       pointer.x += (target.x - pointer.x) * 0.03;
       pointer.y += (target.y - pointer.y) * 0.03;
@@ -104,7 +123,7 @@ function KnowledgeGraph() {
           const b = projected[j];
           const depth = (a.perspective + b.perspective) / 2;
           const alpha = Math.max(0, Math.min(0.5, (depth - 0.55) * 0.9));
-          ctx.strokeStyle = `rgba(160, 150, 210, ${alpha * 0.55})`;
+          ctx.strokeStyle = `rgba(160, 150, 210, ${alpha * 0.55 * intensity})`;
           ctx.beginPath();
           ctx.moveTo(a.cx, a.cy);
           ctx.lineTo(b.cx, b.cy);
@@ -122,14 +141,14 @@ function KnowledgeGraph() {
         const alpha = Math.max(0.12, Math.min(1, p.perspective));
 
         const glow = ctx.createRadialGradient(p.cx, p.cy, 0, p.cx, p.cy, radius * 6);
-        glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha * 0.35})`);
+        glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha * 0.35 * intensity})`);
         glow.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = glow;
         ctx.beginPath();
         ctx.arc(p.cx, p.cy, radius * 6, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * (0.6 + 0.4 * intensity)})`;
         ctx.beginPath();
         ctx.arc(p.cx, p.cy, Math.max(0.6, radius), 0, Math.PI * 2);
         ctx.fill();
@@ -151,18 +170,22 @@ function KnowledgeGraph() {
 }
 
 export default function AmbientBackground() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[#0A0916]">
-      {/* ember glow, upper right — like a dying star */}
-      <div className="absolute -right-28 -top-24 h-[30rem] w-[30rem] rounded-full bg-[#FF6B4A]/[0.12] blur-[110px] animate-drift-a" />
+    <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[var(--bg-canvas)]">
+      {/* ember glow, upper right — like a dying star. Dialed back in light
+          mode so the glow reads as a soft tint instead of a smudge. */}
+      <div className={`absolute -right-28 -top-24 h-[30rem] w-[30rem] rounded-full bg-[#FF6B4A]/[0.12] blur-[110px] animate-drift-a ${isLight ? "opacity-40" : ""}`} />
       {/* electric-blue glow, lower left */}
-      <div className="absolute -left-20 bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-[#5B8DEF]/[0.14] blur-[110px] animate-drift-b" />
+      <div className={`absolute -left-20 bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-[#5B8DEF]/[0.14] blur-[110px] animate-drift-b ${isLight ? "opacity-40" : ""}`} />
       {/* soft violet wash, center */}
-      <div className="absolute left-1/3 top-1/3 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A78BFA]/[0.08] blur-[100px] animate-drift-a" style={{ animationDelay: "-9s" }} />
+      <div className={`absolute left-1/3 top-1/3 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A78BFA]/[0.08] blur-[100px] animate-drift-a ${isLight ? "opacity-40" : ""}`} style={{ animationDelay: "-9s" }} />
 
       {/* the signature 3D knowledge graph, rotating slowly behind everything */}
-      <div className="absolute inset-0 opacity-[0.55]">
-        <KnowledgeGraph />
+      <div className={`absolute inset-0 ${isLight ? "opacity-[0.35]" : "opacity-[0.55]"}`}>
+        <KnowledgeGraph light={isLight} />
       </div>
 
       {/* fine grain so flat gradients don't look plasticky */}
@@ -174,7 +197,7 @@ export default function AmbientBackground() {
       </svg>
 
       {/* vignette so foreground content stays legible */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#0A0916_88%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--bg-canvas)_88%)]" />
 
       <style>{`
         @keyframes drift-a {

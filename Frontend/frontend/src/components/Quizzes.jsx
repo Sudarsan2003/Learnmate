@@ -34,6 +34,7 @@ import {
   getMyResults,
   getMyAttemptDetail,
 } from "../api/client";
+import ThemeToggle from "./ThemeToggle";
 
 // Used to hand a quiz explanation off to the chat page. ChatWindow reads
 // this once on mount, drops it into the conversation, and clears it, so
@@ -63,7 +64,7 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   const [studentTab, setStudentTab] = useState("available"); // "available" | "results"
 
   return (
-    <div className="quiz-view min-h-full bg-[#0B0E14] px-4 py-6 font-mono text-[#EDE6D6] sm:px-8 sm:py-8">
+    <div className="quiz-view min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
         .quiz-view { font-family: 'JetBrains Mono', 'Fira Code', 'Noto Sans Telugu', 'Noto Sans Devanagari', ui-monospace, monospace; }
@@ -85,31 +86,34 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
       <div className="mx-auto max-w-[820px]">
         <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
-            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[#EDE6D6] sm:text-[22px]">
+            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[var(--text)] sm:text-[22px]">
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
                 <ClipboardList size={12} className="text-[#0B0E14]" />
               </span>
               quizzes <span className="text-[#C89B3C]">·</span> {canManage ? (role === "TEACHER" ? "teacher" : "admin") : "student"}
             </h1>
-            <p className="mt-1.5 text-[13px] text-[#9FB0AC]">
+            <p className="mt-1.5 text-[13px] text-[var(--muted)]">
               {canManage
                 ? "create quizzes for your class, mixing manual and AI-generated questions"
                 : "quizzes open for your class right now"}
             </p>
           </div>
 
-          {view !== "list" && (
-            <button
-              onClick={() => {
-                setView("list");
-                setActiveQuizId(null);
-              }}
-              className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
-            >
-              <ArrowLeft size={13} strokeWidth={2} />
-              back
-            </button>
-          )}
+          <div className="flex flex-shrink-0 items-center gap-2 self-start">
+            <ThemeToggle />
+            {view !== "list" && (
+              <button
+                onClick={() => {
+                  setView("list");
+                  setActiveQuizId(null);
+                }}
+                className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
+              >
+                <ArrowLeft size={13} strokeWidth={2} />
+                back
+              </button>
+            )}
+          </div>
         </div>
 
         {view === "list" && canManage && (
@@ -125,13 +129,13 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
 
         {view === "list" && !canManage && (
           <div>
-            <div className="mb-5 flex gap-1.5 rounded-lg border border-[#1B2333] bg-[#12151F]/60 p-1">
+            <div className="mb-5 flex gap-1.5 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-1">
               <button
                 onClick={() => setStudentTab("available")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors ${
                   studentTab === "available"
                     ? "bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] text-[#0B0E14]"
-                    : "text-[#9FB0AC] hover:text-[#EDE6D6]"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
                 <ListChecks size={13} />
@@ -142,7 +146,7 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors ${
                   studentTab === "results"
                     ? "bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] text-[#0B0E14]"
-                    : "text-[#9FB0AC] hover:text-[#EDE6D6]"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
                 <History size={13} />
@@ -236,7 +240,7 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
         </button>
         <button
           onClick={load}
-          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2.5 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2.5 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
         >
           <RefreshCw size={13} strokeWidth={2} />
           refresh
@@ -244,29 +248,29 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
 
-      <h2 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
+      <h2 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[var(--muted)]">
         <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
         quizzes you've created
       </h2>
 
       {loading ? (
-        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+        <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
       ) : quizzes.length === 0 ? (
-        <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+        <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
           nothing created yet — quizzes you create will show up here, with live submission
           counts, so you can always jump to their results or close them
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-[#1B2333]">
+        <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
           <div className="lm-scroll max-h-[420px] overflow-x-auto overflow-y-auto">
             <table className="w-full min-w-[820px] border-collapse text-xs">
               <thead>
-                <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
+                <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
                   <th className="px-3 py-2.5 font-medium">title</th>
                   <th className="px-3 py-2.5 font-medium">subject</th>
                   <th className="px-3 py-2.5 font-medium">institution</th>
@@ -279,16 +283,16 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
               </thead>
               <tbody>
                 {quizzes.map((q) => (
-                  <tr key={q.id} className="lm-row border-t border-[#1B2333]">
+                  <tr key={q.id} className="lm-row border-t border-[var(--divider)]">
                     <td className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
                       {q.title}
                     </td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">{q.subject || "—"}</td>
-                    <td className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-[#9FB0AC]" title={q.institution}>
+                    <td className="px-3 py-2.5 text-[var(--muted)]">{q.subject || "—"}</td>
+                    <td className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-[var(--muted)]" title={q.institution}>
                       {q.institution || "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">{q.standard || "—"}</td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">{q.mode}</td>
+                    <td className="px-3 py-2.5 text-[var(--muted)]">{q.standard || "—"}</td>
+                    <td className="px-3 py-2.5 text-[var(--muted)]">{q.mode}</td>
                     <td className="px-3 py-2.5">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
@@ -300,7 +304,7 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
                         {q.status.toLowerCase()}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">{q.submittedAttempts}</td>
+                    <td className="px-3 py-2.5 text-[var(--muted)]">{q.submittedAttempts}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-2">
                         <button
@@ -444,7 +448,7 @@ function CreateQuizForm({ role, onCreated }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
@@ -489,7 +493,7 @@ function CreateQuizForm({ role, onCreated }) {
                 <option key={inst} value={inst} />
               ))}
             </datalist>
-            <p className="mt-1 text-[10px] text-[#6E7C79]">
+            <p className="mt-1 text-[10px] text-[var(--dim)]">
               must exactly match the institution set on students' profiles (see "manage users") or they won't see this quiz
             </p>
           </Field>
@@ -529,7 +533,7 @@ function CreateQuizForm({ role, onCreated }) {
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">
+          <h2 className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[var(--muted)]">
             <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
             manual questions
           </h2>
@@ -544,17 +548,17 @@ function CreateQuizForm({ role, onCreated }) {
         </div>
 
         {manualQuestions.length === 0 ? (
-          <p className="text-xs text-[#6E7C79]">none yet — optional if you're using AI-generated questions</p>
+          <p className="text-xs text-[var(--dim)]">none yet — optional if you're using AI-generated questions</p>
         ) : (
           <div className="flex flex-col gap-3">
             {manualQuestions.map((q, idx) => (
               <div
                 key={q.clientId}
                 style={{ animation: "row-in 180ms ease both" }}
-                className="rounded-lg border border-[#1B2333] bg-[#12151F]/60 p-3"
+                className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-3"
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[11px] text-[#6E7C79]">question {idx + 1}</span>
+                  <span className="text-[11px] text-[var(--dim)]">question {idx + 1}</span>
                   <button
                     type="button"
                     onClick={() => removeManualQuestion(q.clientId)}
@@ -583,7 +587,7 @@ function CreateQuizForm({ role, onCreated }) {
                   ))}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-[#6E7C79]">correct option</span>
+                  <span className="text-[11px] text-[var(--dim)]">correct option</span>
                   <select
                     value={q.correctOption}
                     onChange={(e) => updateManualQuestion(q.clientId, "correctOption", e.target.value)}
@@ -649,7 +653,7 @@ function CreateQuizForm({ role, onCreated }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[11px] text-[#9FB0AC]">{label}</label>
+      <label className="mb-1.5 block text-[11px] text-[var(--muted)]">{label}</label>
       {children}
     </div>
   );
@@ -684,7 +688,7 @@ function StudentQuizList({ onTakeQuiz }) {
       <div className="mb-3 flex justify-end">
         <button
           onClick={load}
-          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
         >
           <RefreshCw size={13} strokeWidth={2} />
           refresh
@@ -692,15 +696,15 @@ function StudentQuizList({ onTakeQuiz }) {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+        <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
       ) : quizzes.length === 0 ? (
-        <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+        <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
           no quizzes open for your class right now
         </div>
       ) : (
@@ -708,11 +712,11 @@ function StudentQuizList({ onTakeQuiz }) {
           {quizzes.map((q) => (
             <div
               key={q.id}
-              className="lm-row flex items-center justify-between gap-3 rounded-lg border border-[#1B2333] bg-[#12151F]/60 px-4 py-3"
+              className="lm-row flex items-center justify-between gap-3 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-4 py-3"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm text-[#EDE6D6]">{q.title}</p>
-                <p className="mt-0.5 text-[11px] text-[#6E7C79]">
+                <p className="truncate text-sm text-[var(--text)]">{q.title}</p>
+                <p className="mt-0.5 text-[11px] text-[var(--dim)]">
                   {q.subject || "general"} · standard {q.standard} · {q.mode.toLowerCase()}
                 </p>
               </div>
@@ -760,7 +764,7 @@ function MyResultsList() {
       <div className="mb-3 flex justify-end">
         <button
           onClick={load}
-          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[#9FB0AC] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[#EDE6D6]"
+          className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
         >
           <RefreshCw size={13} strokeWidth={2} />
           refresh
@@ -768,15 +772,15 @@ function MyResultsList() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="mb-4 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="py-5 text-xs text-[#6E7C79]">loading…</div>
+        <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
       ) : results.length === 0 ? (
-        <div className="rounded-lg border border-[#1B2333] px-4 py-7 text-center text-xs text-[#6E7C79]">
+        <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
           no quizzes submitted yet — your marks and submission date will show up here as soon
           as you submit one
         </div>
@@ -786,14 +790,14 @@ function MyResultsList() {
             const isOpen = expandedQuizId === r.quizId;
             const pct = r.totalQuestions > 0 ? Math.round((r.score / r.totalQuestions) * 100) : 0;
             return (
-              <div key={r.quizId} className="overflow-hidden rounded-lg border border-[#1B2333] bg-[#12151F]/60">
+              <div key={r.quizId} className="overflow-hidden rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60">
                 <button
                   onClick={() => setExpandedQuizId(isOpen ? null : r.quizId)}
                   className="lm-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-[#EDE6D6]">{r.title}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#6E7C79]">
+                    <p className="truncate text-sm text-[var(--text)]">{r.title}</p>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--dim)]">
                       <CalendarClock size={11} />
                       submitted {formatDate(r.submittedAt)}
                     </p>
@@ -801,14 +805,14 @@ function MyResultsList() {
                   <div className="flex flex-shrink-0 items-center gap-3">
                     <div className="flex items-center gap-1.5 text-xs">
                       <Award size={13} className={pct >= 50 ? "text-[#2DD4BF]" : "text-[#E2725B]"} />
-                      <span className={pct >= 50 ? "text-[#EDE6D6]" : "text-[#F3B9A8]"}>
+                      <span className={pct >= 50 ? "text-[var(--text)]" : "text-[#F3B9A8]"}>
                         {r.score} / {r.totalQuestions}
                       </span>
                     </div>
                     {isOpen ? (
-                      <ChevronUp size={14} className="text-[#6E7C79]" />
+                      <ChevronUp size={14} className="text-[var(--dim)]" />
                     ) : (
-                      <ChevronDown size={14} className="text-[#6E7C79]" />
+                      <ChevronDown size={14} className="text-[var(--dim)]" />
                     )}
                   </div>
                 </button>
@@ -847,34 +851,34 @@ function AttemptReview({ quizId }) {
   }, [quizId]);
 
   if (loading) {
-    return <div className="border-t border-[#1B2333] px-4 py-4 text-xs text-[#6E7C79]">loading review…</div>;
+    return <div className="border-t border-[var(--divider)] px-4 py-4 text-xs text-[var(--dim)]">loading review…</div>;
   }
   if (error) {
     return (
-      <div className="border-t border-[#1B2333] px-4 py-3 text-xs text-[#F3B9A8]">{error}</div>
+      <div className="border-t border-[var(--divider)] px-4 py-3 text-xs text-[#F3B9A8]">{error}</div>
     );
   }
 
   return (
-    <div className="space-y-2.5 border-t border-[#1B2333] px-4 py-4">
+    <div className="space-y-2.5 border-t border-[var(--divider)] px-4 py-4">
       {detail.questions.map((q, idx) => (
         <div
           key={q.questionId}
           className={`rounded-md border px-3 py-2.5 text-xs ${
-            q.correct ? "border-[#2DD4BF]/20 bg-[#2DD4BF]/5" : "border-[#E2725B]/30 bg-[#2A1620]/40"
+            q.correct ? "border-[#2DD4BF]/20 bg-[#2DD4BF]/5" : "border-[#E2725B]/30 bg-[var(--error-bg)]/40"
           }`}
         >
-          <p className="mb-1.5 text-[#EDE6D6]">
+          <p className="mb-1.5 text-[var(--text)]">
             <span className="text-[#C89B3C]">{idx + 1}.</span> {q.questionText}
           </p>
-          <p className="text-[#9FB0AC]">
+          <p className="text-[var(--muted)]">
             your answer:{" "}
             <span className={q.correct ? "text-[#2DD4BF]" : "text-[#E2725B]"}>
               {q.selectedOption ? `${q.selectedOption}) ${q[`option${q.selectedOption}`]}` : "not answered"}
             </span>
           </p>
           {!q.correct && (
-            <p className="mt-0.5 text-[#9FB0AC]">
+            <p className="mt-0.5 text-[var(--muted)]">
               correct answer:{" "}
               <span className="text-[#2DD4BF]">
                 {q.correctOption}) {q[`option${q.correctOption}`]}
@@ -1015,11 +1019,11 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
     }
   };
 
-  if (loading) return <div className="py-5 text-xs text-[#6E7C79]">loading…</div>;
+  if (loading) return <div className="py-5 text-xs text-[var(--dim)]">loading…</div>;
 
   if (error && !questions) {
     return (
-      <div className="rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+      <div className="rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
         {error}
       </div>
     );
@@ -1027,15 +1031,15 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
 
   if (result) {
     return (
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-[#2DD4BF]/20 bg-[#12151F]/70 px-6 py-10 text-center">
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-[#2DD4BF]/20 bg-[var(--surface)]/70 px-6 py-10 text-center">
         <CheckCircle2 size={28} className="text-[#2DD4BF]" />
-        <p className="text-lg text-[#EDE6D6]">
+        <p className="text-lg text-[var(--text)]">
           {result.score} / {result.totalQuestions}
         </p>
-        <p className="text-xs text-[#9FB0AC]">submitted successfully</p>
+        <p className="text-xs text-[var(--muted)]">submitted successfully</p>
 
         {askError && (
-          <p className="rounded-md border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2 text-xs text-[#F3B9A8]">
+          <p className="rounded-md border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2 text-xs text-[#F3B9A8]">
             {askError}
           </p>
         )}
@@ -1072,8 +1076,8 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
         <div
           className={`sticky top-0 z-10 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold backdrop-blur-sm ${
             timeIsShort
-              ? "border-[#E2725B]/40 bg-[#2A1620]/80 text-[#F3B9A8]"
-              : "border-[#2DD4BF]/20 bg-[#12151F]/80 text-[#EDE6D6]"
+              ? "border-[#E2725B]/40 bg-[var(--error-bg)]/80 text-[#F3B9A8]"
+              : "border-[#2DD4BF]/20 bg-[var(--surface)]/80 text-[var(--text)]"
           }`}
         >
           <Timer size={14} className={timeIsShort ? "text-[#E2725B]" : "text-[#C89B3C]"} />
@@ -1082,14 +1086,14 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+        <div className="rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
           {error}
         </div>
       )}
 
       {questions.map((q, idx) => (
-        <div key={q.id} className="rounded-lg border border-[#1B2333] bg-[#12151F]/60 p-4">
-          <p className="mb-3 text-sm text-[#EDE6D6]">
+        <div key={q.id} className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-4">
+          <p className="mb-3 text-sm text-[var(--text)]">
             <span className="text-[#C89B3C]">{idx + 1}.</span> {q.questionText}
           </p>
           <div className="flex flex-col gap-2">
@@ -1101,8 +1105,8 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
                   key={key}
                   className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-xs transition-colors ${
                     selected
-                      ? "border-[#C89B3C]/60 bg-[#C89B3C]/10 text-[#EDE6D6]"
-                      : "border-[#1B2333] text-[#9FB0AC] hover:border-[#2DD4BF]/30"
+                      ? "border-[#C89B3C]/60 bg-[#C89B3C]/10 text-[var(--text)]"
+                      : "border-[var(--divider)] text-[var(--muted)] hover:border-[#2DD4BF]/30"
                   }`}
                 >
                   <input
@@ -1159,11 +1163,11 @@ function QuizResultsPanel({ quizId }) {
     };
   }, [quizId]);
 
-  if (loading) return <div className="py-5 text-xs text-[#6E7C79]">loading…</div>;
+  if (loading) return <div className="py-5 text-xs text-[var(--dim)]">loading…</div>;
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-[#E2725B]/30 bg-[#2A1620]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
+      <div className="flex items-center gap-2 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
         <AlertCircle size={14} />
         {error}
       </div>
@@ -1172,20 +1176,20 @@ function QuizResultsPanel({ quizId }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="flex items-center gap-2 text-base text-[#EDE6D6]">
+      <h2 className="flex items-center gap-2 text-base text-[var(--text)]">
         <Feather size={14} className="text-[#C89B3C]" />
         {results.title}
       </h2>
 
       <div>
-        <h3 className="mb-2 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">student scores</h3>
+        <h3 className="mb-2 text-[13px] font-semibold tracking-wide text-[var(--muted)]">student scores</h3>
         {results.studentScores.length === 0 ? (
-          <p className="text-xs text-[#6E7C79]">no submissions yet</p>
+          <p className="text-xs text-[var(--dim)]">no submissions yet</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-[#1B2333]">
+          <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[#12151F]/70 text-left text-[#6E7C79]">
+                <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
                   <th className="px-3 py-2.5 font-medium">student</th>
                   <th className="px-3 py-2.5 font-medium">score</th>
                   <th className="px-3 py-2.5 font-medium">submitted</th>
@@ -1193,12 +1197,12 @@ function QuizResultsPanel({ quizId }) {
               </thead>
               <tbody>
                 {results.studentScores.map((s) => (
-                  <tr key={s.username} className="lm-row border-t border-[#1B2333]">
+                  <tr key={s.username} className="lm-row border-t border-[var(--divider)]">
                     <td className="px-3 py-2.5">{s.username}</td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">
+                    <td className="px-3 py-2.5 text-[var(--muted)]">
                       {s.score} / {s.totalQuestions}
                     </td>
-                    <td className="px-3 py-2.5 text-[#9FB0AC]">{formatDate(s.submittedAt)}</td>
+                    <td className="px-3 py-2.5 text-[var(--muted)]">{formatDate(s.submittedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1208,17 +1212,17 @@ function QuizResultsPanel({ quizId }) {
       </div>
 
       <div>
-        <h3 className="mb-2 text-[13px] font-semibold tracking-wide text-[#9FB0AC]">most missed questions</h3>
+        <h3 className="mb-2 text-[13px] font-semibold tracking-wide text-[var(--muted)]">most missed questions</h3>
         {results.mostMissedQuestions.length === 0 ? (
-          <p className="text-xs text-[#6E7C79]">nothing to show yet</p>
+          <p className="text-xs text-[var(--dim)]">nothing to show yet</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {results.mostMissedQuestions.map((m) => (
               <div
                 key={m.questionId}
-                className="flex items-center justify-between gap-3 rounded-md border border-[#1B2333] bg-[#12151F]/60 px-3 py-2 text-xs"
+                className="flex items-center justify-between gap-3 rounded-md border border-[var(--divider)] bg-[var(--surface)]/60 px-3 py-2 text-xs"
               >
-                <span className="truncate text-[#EDE6D6]">{m.questionText}</span>
+                <span className="truncate text-[var(--text)]">{m.questionText}</span>
                 <span className="flex-shrink-0 text-[#E2725B]">missed {m.missCount}x</span>
               </div>
             ))}
