@@ -77,7 +77,9 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "https://learnmate-frontend-a7la.onrender.com"
+                "https://learnmate-frontend-a7la.onrender.com",
+                "https://srvlearnmate.in",
+                "https://www.srvlearnmate.in"
         ));
 
         configuration.setAllowedMethods(List.of(
