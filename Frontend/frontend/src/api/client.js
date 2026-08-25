@@ -171,3 +171,7 @@ export async function resetUserPassword(username, newPassword) {
   const { data } = await api.put(`/api/admin/users/${username}/reset-password`, { newPassword });
   return data;
 }
+
+export async function deleteUser(username) {
+  await api.delete(`/api/admin/users/${username}`);
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound } from "lucide-react";
-import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions } from "../api/client";
+import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound, Trash2 } from "lucide-react";
+import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions, deleteUser } from "../api/client";
 import ThemeToggle from "./ThemeToggle";
 
 const ROLES = ["USER", "TEACHER", "ADMIN"];
@@ -15,6 +15,8 @@ export default function ManageUsers({ currentUsername }) {
   const [profileDrafts, setProfileDrafts] = useState({}); // username -> { institution, standard }
   const [savingProfileUsername, setSavingProfileUsername] = useState(null);
   const [editingUser, setEditingUser] = useState(null); // full user object, or null when modal closed
+  const [deleteTarget, setDeleteTarget] = useState(null); // user pending delete confirmation, or null
+  const [deletingUsername, setDeletingUsername] = useState(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -102,6 +104,20 @@ export default function ManageUsers({ currentUsername }) {
     }
   };
 
+  const handleDeleteUser = async (username) => {
+    setDeletingUsername(username);
+    setError(null);
+    try {
+      await deleteUser(username);
+      setUsers((prev) => prev.filter((u) => u.username !== username));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not delete ${username}.`);
+    } finally {
+      setDeletingUsername(null);
+    }
+  };
+
   return (
     <div className="doc-upload min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
@@ -123,7 +139,7 @@ export default function ManageUsers({ currentUsername }) {
               manage users <span className="text-[#C89B3C]">·</span> admin
             </h1>
             <p className="mt-1.5 text-[13px] text-[var(--muted)]">
-              promote learners to teacher so they can upload documents, or grant admin
+              promote learners to teacher so they can upload documents, grant admin, or remove accounts
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
@@ -278,14 +294,24 @@ export default function ManageUsers({ currentUsername }) {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <button
-                          onClick={() => setEditingUser(u)}
-                          title="Edit all details"
-                          className="flex items-center gap-1 rounded-md border border-[#2DD4BF]/20 px-2 py-1 text-[11px] text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
-                        >
-                          <Pencil size={12} />
-                          edit
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            title="Edit all details"
+                            className="flex items-center gap-1 rounded-md border border-[#2DD4BF]/20 px-2 py-1 text-[11px] text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
+                          >
+                            <Pencil size={12} />
+                            edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(u)}
+                            disabled={u.username === currentUsername}
+                            title={u.username === currentUsername ? "You can't delete your own account" : "Delete user"}
+                            className="flex items-center gap-1 rounded-md border border-[#E2725B]/25 px-2 py-1 text-[11px] text-[#E2725B] transition-colors hover:bg-[#E2725B]/10 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -310,7 +336,62 @@ export default function ManageUsers({ currentUsername }) {
           }}
         />
       )}
+
+      {deleteTarget && (
+        <DeleteUserModal
+          user={deleteTarget}
+          deleting={deletingUsername === deleteTarget.username}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDeleteUser(deleteTarget.username)}
+        />
+      )}
     </div>
+  );
+}
+
+/* ---------------------------------- delete user modal ---------------------------------- */
+
+function DeleteUserModal({ user, deleting, onCancel, onConfirm }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="doc-upload w-full max-w-sm space-y-4 rounded-2xl border border-[#E2725B]/30 bg-[var(--surface)]/95 p-6 font-mono shadow-2xl shadow-black/50 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm text-[var(--text)]">
+            <Trash2 size={14} className="text-[#E2725B]" />
+            delete user
+          </h2>
+          <button type="button" onClick={onCancel} className="text-[var(--dim)] hover:text-[var(--text)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        <p className="text-xs text-[var(--muted)]">
+          This will permanently delete <span className="font-semibold text-[var(--text)]">{user.username}</span>{" "}
+          ({user.role.toLowerCase()}). This cannot be undone.
+        </p>
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            className="rounded-md border border-[#2DD4BF]/20 px-3 py-2 text-xs text-[var(--muted)] transition-colors hover:bg-[#2DD4BF]/10 disabled:opacity-40"
+          >
+            cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="flex items-center gap-1.5 rounded-md border border-[#E2725B]/40 bg-[#E2725B]/10 px-3 py-2 text-xs font-medium text-[#E2725B] transition-colors hover:bg-[#E2725B]/20 disabled:opacity-40"
+          >
+            {deleting && <Loader2 size={12} className="animate-spin" />}
+            delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
