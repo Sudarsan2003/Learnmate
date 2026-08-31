@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound, Trash2 } from "lucide-react";
-import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions, deleteUser } from "../api/client";
+import { Users, RefreshCw, Loader2, ShieldCheck, Check, Building2, X, Pencil, KeyRound, Trash2, Lock, Unlock } from "lucide-react";
+import { listUsers, updateUserRole, updateUserProfile, resetUserPassword, listInstitutions, deleteUser, setUserLocked } from "../api/client";
 import ThemeToggle from "./ThemeToggle";
 
 const ROLES = ["USER", "TEACHER", "ADMIN"];
@@ -17,6 +17,7 @@ export default function ManageUsers({ currentUsername }) {
   const [editingUser, setEditingUser] = useState(null); // full user object, or null when modal closed
   const [deleteTarget, setDeleteTarget] = useState(null); // user pending delete confirmation, or null
   const [deletingUsername, setDeletingUsername] = useState(null);
+  const [lockingUsername, setLockingUsername] = useState(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -118,6 +119,23 @@ export default function ManageUsers({ currentUsername }) {
     }
   };
 
+  // Toggles quiz/chat access. Backend flips User.locked and the JWT filter
+  // rejects that user's next request with 403 — no logout needed.
+  const handleToggleLock = async (u) => {
+    setLockingUsername(u.username);
+    setError(null);
+    try {
+      const updated = await setUserLocked(u.username, !u.locked);
+      setUsers((prev) =>
+        prev.map((row) => (row.username === u.username ? { ...row, locked: updated.locked } : row))
+      );
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not update lock for ${u.username}.`);
+    } finally {
+      setLockingUsername(null);
+    }
+  };
+
   return (
     <div className="doc-upload min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
@@ -139,7 +157,7 @@ export default function ManageUsers({ currentUsername }) {
               manage users <span className="text-[#C89B3C]">·</span> admin
             </h1>
             <p className="mt-1.5 text-[13px] text-[var(--muted)]">
-              promote learners to teacher so they can upload documents, grant admin, or remove accounts
+              promote learners to teacher so they can upload documents, grant admin, lock access, or remove accounts
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
@@ -193,7 +211,7 @@ export default function ManageUsers({ currentUsername }) {
         ) : (
           <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
             <div className="lm-scroll max-h-[480px] overflow-x-auto overflow-y-auto">
-              <table className="w-full min-w-[680px] border-collapse text-xs">
+              <table className="w-full min-w-[720px] border-collapse text-xs">
                 <thead>
                   <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
                     <th className="px-3 py-2.5 font-medium">username</th>
@@ -201,7 +219,7 @@ export default function ManageUsers({ currentUsername }) {
                     <th className="px-3 py-2.5 font-medium">institution</th>
                     <th className="px-3 py-2.5 font-medium">standard</th>
                     <th className="px-3 py-2.5 font-medium">role</th>
-                    <th className="px-3 py-2.5 font-medium">edit</th>
+                    <th className="px-3 py-2.5 font-medium">actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -211,6 +229,9 @@ export default function ManageUsers({ currentUsername }) {
                         {u.username}
                         {u.username === currentUsername && (
                           <span className="ml-1.5 text-[10px] text-[var(--dim)]">(you)</span>
+                        )}
+                        {u.locked && (
+                          <Lock size={11} className="ml-1.5 inline text-[#E2725B]" strokeWidth={2.5} />
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-[var(--muted)]">{u.email || "—"}</td>
@@ -301,7 +322,30 @@ export default function ManageUsers({ currentUsername }) {
                             className="flex items-center gap-1 rounded-md border border-[#2DD4BF]/20 px-2 py-1 text-[11px] text-[#2DD4BF] transition-colors hover:bg-[#2DD4BF]/10"
                           >
                             <Pencil size={12} />
-                            edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleLock(u)}
+                            disabled={u.username === currentUsername || lockingUsername === u.username}
+                            title={
+                              u.username === currentUsername
+                                ? "You can't lock your own account"
+                                : u.locked
+                                ? "Unlock account"
+                                : "Lock account (blocks quiz & chat)"
+                            }
+                            className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+                              u.locked
+                                ? "border-[#E2725B]/40 bg-[#E2725B]/10 text-[#E2725B] hover:bg-[#E2725B]/20"
+                                : "border-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/10"
+                            }`}
+                          >
+                            {lockingUsername === u.username ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : u.locked ? (
+                              <Lock size={12} />
+                            ) : (
+                              <Unlock size={12} />
+                            )}
                           </button>
                           <button
                             onClick={() => setDeleteTarget(u)}

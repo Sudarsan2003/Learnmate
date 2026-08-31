@@ -43,4 +43,7 @@ public class User {
     // A student's class (1–10). Null/blank for ADMIN/TEACHER accounts —
 // teachers aren't tied to a single class, they choose per upload instead.
     private String standard;
+
+    @Column(nullable = false)
+    private boolean locked = false;
 }

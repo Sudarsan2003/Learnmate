@@ -39,6 +39,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
+                    // This filter builds the Authentication directly, bypassing
+                    // AuthenticationManager/DaoAuthenticationProvider — so the
+                    // standard accountNonLocked check never runs automatically.
+                    // Enforce it here instead, on every authenticated request.
+                    if (!userDetails.isAccountNonLocked()) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"message\":\"Your account has been locked by an administrator.\"}");
+                        return;
+                    }
+
                     var authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

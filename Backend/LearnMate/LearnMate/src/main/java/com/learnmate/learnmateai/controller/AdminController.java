@@ -3,6 +3,7 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +43,7 @@ public class AdminController {
                     row.put("role", u.getRole());
                     row.put("institution", u.getInstitution() == null ? "" : u.getInstitution());
                     row.put("standard", u.getStandard() == null ? "" : u.getStandard());
+                    row.put("locked", u.isLocked());
                     return row;
                 })
                 .collect(Collectors.toList());
@@ -90,10 +92,9 @@ public class AdminController {
 
         return Map.of("username", user.getUsername(), "role", user.getRole());
     }
-    // Add these two endpoints to the existing AdminController class
 
     // One-time bulk fix: sets institution for every user currently missing one.
-// Safe to call multiple times — only touches null/blank institution rows.
+    // Safe to call multiple times — only touches null/blank institution rows.
     @PostMapping("/users/backfill-institution")
     public Map<String, Object> backfillInstitution(@RequestBody Map<String, String> body) {
         String defaultInstitution = body.get("institution");
@@ -113,8 +114,8 @@ public class AdminController {
     }
 
     // Lets an admin fix institution/standard on individual users afterward —
-// e.g. correcting a student's class, or splitting users across two schools
-// if the backfill set everyone to one default.
+    // e.g. correcting a student's class, or splitting users across two schools
+    // if the backfill set everyone to one default.
     @PutMapping("/users/{username}/profile")
     public Map<String, Object> updateProfile(@PathVariable String username, @RequestBody Map<String, String> body) {
         User user = userRepository.findByUsername(username)
@@ -126,11 +127,10 @@ public class AdminController {
             if (!isAdmin && (institution == null || institution.isBlank())) {
                 throw new IllegalArgumentException("institution cannot be blank");
             }
-            // Admins aren't scoped to one institution — allow clearing it.
             user.setInstitution(isAdmin && (institution == null || institution.isBlank()) ? null : institution);
         }
         if (body.containsKey("standard")) {
-            user.setStandard(body.get("standard")); // may be null/blank to clear it
+            user.setStandard(body.get("standard"));
         }
         if (body.containsKey("email")) {
             user.setEmail(emptyToNull(body.get("email")));
@@ -162,10 +162,7 @@ public class AdminController {
         return (value == null || value.isBlank()) ? null : value;
     }
 
-    // Admin-initiated password reset — e.g. a student is locked out and
-    // can't use the normal "change password" flow because that requires
-    // knowing the current password. Doesn't require the current password
-    // since the admin is presumed to already be a trusted party.
+    // Admin-initiated password reset.
     @PutMapping("/users/{username}/reset-password")
     public Map<String, Object> resetPassword(@PathVariable String username, @RequestBody Map<String, String> body) {
         String newPassword = body.get("newPassword");
@@ -180,5 +177,45 @@ public class AdminController {
         userRepository.save(user);
 
         return Map.of("username", user.getUsername(), "reset", true);
+    }
+
+    // Blocks/unblocks a user's access to quiz + chat without deleting them.
+    // Actual enforcement lives in the security layer (see UserDetailsService/
+    // JWT filter) — this just flips the flag.
+    @PutMapping("/users/{username}/lock")
+    public Map<String, Object> setLocked(@PathVariable String username, @RequestBody Map<String, Boolean> body) {
+        Boolean locked = body.get("locked");
+        if (locked == null) {
+            throw new IllegalArgumentException("locked is required");
+        }
+
+        String currentAdmin = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (username.equals(currentAdmin)) {
+            throw new IllegalArgumentException("You cannot lock your own account.");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+
+        user.setLocked(locked);
+        userRepository.save(user);
+
+        return Map.of("username", user.getUsername(), "locked", user.isLocked());
+    }
+
+    // Permanently removes a user account.
+    @DeleteMapping("/users/{username}")
+    public Map<String, Object> deleteUser(@PathVariable String username) {
+        String currentAdmin = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (username.equals(currentAdmin)) {
+            throw new IllegalArgumentException("You cannot delete your own account.");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+
+        userRepository.delete(user);
+
+        return Map.of("username", username, "deleted", true);
     }
 }

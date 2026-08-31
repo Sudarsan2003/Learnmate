@@ -175,3 +175,8 @@ export async function resetUserPassword(username, newPassword) {
 export async function deleteUser(username) {
   await api.delete(`/api/admin/users/${username}`);
 }
+
+export async function setUserLocked(username, locked) {
+  const { data } = await api.put(`/api/admin/users/${username}/lock`, { locked });
+  return data;
+}
