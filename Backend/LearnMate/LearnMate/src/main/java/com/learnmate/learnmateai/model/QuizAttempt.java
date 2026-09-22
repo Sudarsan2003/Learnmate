@@ -7,7 +7,13 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "quiz_attempts")
+@Table(
+        name = "quiz_attempts",
+        // One attempt per student per quiz. The service relies on this
+        // (findByQuizIdAndUsername returns a single row), and it stops two
+        // simultaneous "start" requests from creating duplicate attempts.
+        uniqueConstraints = @UniqueConstraint(name = "uk_attempt_quiz_user", columnNames = {"quiz_id", "username"})
+)
 @Data
 @NoArgsConstructor
 public class QuizAttempt {

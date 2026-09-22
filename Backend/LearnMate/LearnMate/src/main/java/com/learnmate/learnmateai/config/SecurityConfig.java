@@ -60,6 +60,10 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Let Spring's /error page through. Without this, any server-side
+                        // exception (a 500) is re-dispatched to /error, which is itself
+                        // secured, so the browser sees a misleading 403 instead of the real error.
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/health").permitAll()
                         .requestMatchers("/api/documents/**").hasAnyRole("ADMIN", "TEACHER")
                         .requestMatchers(HttpMethod.POST, "/api/quizzes").hasAnyRole("ADMIN", "TEACHER")

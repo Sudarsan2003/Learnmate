@@ -106,6 +106,41 @@ public class AuthController {
         return new AuthResponse(null, user.getUsername(), user.getRole());
     }
 
+    @PutMapping("/change-password")
+    public java.util.Map<String, Object> changePassword(
+            @RequestBody java.util.Map<String, String> body,
+            org.springframework.security.core.Authentication auth) {
+
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new IllegalArgumentException("Current password is required");
+        }
+
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new IllegalArgumentException("New password is required");
+        }
+
+        if (newPassword.length() < 6) {
+            throw new IllegalArgumentException("New password must be at least 6 characters");
+        }
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Current password incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return java.util.Map.of(
+                "success", true,
+                "message", "Password updated successfully"
+        );
+    }
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         authenticationManager.authenticate(

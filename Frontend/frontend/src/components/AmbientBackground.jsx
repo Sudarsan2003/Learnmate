@@ -66,12 +66,13 @@ function KnowledgeGraph({ light }) {
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", onPointerMove);
 
-    const EMBER_DARK = [255, 143, 107];
-    const ELECTRIC_DARK = [110, 158, 255];
+    const EMBER_DARK = [110, 175, 255];
+    const ELECTRIC_DARK = [150, 140, 255];
     // Softer, more saturated tones for light mode — the pale versions above
     // wash out and nearly disappear against a light background.
-    const EMBER_LIGHT = [214, 96, 58];
-    const ELECTRIC_LIGHT = [58, 95, 203];
+    // Light theme is blue-on-blue: sky + indigo instead of ember + electric.
+    const EMBER_LIGHT = [38, 132, 214];
+    const ELECTRIC_LIGHT = [63, 81, 201];
 
     function project(n) {
       // rotate around Y then X
@@ -123,7 +124,9 @@ function KnowledgeGraph({ light }) {
           const b = projected[j];
           const depth = (a.perspective + b.perspective) / 2;
           const alpha = Math.max(0, Math.min(0.5, (depth - 0.55) * 0.9));
-          ctx.strokeStyle = `rgba(160, 150, 210, ${alpha * 0.55 * intensity})`;
+          ctx.strokeStyle = isLight
+            ? `rgba(70, 105, 190, ${alpha * 0.55 * intensity})`
+            : `rgba(160, 150, 210, ${alpha * 0.55 * intensity})`;
           ctx.beginPath();
           ctx.moveTo(a.cx, a.cy);
           ctx.lineTo(b.cx, b.cy);
@@ -177,11 +180,11 @@ export default function AmbientBackground() {
     <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[var(--bg-canvas)]">
       {/* ember glow, upper right — like a dying star. Dialed back in light
           mode so the glow reads as a soft tint instead of a smudge. */}
-      <div className={`absolute -right-28 -top-24 h-[30rem] w-[30rem] rounded-full bg-[#FF6B4A]/[0.12] blur-[110px] animate-drift-a ${isLight ? "opacity-40" : ""}`} />
+      <div className={`absolute -right-28 -top-24 h-[30rem] w-[30rem] rounded-full blur-[110px] animate-drift-a ${isLight ? "bg-[#4A9DFF]/[0.14] opacity-60" : "bg-[#6A4DE0]/[0.16]"}`} />
       {/* electric-blue glow, lower left */}
-      <div className={`absolute -left-20 bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-[#5B8DEF]/[0.14] blur-[110px] animate-drift-b ${isLight ? "opacity-40" : ""}`} />
+      <div className={`absolute -left-20 bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-[#5B8DEF]/[0.14] blur-[110px] animate-drift-b ${isLight ? "opacity-60" : ""}`} />
       {/* soft violet wash, center */}
-      <div className={`absolute left-1/3 top-1/3 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A78BFA]/[0.08] blur-[100px] animate-drift-a ${isLight ? "opacity-40" : ""}`} style={{ animationDelay: "-9s" }} />
+      <div className={`absolute left-1/3 top-1/3 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A78BFA]/[0.08] blur-[100px] animate-drift-a ${isLight ? "opacity-60" : ""}`} style={{ animationDelay: "-9s" }} />
 
       {/* the signature 3D knowledge graph, rotating slowly behind everything */}
       <div className={`absolute inset-0 ${isLight ? "opacity-[0.35]" : "opacity-[0.55]"}`}>

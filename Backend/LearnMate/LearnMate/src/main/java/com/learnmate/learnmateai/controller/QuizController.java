@@ -39,6 +39,15 @@ public class QuizController {
         return quizService.listMyQuizzes(auth.getName());
     }
 
+    // Admin dashboard feed: every quiz in the system, whoever created it, with
+    // creator + creation time. Per-student results for any quiz come from
+    // GET /{quizId}/results, which already allows admins on quizzes they didn't create.
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<QuizAdminSummaryDto> all(Authentication auth) {
+        return quizService.listAllQuizzes(auth.getName());
+    }
+
     // Every quiz the calling student has submitted, with marks + submission date.
     @GetMapping("/my-results")
     public List<QuizMyResultDto> myResults(Authentication auth) {
@@ -66,6 +75,12 @@ public class QuizController {
     @PostMapping("/{quizId}/ask")
     public QuizAskResponse ask(@PathVariable Long quizId, @RequestBody QuizAskRequest req, Authentication auth) {
         return new QuizAskResponse(quizService.askAboutQuiz(quizId, auth.getName(), req));
+    }
+
+    // Live leaderboard. Students must have submitted the quiz; staff always allowed.
+    @GetMapping("/{quizId}/leaderboard")
+    public QuizLeaderboardDto leaderboard(@PathVariable Long quizId, Authentication auth) {
+        return quizService.getLeaderboard(quizId, auth.getName());
     }
 
     @GetMapping("/{quizId}/results")

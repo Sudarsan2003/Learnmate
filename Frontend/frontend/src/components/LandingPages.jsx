@@ -22,9 +22,9 @@ import ThemeToggle from "./ThemeToggle";
 /*  ThemeContext sets on :root, so this page inherits light/dark for   */
 /*  free instead of carrying its own palette.                          */
 /* ------------------------------------------------------------------ */
-const GOLD = { 1: "#E4C87A", 2: "#C89B3C", 3: "#8A6A22" };
+const GOLD = { 1: "#4F80F8", 2: "#3558DE", 3: "#24389E" };
 const TEAL = "#2DD4BF";
-const EMBER = { text: "#FF6B4A", soft: "#FF8F6B" };
+const EMBER = { text: "#6A4DE0", soft: "#8B73F5" };
 const ELECTRIC = { text: "#5B8DEF", soft: "#6E9BFF" };
 
 /* ------------------------------------------------------------------ */
@@ -64,7 +64,7 @@ function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
 
   const tones = {
     gold: {
-      bg: "radial-gradient(circle at 30% 30%, #E4C87A, #C89B3C 55%, #8A6A22 100%)",
+      bg: "radial-gradient(circle at 30% 30%, #4F80F8, #3558DE 55%, #24389E 100%)",
       ring: "rgba(45,212,191,0.35)",
     },
     teal: {
@@ -72,8 +72,8 @@ function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
       ring: "rgba(45,212,191,0.35)",
     },
     ember: {
-      bg: "radial-gradient(circle at 30% 30%, #FFB199, #FF6B4A 55%, #A6402A 100%)",
-      ring: "rgba(255,107,74,0.35)",
+      bg: "radial-gradient(circle at 30% 30%, #BDB0FF, #6A4DE0 55%, #35268F 100%)",
+      ring: "rgba(106,77,224,0.35)",
     },
     electric: {
       bg: "radial-gradient(circle at 30% 30%, #A9C2FF, #5B8DEF 55%, #2E4E9C 100%)",
@@ -108,7 +108,7 @@ function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
         }}
         className="relative flex flex-shrink-0 items-center justify-center rounded-2xl"
       >
-        <Icon size={size * 0.42} color="#0B0E14" strokeWidth={2.2} />
+        <Icon size={size * 0.42} color="#FFFFFF" strokeWidth={2.2} />
         <span className="absolute inset-0 rounded-2xl" style={{ boxShadow: `0 0 0 1px ${t.ring} inset` }} />
       </div>
     </div>
@@ -121,13 +121,13 @@ function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
 function Eyebrow({ children, center }) {
   return (
     <div
-      className={`flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[#C89B3C] ${
+      className={`flex items-center gap-2.5 font-ui text-[13px] font-semibold tracking-[0.02em] text-[var(--gold-ink)] ${
         center ? "justify-center" : ""
       }`}
     >
-      <span className="h-px w-4 bg-[#C89B3C]" />
+      <span className="h-px w-4 bg-[#3558DE]" />
       {children}
-      {center && <span className="h-px w-4 bg-[#C89B3C]" />}
+      {center && <span className="h-px w-4 bg-[#3558DE]" />}
     </div>
   );
 }
@@ -240,7 +240,7 @@ function LoopSection() {
     <section ref={sectionRef} id="loop" className="py-28 sm:py-32">
       <div className="mx-auto max-w-5xl px-6 sm:px-8">
         <Reveal className="mb-14 max-w-xl">
-          <Eyebrow>the loop</Eyebrow>
+          <Eyebrow>The loop</Eyebrow>
           <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
             Three steps, one thread running through them.
           </h2>
@@ -293,8 +293,8 @@ function LoopSection() {
                       style={{ transition: "color 300ms ease" }}
                     />
                   </div>
-                  <span className="mb-2 block font-mono text-[11px] tracking-[0.1em] text-[var(--dim)]">
-                    NODE {String(i + 1).padStart(2, "0")}
+                  <span className="mb-2 block text-[13px] font-medium text-[var(--dim)]">
+                    Step {i + 1}
                   </span>
                   <h3
                     className="lp-serif text-xl transition-colors duration-300"
@@ -320,7 +320,7 @@ function LoopSection() {
 /* ------------------------------------------------------------------ */
 function FeatureCard({ feature }) {
   return (
-    <div className="feature-card group h-full rounded-2xl border border-[var(--divider)] bg-[var(--surface)] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#2DD4BF]/35 hover:bg-[var(--surface-2)]">
+    <div className="feature-card group h-full rounded-2xl border border-[var(--divider)] bg-[var(--surface)] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#4F7CFF]/35 hover:bg-[var(--surface-2)]">
       <TiltIcon icon={feature.icon} tone={feature.tone} />
       <h3 className="mt-6 text-base font-semibold text-[var(--text)]">{feature.title}</h3>
       <p className="mt-2.5 text-[13.5px] leading-relaxed text-[var(--muted)]">{feature.body}</p>
@@ -331,7 +331,7 @@ function FeatureCard({ feature }) {
 function RoleCard({ tone, tag, icon: Icon, title, items, chip }) {
   const tones = {
     electric: { glow: ELECTRIC.text, text: ELECTRIC.text, bg: "rgba(91,141,239,0.1)", border: "rgba(91,141,239,0.25)" },
-    ember: { glow: EMBER.text, text: EMBER.text, bg: "rgba(255,107,74,0.1)", border: "rgba(255,107,74,0.25)" },
+    ember: { glow: EMBER.text, text: EMBER.text, bg: "rgba(106,77,224,0.1)", border: "rgba(106,77,224,0.25)" },
   };
   const t = tones[tone];
 
@@ -344,7 +344,7 @@ function RoleCard({ tone, tag, icon: Icon, title, items, chip }) {
       <div className="relative flex items-center gap-3">
         <TiltIcon icon={Icon} tone={tone} size={40} />
         <span
-          className="rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]"
+          className="rounded-md border px-2.5 py-1 font-ui text-[12px] font-semibold"
           style={{ color: t.text, background: t.bg, borderColor: t.border }}
         >
           {tag}
@@ -354,13 +354,13 @@ function RoleCard({ tone, tag, icon: Icon, title, items, chip }) {
       <ul className="relative mt-4 flex flex-col gap-2.5">
         {items.map((item) => (
           <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[var(--muted)]">
-            <span className="text-[#C89B3C]">›</span>
+            <span className="text-[var(--accent-ink)]">›</span>
             {item}
           </li>
         ))}
       </ul>
-      <div className="relative mt-6 rounded-lg border border-[var(--divider)] bg-[var(--bg)]/50 px-3.5 py-3 font-mono text-[11.5px] text-[var(--dim)]">
-        $ {chip}
+      <div className="relative mt-6 rounded-lg border border-[var(--divider)] bg-[var(--bg)]/50 px-3.5 py-3 font-ui text-[13px] text-[var(--muted)]">
+        {chip}
       </div>
     </div>
   );
@@ -386,16 +386,17 @@ export default function LandingPage({ onEnter = () => {} }) {
       <AmbientBackground />
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
         .lp-serif {
-          font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+          font-family: 'Sora', system-ui, sans-serif;
           font-weight: 600;
           letter-spacing: -0.01em;
         }
-        .lp-cta { box-shadow: 0 4px 16px -4px rgba(200,155,60,0.5); }
-        .lp-cta:hover { box-shadow: 0 10px 22px -6px rgba(200,155,60,0.65); }
+        .lp-cta { box-shadow: 0 4px 16px -4px rgba(53,88,222,0.5); }
+        .lp-cta:hover { box-shadow: 0 10px 22px -6px rgba(53,88,222,0.65); }
         .feature-card { box-shadow: 0 8px 20px -10px rgba(0,0,0,0.4); }
         html { scroll-behavior: smooth; }
+        /* The nav is fixed, so anchor targets need room or their headings land under it. */
+        section[id], header[id] { scroll-margin-top: 4.5rem; }
         @keyframes lp-cue-bob {
           0%, 100% { transform: translate(-50%,0); }
           50% { transform: translate(-50%,6px); }
@@ -416,36 +417,32 @@ export default function LandingPage({ onEnter = () => {} }) {
               : "border-transparent bg-transparent py-[18px]"
           }`}
         >
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 sm:px-8">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-5 sm:px-8">
             <a href="#top" className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22] shadow-[0_3px_12px_rgba(0,0,0,0.4)]">
-                <Feather size={13} className="text-[#0B0E14]" />
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4F80F8] to-[#24389E] shadow-[0_3px_12px_rgba(0,0,0,0.4)]">
+                <Feather size={13} className="text-[#FFFFFF]" />
               </div>
               <span className="lp-serif text-lg text-[var(--text)]">
-                LearnMate<span className="text-[#C89B3C]">.</span>
+                LearnMate<span className="text-[var(--accent-ink)]">.</span>
               </span>
             </a>
 
-            <div className="hidden items-center gap-7 text-[13px] text-[var(--muted)] md:flex">
-              <a href="#loop" className="transition-colors hover:text-[var(--text)]">How it works</a>
-              <a href="#features" className="transition-colors hover:text-[var(--text)]">Product</a>
-              <a href="#roles" className="transition-colors hover:text-[var(--text)]">For classrooms</a>
+            <div className="flex items-center gap-3 text-[13px] text-[var(--muted)] sm:gap-5 lg:gap-7">
+              <a href="#loop" className="hidden transition-colors hover:text-[var(--text)] lg:inline">How it works</a>
+              <a href="#features" className="hidden transition-colors hover:text-[var(--text)] lg:inline">Product</a>
+              <a href="#roles" className="hidden transition-colors hover:text-[var(--text)] lg:inline">For classrooms</a>
               <button
                 onClick={() => onEnter("login")}
-                className="rounded-lg border border-[#2DD4BF]/20 px-4 py-2 text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/50"
+                className="rounded-lg border border-[#4F7CFF]/20 px-3 py-1.5 text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/50 sm:px-4 sm:py-2"
               >
                 Log in
               </button>
               <button
                 onClick={() => onEnter("register")}
-                className="lp-cta flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-4 py-2 font-medium text-[#0B0E14] transition-transform hover:-translate-y-0.5"
+                className="lp-cta hidden items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-4 py-2 font-medium text-[#FFFFFF] transition-transform hover:-translate-y-0.5 sm:flex"
               >
                 Start learning
               </button>
-              <ThemeToggle />
-            </div>
-
-            <div className="flex items-center gap-3 md:hidden">
               <ThemeToggle />
             </div>
           </div>
@@ -454,9 +451,9 @@ export default function LandingPage({ onEnter = () => {} }) {
         {/* ---------- hero ---------- */}
         <header id="top" className="relative flex min-h-screen flex-col items-center justify-center px-6 pb-24 pt-36 text-center sm:pt-40">
           <div className="relative z-[2] max-w-2xl">
-            <Eyebrow center>sourced, not guessed</Eyebrow>
+            <Eyebrow center>Sourced, not guessed</Eyebrow>
             <h1 className="lp-serif mt-5 text-[34px] leading-[1.06] text-[var(--text)] sm:text-[52px] lg:text-[62px]">
-              Every answer, <span className="text-[#C89B3C]">traced</span>
+              Every answer, <span className="text-[var(--accent-ink)]">traced</span>
               <br />
               back to the page it came from.
             </h1>
@@ -468,24 +465,24 @@ export default function LandingPage({ onEnter = () => {} }) {
             <div className="mt-9 flex flex-wrap justify-center gap-3.5">
               <button
                 onClick={() => onEnter("register")}
-                className="lp-cta flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-6 py-3 text-sm font-medium text-[#0B0E14] transition-transform hover:-translate-y-0.5"
+                className="lp-cta flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-6 py-3 text-sm font-medium text-[#FFFFFF] transition-transform hover:-translate-y-0.5"
               >
                 Start learning <ArrowRight size={15} />
               </button>
               <a
                 href="#loop"
-                className="rounded-lg border border-[#2DD4BF]/20 px-6 py-3 text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/50"
+                className="rounded-lg border border-[#4F7CFF]/20 px-6 py-3 text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/50"
               >
                 See how it works
               </a>
             </div>
-            <p className="mt-16 font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--dim)]">
-              your tutor, grounded in sources
+            <p className="mt-16 font-ui text-[13px] text-[var(--dim)]">
+              Your tutor, grounded in sources
             </p>
           </div>
 
           <div className="lp-cue absolute bottom-7 left-1/2 z-[2] flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--dim)]">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em]">scroll</span>
+            <span className="font-ui text-[12px] font-medium">Scroll</span>
             <ChevronDown size={14} />
           </div>
         </header>
@@ -494,14 +491,14 @@ export default function LandingPage({ onEnter = () => {} }) {
         <LoopSection />
 
         <div className="mx-auto max-w-5xl px-6 sm:px-8">
-          <div className="h-px bg-gradient-to-r from-transparent via-[#2DD4BF]/25 to-transparent" />
+          <div className="h-px bg-gradient-to-r from-transparent via-[#4F7CFF]/25 to-transparent" />
         </div>
 
         {/* ---------- features ---------- */}
         <section id="features" className="py-28 sm:py-32">
           <div className="mx-auto max-w-5xl px-6 sm:px-8">
             <Reveal className="mb-14 max-w-xl">
-              <Eyebrow>the product</Eyebrow>
+              <Eyebrow>The product</Eyebrow>
               <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
                 Built for a real classroom, not a demo.
               </h2>
@@ -525,7 +522,7 @@ export default function LandingPage({ onEnter = () => {} }) {
         <section id="roles" className="py-28 sm:py-32">
           <div className="mx-auto max-w-5xl px-6 sm:px-8">
             <Reveal className="mb-14 max-w-xl">
-              <Eyebrow>for classrooms</Eyebrow>
+              <Eyebrow>For classrooms</Eyebrow>
               <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
                 One app, two very different jobs to do.
               </h2>
@@ -539,7 +536,7 @@ export default function LandingPage({ onEnter = () => {} }) {
               <Reveal>
                 <RoleCard
                   tone="electric"
-                  tag="student"
+                  tag="Student"
                   icon={GraduationCap}
                   title="Ask, learn, check the source"
                   items={[
@@ -549,7 +546,7 @@ export default function LandingPage({ onEnter = () => {} }) {
                   ]}
                   chip={
                     <>
-                      <span className="text-[#C89B3C]">ask</span> "explain the water cycle"{" "}
+                      <span className="text-[var(--gold-ink)]">Ask</span> "explain the water cycle"{" "}
                       <span>— 3 sources found</span>
                     </>
                   }
@@ -558,7 +555,7 @@ export default function LandingPage({ onEnter = () => {} }) {
               <Reveal delay={90}>
                 <RoleCard
                   tone="ember"
-                  tag="teacher / admin"
+                  tag="Teacher / admin"
                   icon={Users2}
                   title="Upload, scope, and manage"
                   items={[
@@ -568,7 +565,7 @@ export default function LandingPage({ onEnter = () => {} }) {
                   ]}
                   chip={
                     <>
-                      <span className="text-[#C89B3C]">upload</span> chapter-4-notes.pdf{" "}
+                      <span className="text-[var(--gold-ink)]">Upload</span> chapter-4-notes.pdf{" "}
                       <span>— indexed</span>
                     </>
                   }
@@ -588,7 +585,7 @@ export default function LandingPage({ onEnter = () => {} }) {
                 as="p"
                 className="lp-serif py-3 text-xl font-medium text-[var(--muted)] sm:text-3xl"
               >
-                <span className="italic text-[#C89B3C]">No</span> {line.replace(/^No /, "")}
+                <span className="italic text-[var(--accent-ink)]">No</span> {line.replace(/^No /, "")}
               </Reveal>
             ))}
           </div>
@@ -597,7 +594,7 @@ export default function LandingPage({ onEnter = () => {} }) {
         {/* ---------- final CTA ---------- */}
         <section id="cta" className="py-32 text-center sm:py-40">
           <Reveal className="mx-auto max-w-lg px-6">
-            <Eyebrow center>get started</Eyebrow>
+            <Eyebrow center>Get started</Eyebrow>
             <h2 className="lp-serif mt-5 text-4xl text-[var(--text)] sm:text-5xl">
               Ready to ask something real?
             </h2>
@@ -608,13 +605,13 @@ export default function LandingPage({ onEnter = () => {} }) {
             <div className="mt-8 flex flex-wrap justify-center gap-3.5">
               <button
                 onClick={() => onEnter("register")}
-                className="lp-cta flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-6 py-3 text-sm font-medium text-[#0B0E14] transition-transform hover:-translate-y-0.5"
+                className="lp-cta flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-6 py-3 text-sm font-medium text-[#FFFFFF] transition-transform hover:-translate-y-0.5"
               >
                 Create an account <ArrowRight size={15} />
               </button>
               <button
                 onClick={() => onEnter("login")}
-                className="rounded-lg border border-[#2DD4BF]/20 px-6 py-3 text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/50"
+                className="rounded-lg border border-[#4F7CFF]/20 px-6 py-3 text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/50"
               >
                 Log in
               </button>
@@ -626,14 +623,14 @@ export default function LandingPage({ onEnter = () => {} }) {
         <footer className="border-t border-[var(--divider)] py-8">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3.5 px-6 text-xs text-[var(--dim)] sm:px-8">
             <span className="lp-serif text-sm text-[var(--text)]">
-              LearnMate<span className="text-[#C89B3C]">.</span>
+              LearnMate<span className="text-[var(--accent-ink)]">.</span>
             </span>
-            <div className="flex gap-5 font-mono">
+            <div className="flex gap-5 font-ui">
               <a href="#loop" className="transition-colors hover:text-[var(--text)]">How it works</a>
               <a href="#features" className="transition-colors hover:text-[var(--text)]">Product</a>
               <a href="#roles" className="transition-colors hover:text-[var(--text)]">Classrooms</a>
             </div>
-            <span className="font-mono">grounded in sources</span>
+            <span className="font-ui">Grounded in sources</span>
           </div>
         </footer>
       </div>

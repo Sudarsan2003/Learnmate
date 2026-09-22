@@ -5,6 +5,7 @@ import com.learnmate.learnmateai.agent.RetrievalAgent;
 import com.learnmate.learnmateai.dto.*;
 import com.learnmate.learnmateai.model.*;
 import com.learnmate.learnmateai.repository.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -168,11 +169,19 @@ public class QuizService {
 
         QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
                 .orElseGet(() -> {
-                    QuizAttempt a = new QuizAttempt();
-                    a.setQuiz(quiz);
-                    a.setUsername(username);
-                    a.setStartedAt(Instant.now());
-                    return attemptRepository.save(a);
+                    try {
+                        QuizAttempt a = new QuizAttempt();
+                        a.setQuiz(quiz);
+                        a.setUsername(username);
+                        a.setStartedAt(Instant.now());
+                        return attemptRepository.save(a);
+                    } catch (DataIntegrityViolationException race) {
+                        // Two start requests arrived at once (e.g. React StrictMode runs
+                        // effects twice in dev, or a double click). The other one created
+                        // the attempt first, so use that row instead of failing.
+                        return attemptRepository.findByQuizIdAndUsername(quizId, username)
+                                .orElseThrow(() -> race);
+                    }
                 });
 
         if (attempt.getSubmittedAt() != null) {
@@ -325,6 +334,105 @@ public class QuizService {
                         q.getMode(), q.getStatus(), q.getDurationMinutes(),
                         attemptRepository.countByQuizIdAndSubmittedAtIsNotNull(q.getId())))
                 .toList();
+    }
+
+    /**
+     * ADMIN only: every quiz in the system regardless of who created it,
+     * newest first, with creator + creation time and live submission stats.
+     * Per-student results for any quiz come from the existing getResults(),
+     * which already lets an admin read results of quizzes they didn't create.
+     */
+    public List<QuizAdminSummaryDto> listAllQuizzes(String requestingUsername) {
+        User requester = userRepository.findByUsername(requestingUsername)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (!"ADMIN".equals(requester.getRole())) {
+            throw new IllegalArgumentException("Only admins can view all quizzes.");
+        }
+
+        List<Quiz> quizzes = new ArrayList<>(quizRepository.findAll());
+        quizzes.sort(Comparator.comparing(Quiz::getCreatedAt).reversed());
+
+        Map<String, String> roleByCreator = new HashMap<>(); // look each creator up once
+
+        return quizzes.stream().map(q -> {
+            String creatorRole = roleByCreator.computeIfAbsent(q.getCreatedByUsername(),
+                    name -> userRepository.findByUsername(name).map(User::getRole).orElse("UNKNOWN"));
+
+            List<QuizAttempt> attempts = attemptRepository.findByQuizIdOrderByScoreDesc(q.getId());
+            List<QuizAttempt> submitted = attempts.stream().filter(a -> a.getSubmittedAt() != null).toList();
+
+            OptionalDouble avg = submitted.stream()
+                    .filter(a -> a.getTotalQuestions() > 0)
+                    .mapToDouble(a -> 100.0 * a.getScore() / a.getTotalQuestions())
+                    .average();
+            Double avgPercent = avg.isPresent() ? avg.getAsDouble() : null;
+
+            return new QuizAdminSummaryDto(
+                    q.getId(), q.getTitle(), q.getSubject(), q.getStandard(), q.getInstitution(),
+                    q.getMode(), q.getStatus(), q.getDurationMinutes(), q.getOpensAt(), q.getClosesAt(),
+                    submitted.size(), attempts.size() - submitted.size(), avgPercent,
+                    q.getCreatedByUsername(), creatorRole, q.getCreatedAt());
+        }).toList();
+    }
+
+    /**
+     * Live leaderboard for a quiz. Students can only see it once they've
+     * submitted that quiz themselves (so it can't be used to peek at scores
+     * before answering); admins and the quiz's own teacher can always see it.
+     * Ranking: highest marks first, then the faster finisher; only an exact
+     * tie (same marks and same time) shares a rank.
+     */
+    public QuizLeaderboardDto getLeaderboard(Long quizId, String username) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+        User requester = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        boolean staff = "ADMIN".equals(requester.getRole())
+                || quiz.getCreatedByUsername().equals(username);
+        boolean submittedIt = attemptRepository.findByQuizIdAndUsername(quizId, username)
+                .map(a -> a.getSubmittedAt() != null)
+                .orElse(false);
+        if (!staff && !submittedIt) {
+            throw new IllegalArgumentException("Submit this quiz to see the leaderboard.");
+        }
+
+        // HackerRank-style ordering: most marks first, then whoever finished faster.
+        List<QuizAttempt> ranked = attemptRepository.findByQuizIdOrderByScoreDesc(quizId).stream()
+                .filter(a -> a.getSubmittedAt() != null)
+                .sorted(Comparator.comparingInt(QuizAttempt::getScore).reversed()
+                        .thenComparingLong(QuizService::secondsTaken)
+                        .thenComparing(QuizAttempt::getSubmittedAt))
+                .toList();
+
+        List<QuizLeaderboardDto.Entry> entries = new ArrayList<>();
+        int rank = 0;
+        Integer previousScore = null;
+        long previousTime = -1;
+        for (int i = 0; i < ranked.size(); i++) {
+            QuizAttempt a = ranked.get(i);
+            long taken = secondsTaken(a);
+            // Only an exact tie (same marks AND same time) shares a rank.
+            if (previousScore == null || a.getScore() != previousScore || taken != previousTime) {
+                rank = i + 1;
+                previousScore = a.getScore();
+                previousTime = taken;
+            }
+            entries.add(new QuizLeaderboardDto.Entry(
+                    rank, a.getUsername(), a.getScore(), a.getTotalQuestions(), taken, a.getSubmittedAt()));
+        }
+
+        QuizLeaderboardDto.Entry me = entries.stream()
+                .filter(e -> e.username().equals(username))
+                .findFirst()
+                .orElse(null);
+
+        return new QuizLeaderboardDto(quiz.getId(), quiz.getTitle(), entries.size(), entries, me);
+    }
+
+    private static long secondsTaken(QuizAttempt a) {
+        if (a.getStartedAt() == null || a.getSubmittedAt() == null) return 0;
+        return Math.max(0, Duration.between(a.getStartedAt(), a.getSubmittedAt()).getSeconds());
     }
 
     /**

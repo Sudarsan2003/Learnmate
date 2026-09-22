@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown } from "lucide-react";
+import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard } from "lucide-react";
 import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
@@ -22,26 +22,26 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
 
   return (
     <div
-      className={`message-card group relative max-w-[85%] rounded-xl px-4 py-3 font-body text-sm leading-relaxed backdrop-blur-sm sm:max-w-[75%] ${
+      className={`message-card group relative min-w-0 max-w-[85%] rounded-xl px-4 py-3 font-chat text-[16px] leading-[1.7] backdrop-blur-sm sm:max-w-[75%] ${
         isError
-          ? "border border-[#FF6B81]/40 bg-[var(--error-bg)]/70 text-[#FFC2CC]"
+          ? "border border-[#FF6B81]/40 bg-[var(--error-bg)]/70 text-[var(--error-text)]"
           : "border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 text-[var(--text)]"
       }`}
     >
-      <p className="whitespace-pre-wrap">
+      <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
         {shown}
-        {!done && <span className="typing-cursor">●</span>}
+        {!done && <span className="typing-cursor" aria-hidden="true">▍</span>}
       </p>
 
       {done && citations && citations.length > 0 && (
         <div className="citation-thread mt-3 pt-3">
-          <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[#5B8DEF]/90">
-            <span className="thread-dot" /> sources
+          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#5B8DEF]/90">
+            <span className="thread-dot" /> Sources
           </p>
           <ul className="mt-1.5 space-y-1">
             {citations.map((c) => (
-              <li key={c.chunkId} className="font-mono text-[11px] text-[var(--muted)]">
-                <span className="text-[#FF8F6B]">[{c.sourceId}]</span> {c.content.slice(0, 90)}
+              <li key={c.chunkId} className="text-[12.5px] leading-relaxed text-[var(--muted)] [overflow-wrap:anywhere]">
+                <span className="text-[#8B73F5]">[{c.sourceId}]</span> {c.content.slice(0, 90)}
                 {c.content.length > 90 ? "…" : ""}
               </li>
             ))}
@@ -66,7 +66,7 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
               onClick={onRegenerate}
               aria-label="Regenerate answer"
               title="Regenerate answer"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[#FF6B4A]/15 hover:text-[#FF8F6B]"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[#6A4DE0]/15 hover:text-[#8B73F5]"
             >
               <RotateCcw size={12} />
             </button>
@@ -87,6 +87,7 @@ export default function ChatWindow({
   onOpenUsers,
   onOpenQuizzes,
   onOpenProfile,
+  onOpenDashboard,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -131,6 +132,14 @@ useEffect(() => {
   document.addEventListener("learnmate:open-quizzes", handleOpenQuizzes);
   return () => document.removeEventListener("learnmate:open-quizzes", handleOpenQuizzes);
 }, [onOpenQuizzes]);
+
+useEffect(() => {
+  function handleOpenDashboard() {
+    onOpenDashboard?.();
+  }
+  document.addEventListener("learnmate:open-dashboard", handleOpenDashboard);
+  return () => document.removeEventListener("learnmate:open-dashboard", handleOpenDashboard);
+}, [onOpenDashboard]);
 
 useEffect(() => {
   function handleOpenProfile() {
@@ -207,6 +216,16 @@ useEffect(() => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
   }, [messages, isLoading, isAtBottom]);
+
+  // Grow the composer with its content (up to ~10rem) so long questions
+  // aren't stuck in a one-line box; shrinks back once the input is cleared.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const border = el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(el.scrollHeight + border, 160)}px`;
+  }, [input]);
 
   function handleScroll() {
     const el = scrollRef.current;
@@ -319,7 +338,7 @@ useEffect(() => {
     <div className="relative flex h-full w-full flex-col bg-[var(--bg-canvas)] text-[var(--text)]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
 
-      <header className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
+      <header className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:px-6 sm:py-4">
         <div className="flex min-w-0 items-center gap-2">
           <button
             onClick={toggleSidebar}
@@ -332,29 +351,38 @@ useEffect(() => {
             {sessionId ? "Chat" : "New chat"}
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-wide text-[var(--muted)] sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium text-[var(--muted)] sm:gap-3">
           <button
             onClick={handleNewChatClick}
             className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
           >
             <Plus size={14} />
-            <span className="hidden sm:inline">new chat</span>
+            <span className="hidden sm:inline">New chat</span>
+          </button>
+
+          <button
+            onClick={onOpenDashboard}
+            aria-label="Dashboard"
+            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
+          >
+            <LayoutDashboard size={14} />
+            <span className="hidden sm:inline">Dashboard</span>
           </button>
 
           <button
             onClick={onOpenQuizzes}
             className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
           >
-            <span className="hidden sm:inline">quizzes</span>
-            <span className="sm:hidden">quiz</span>
+            <span className="hidden sm:inline">Quizzes</span>
+            <span className="sm:hidden">Quiz</span>
           </button>
 
           {isAdmin && (
             <button
               onClick={onOpenUpload}
-              className="rounded-md border border-[#FF6B4A]/60 px-3 py-1.5 text-[#FF8F6B] transition-all hover:-translate-y-0.5 hover:bg-[#FF6B4A] hover:text-[#0A0916] hover:shadow-lg hover:shadow-[#FF6B4A]/20"
+              className="rounded-md border border-[#6A4DE0]/60 px-3 py-1.5 text-[#8B73F5] transition-all hover:-translate-y-0.5 hover:bg-[#6A4DE0] hover:text-[#FFFFFF] hover:shadow-lg hover:shadow-[#6A4DE0]/20"
             >
-              upload
+              Upload
             </button>
           )}
 
@@ -366,9 +394,10 @@ useEffect(() => {
         </div>
       </header>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="relative z-10 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6">
         {historyLoading && (
-          <p className="font-mono text-xs text-[var(--muted)]/60">mapping the knowledge graph…</p>
+          <p className="text-sm text-[var(--muted)]/70">Mapping the knowledge graph…</p>
         )}
 
         {!historyLoading && messages.length === 0 && (
@@ -377,8 +406,8 @@ useEffect(() => {
             className="mx-auto flex max-w-2xl flex-col items-center gap-9 pt-8 text-center sm:pt-16"
           >
             <div className="flex flex-col items-center gap-3.5">
-              <div className="orbit-avatar flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#C4482B] shadow-[0_6px_20px_rgba(255,107,74,0.35)]">
-                <Orbit size={20} className="text-[#0A0916]" />
+              <div className="orbit-avatar flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#8B73F5] to-[#4A33B5] shadow-[0_6px_20px_rgba(106,77,224,0.35)]">
+                <Orbit size={20} className="text-[#FFFFFF]" />
               </div>
               <h2 className="hero-serif text-3xl italic leading-[1.15] text-[var(--text)] sm:text-[2.5rem]">
                 What are we studying today?
@@ -386,13 +415,13 @@ useEffect(() => {
               <svg width="128" height="12" viewBox="0 0 128 12" fill="none" className="opacity-70">
                 <path
                   d="M2 7 C 34 -2, 92 16, 126 5"
-                  stroke="#FF6B4A"
+                  stroke="#6A4DE0"
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   className="spark-stroke"
                 />
               </svg>
-              <p className="max-w-md font-body text-sm text-[var(--muted)]">
+              <p className="max-w-md font-ui text-sm text-[var(--muted)]">
                 Ask anything — every answer traces a path back to a node in your knowledge base.
               </p>
             </div>
@@ -403,10 +432,10 @@ useEffect(() => {
                   key={p}
                   onClick={() => handlePromptClick(p)}
                   style={{ animation: "message-in 300ms cubic-bezier(0.22,1,0.36,1) both", animationDelay: `${180 + i * 60}ms` }}
-                  className="prompt-chip group flex items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/50 px-4 py-3 text-left text-sm text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#FF6B4A]/40 hover:bg-[var(--surface-2)]/85 hover:text-[var(--text)]"
+                  className="prompt-chip group flex items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/50 px-4 py-3 text-left text-sm text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#6A4DE0]/40 hover:bg-[var(--surface-2)]/85 hover:text-[var(--text)]"
                 >
-                  <Sparkles size={14} className="flex-shrink-0 text-[#5B8DEF]/80 transition-colors group-hover:text-[#FF8F6B]" />
-                  <span className="font-body">{p}</span>
+                  <Sparkles size={14} className="flex-shrink-0 text-[#5B8DEF]/80 transition-colors group-hover:text-[#8B73F5]" />
+                  <span className="font-ui">{p}</span>
                 </button>
               ))}
             </div>
@@ -421,14 +450,14 @@ useEffect(() => {
               className={`flex items-end gap-2 ${m.role === "learner" ? "justify-end" : "justify-start"}`}
             >
               {m.role === "tutor" && (
-                <div className="mb-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#C4482B] shadow-[0_3px_10px_rgba(255,107,74,0.4)]">
-                  <Orbit size={12} className="text-[#0A0916]" />
+                <div className="mb-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8B73F5] to-[#4A33B5] shadow-[0_3px_10px_rgba(106,77,224,0.4)]">
+                  <Orbit size={12} className="text-[#FFFFFF]" />
                 </div>
               )}
 
               {m.role === "learner" ? (
-                <div className="message-card max-w-[85%] rounded-xl bg-gradient-to-br from-[#6E9BFF] to-[#3A5FCB] px-4 py-3 font-body text-sm leading-relaxed text-[#0A0916] sm:max-w-[75%]">
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+                <div className="message-card min-w-0 max-w-[85%] rounded-xl bg-gradient-to-br from-[#6E9BFF] to-[#3A5FCB] px-4 py-3 font-chat text-[16px] leading-[1.7] text-[#FFFFFF] sm:max-w-[75%]">
+                  <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.text}</p>
                 </div>
               ) : (
                 <TutorBubble
@@ -447,11 +476,11 @@ useEffect(() => {
 
           {isLoading && (
             <div className="flex items-end gap-2">
-              <div className="mb-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#C4482B]">
-                <Orbit size={12} className="text-[#0A0916]" />
+              <div className="mb-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8B73F5] to-[#4A33B5]">
+                <Orbit size={12} className="text-[#FFFFFF]" />
               </div>
-              <div className="flex items-center gap-1 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 px-4 py-3 font-mono text-xs text-[var(--muted)] backdrop-blur-sm">
-                <span>tracing the graph</span>
+              <div className="flex items-center gap-1 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 px-4 py-3 font-chat text-[14px] text-[var(--muted)] backdrop-blur-sm">
+                <span>Tracing the graph</span>
                 <span className="spark-dot" style={{ animationDelay: "0ms" }} />
                 <span className="spark-dot" style={{ animationDelay: "160ms" }} />
                 <span className="spark-dot" style={{ animationDelay: "320ms" }} />
@@ -465,13 +494,14 @@ useEffect(() => {
         <button
           onClick={scrollToBottom}
           aria-label="Scroll to latest message"
-          className="scroll-fab absolute bottom-[92px] left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[#5B8DEF]/30 bg-[var(--surface-2)]/90 text-[var(--text)] shadow-[0_6px_16px_-4px_rgba(0,0,0,0.6)] backdrop-blur-md transition-transform hover:-translate-y-0.5"
+          className="scroll-fab absolute bottom-4 left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[#5B8DEF]/30 bg-[var(--surface-2)]/90 text-[var(--text)] shadow-[0_6px_16px_-4px_rgba(0,0,0,0.6)] backdrop-blur-md transition-transform hover:-translate-y-0.5"
         >
           <ArrowDown size={16} />
         </button>
       )}
+      </div>
 
-      <div className="relative z-10 border-t border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_-8px_28px_-14px_rgba(0,0,0,0.7)] backdrop-blur-md sm:px-6 sm:py-4">
+      <div className="relative z-10 border-t border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:px-6 sm:py-4">
         <div className="mx-auto flex max-w-3xl items-end gap-2 sm:gap-3">
           <textarea
             ref={textareaRef}
@@ -480,12 +510,12 @@ useEffect(() => {
             onKeyDown={handleKeyDown}
             placeholder="Ask about anything in the knowledge base…"
             rows={1}
-            className="flex-1 resize-none rounded-2xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/60 px-4 py-3 font-body text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#FF6B4A]/50 focus:shadow-[0_0_0_3px_rgba(255,107,74,0.12)] focus:outline-none"
+            className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/60 px-4 py-3 font-ui text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#6A4DE0]/50 focus:shadow-[0_0_0_3px_rgba(106,77,224,0.12)] focus:outline-none"
           />
           {isLoading ? (
             <button
               onClick={handleStop}
-              className="stop-btn flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[#5B8DEF]/40 bg-[var(--surface-2)] px-4 py-3 font-body text-sm font-medium text-[var(--text)] transition-all hover:border-[#FF6B81]/50 hover:text-[#FF8F6B] sm:px-5"
+              className="stop-btn flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[#5B8DEF]/40 bg-[var(--surface-2)] px-4 py-3 font-ui text-sm font-medium text-[var(--text)] transition-all hover:border-[#FF6B81]/50 hover:text-[#8B73F5] sm:px-5"
             >
               <Square size={13} fill="currentColor" />
               <span className="hidden sm:inline">Stop</span>
@@ -494,7 +524,7 @@ useEffect(() => {
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="send-btn flex flex-shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-br from-[#FF8F6B] to-[#FF6B4A] px-4 py-3 font-body text-sm font-medium text-[#0A0916] transition-all disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:shadow-none sm:px-5"
+              className="send-btn flex flex-shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-br from-[#8B73F5] to-[#6A4DE0] px-4 py-3 font-ui text-sm font-medium text-[#FFFFFF] transition-all disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:shadow-none sm:px-5"
             >
               <Orbit size={14} />
               <span className="hidden sm:inline">Ask</span>
@@ -504,9 +534,8 @@ useEffect(() => {
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&display=swap');
         .hero-serif {
-          font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+          font-family: 'Sora', system-ui, sans-serif;
           font-weight: 600;
           letter-spacing: -0.01em;
         }
@@ -541,14 +570,27 @@ useEffect(() => {
           transition: transform 180ms ease, box-shadow 180ms ease;
           transform-style: preserve-3d;
         }
-        .message-card:hover {
+        /* Hover lift only where there's a real hover; on touch it sticks after a tap. */
+        @media (hover: hover) and (pointer: fine) {
+          .message-card:hover {
           transform: translateY(-3px) rotateX(2deg) rotateY(-1deg);
           box-shadow: 0 16px 32px -10px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.07) inset;
+          }
+        }
+        /* Copy / regenerate are hover-revealed on desktop; always show them (and
+           make them tappable) on touch screens where hover doesn't exist. */
+        @media (hover: none) {
+          .msg-actions { opacity: 1 !important; }
+        }
+        @media (pointer: coarse) {
+          .msg-actions button { width: 2rem; height: 2rem; }
         }
         .typing-cursor {
           display: inline-block;
           margin-left: 2px;
-          color: #FF6B4A;
+          color: #4F80F8;
+          font-family: var(--font-ui);
+          line-height: 1;
           animation: blink 0.9s step-start infinite;
         }
         @keyframes blink {
@@ -571,7 +613,7 @@ useEffect(() => {
           width: 4px;
           height: 4px;
           border-radius: 9999px;
-          background: #FF6B4A;
+          background: #6A4DE0;
           animation: spark-pulse 1s ease-in-out infinite;
         }
         @keyframes spark-pulse {
@@ -579,15 +621,15 @@ useEffect(() => {
           50% { opacity: 1; transform: translateY(-2px); }
         }
         .send-btn {
-          box-shadow: 0 4px 14px -4px rgba(255,107,74,0.55);
+          box-shadow: 0 4px 14px -4px rgba(106,77,224,0.55);
         }
         .send-btn:hover:not(:disabled) {
           transform: translateY(-2px);
-          box-shadow: 0 10px 22px -6px rgba(255,107,74,0.65);
+          box-shadow: 0 10px 22px -6px rgba(106,77,224,0.65);
         }
         .send-btn:active:not(:disabled) {
           transform: translateY(0);
-          box-shadow: 0 2px 8px -2px rgba(255,107,74,0.45);
+          box-shadow: 0 2px 8px -2px rgba(106,77,224,0.45);
         }
         .stop-btn:active {
           transform: translateY(1px);

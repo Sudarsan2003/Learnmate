@@ -48,6 +48,3 @@ logging:
 
 voyage:
   api-key: ${VOYAGE_API_KEY}
-
-ocrspace:
-  api-key: ${OCRSPACE_API_KEY}

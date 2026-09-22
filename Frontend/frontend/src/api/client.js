@@ -62,7 +62,10 @@ export async function clearChatHistory() {
 }
 
 export async function changePassword(currentPassword, newPassword) {
-  await api.post("/api/auth/change-password", { currentPassword, newPassword });
+  await api.put("/api/auth/change-password", {
+    currentPassword,
+    newPassword,
+  });
 }
 
 export async function getChatSessions() {
@@ -122,6 +125,20 @@ export async function closeQuiz(quizId) {
 // Every quiz the calling admin/teacher created — persisted server-side.
 export async function getMyCreatedQuizzes() {
   const { data } = await api.get("/api/quizzes/mine");
+  return data;
+}
+
+// ADMIN only: every quiz in the system, whoever created it. Each item carries
+// the same fields as /mine plus { createdBy, createdByRole, createdAt } so the
+// dashboard can show who made a quiz and when. See BACKEND_NOTES.md.
+export async function getAllQuizzes() {
+  const { data } = await api.get("/api/quizzes/all");
+  return data;
+}
+
+// Live leaderboard for a quiz. Students need to have submitted it first.
+export async function getQuizLeaderboard(quizId) {
+  const { data } = await api.get(`/api/quizzes/${quizId}/leaderboard`);
   return data;
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Loader2, Feather } from "lucide-react";
+import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Loader2, Feather, Check, Folder, Layers } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 
@@ -331,22 +331,60 @@ export default function DocumentUpload({
   const showScopeColumns = isAdmin && viewMode === "all";
 
   return (
-    <div className="doc-upload min-h-full bg-[var(--bg)] px-4 py-6 font-mono text-[var(--text)] sm:px-8 sm:py-8" style={{ perspective: "1400px" }}>
+    <div className="doc-upload min-h-full bg-[var(--bg)] px-4 py-6 text-[var(--text)] sm:px-8 sm:py-8" style={{ perspective: "1400px" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        .doc-upload { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; }
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+        .doc-upload {
+          font-family: 'Inter', var(--font-ui), -apple-system, sans-serif;
+          font-size: 14px;
+          -webkit-font-smoothing: antialiased;
+        }
+        .doc-upload .page-title {
+          font-family: 'Lexend', 'Inter', var(--font-ui), sans-serif;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+        }
+        .doc-upload .section-title {
+          font-family: 'Lexend', 'Inter', var(--font-ui), sans-serif;
+          font-weight: 600;
+          letter-spacing: -0.005em;
+        }
+        .doc-upload .page-sub {
+          font-weight: 400;
+          color: var(--muted);
+        }
+        .doc-upload .role-pill {
+          font-family: 'Inter', var(--font-ui), sans-serif;
+          font-weight: 500;
+          font-size: 12px;
+        }
+        .doc-upload label {
+          font-weight: 600;
+        }
+        .doc-upload button {
+          font-family: 'Inter', var(--font-ui), sans-serif;
+        }
+        .doc-upload table {
+          font-variant-numeric: tabular-nums;
+        }
+        .doc-upload th {
+          font-weight: 600;
+          font-size: 12px;
+        }
+
         .lm-row { transition: background 140ms ease, transform 140ms ease; transform-style: preserve-3d; }
-        .lm-row:hover { background: rgba(45,212,191,0.05); transform: translateZ(4px); }
+        .lm-row:hover { background: rgba(79,124,255,0.07); transform: translateZ(4px); }
         .lm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-        .lm-scroll::-webkit-scrollbar-thumb { background: #22283a; border-radius: 4px; }
+        .lm-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes queue-in {
           from { opacity: 0; transform: translateY(-6px) rotateX(-10deg); }
           to { opacity: 1; transform: translateY(0) rotateX(0deg); }
         }
         @keyframes drop-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(45,212,191,0.25); }
-          50% { box-shadow: 0 0 0 10px rgba(45,212,191,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(79,124,255,0.3); }
+          50% { box-shadow: 0 0 0 10px rgba(79,124,255,0); }
         }
       `}</style>
 
@@ -354,24 +392,25 @@ export default function DocumentUpload({
         {/* Header */}
         <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
-            <h1 className="m-0 flex items-center gap-2 text-[19px] font-bold tracking-tight text-[var(--text)] sm:text-[22px]">
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C87A] to-[#8A6A22]">
-                <Feather size={12} className="text-[#0B0E14]" />
+            <h1 className="page-title">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4F80F8] to-[#24389E] shadow-[0_4px_14px_-3px_rgba(53,88,222,0.6)] ring-1 ring-white/10">
+                <Feather size={16} strokeWidth={2} className="text-[#FFFFFF]" />
               </span>
-              document ingestion <span className="text-[#C89B3C]">·</span> {role === "TEACHER" ? "teacher" : "admin"}
+              Document ingestion
+              <span className="role-pill">{role === "TEACHER" ? "Teacher" : "Admin"}</span>
             </h1>
-            <p className="mt-1.5 text-[13px] text-[var(--muted)]">
-              upload subject material for the knowledge base — parsed, chunked, embedded automatically
+            <p className="page-sub">
+              Upload subject material for the knowledge base. It's parsed, chunked and embedded automatically.
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2 self-start">
             <ThemeToggle />
             <button
               onClick={loadDocuments}
-              className="flex items-center gap-1.5 rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#2DD4BF]/40 hover:text-[var(--text)]"
+              className="group flex items-center gap-1.5 rounded-full border border-[#4F7CFF]/20 bg-[var(--surface)]/60 px-3.5 py-2 text-[13px] font-medium text-[var(--muted)] shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/40 hover:bg-[#4F7CFF]/10 hover:text-[var(--text)] hover:shadow-md active:translate-y-0"
             >
-              <RefreshCw size={13} strokeWidth={2} />
-              refresh
+              <RefreshCw size={13} strokeWidth={2.25} className="transition-transform duration-500 group-hover:rotate-180" />
+              Refresh
             </button>
           </div>
         </div>
@@ -383,8 +422,8 @@ export default function DocumentUpload({
             institution is picked here. */}
         {isAdmin && (
           <div className="mb-4">
-            <label className="mb-1.5 block text-[11px] text-[var(--muted)]">
-              institution (required — which school this upload belongs to)
+            <label className="mb-1.5 block text-sm font-semibold text-[var(--text)]">
+              Institution <span className="ml-1 text-[12px] font-normal text-[var(--dim)]">Required. Which school this upload belongs to.</span>
             </label>
 
             {isCreatingInstitution ? (
@@ -397,23 +436,25 @@ export default function DocumentUpload({
                     if (e.key === "Enter") { e.preventDefault(); handleConfirmNewInstitution(); }
                     if (e.key === "Escape") handleCancelNewInstitution();
                   }}
-                  placeholder='new institution name, e.g. "SRV"'
-                  className="flex-1 rounded-md border border-[#C89B3C]/40 bg-[var(--surface)]/70 px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+                  placeholder='New institution name, e.g. "SRV"'
+                  className="min-w-0 flex-1 rounded-md border border-[#3558DE]/40 bg-[var(--surface)]/70 px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-shadow focus:border-[#3558DE]/60 focus:shadow-[0_0_0_3px_rgba(53,88,222,0.15)]"
                 />
                 <button
                   type="button"
                   onClick={handleConfirmNewInstitution}
                   disabled={!newInstitutionName.trim()}
-                  className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-2 text-xs font-semibold text-[#0B0E14] transition-all disabled:opacity-30"
+                  className="flex items-center gap-1.5 rounded-md bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-3.5 py-2 text-[13px] font-semibold text-[#FFFFFF] shadow-[0_4px_12px_-4px_rgba(53,88,222,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(53,88,222,0.65)] disabled:translate-y-0 disabled:opacity-30 disabled:shadow-none"
                 >
-                  create
+                  <Check size={14} strokeWidth={2.5} />
+                  Create
                 </button>
                 <button
                   type="button"
                   onClick={handleCancelNewInstitution}
-                  className="rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+                  className="flex items-center gap-1.5 rounded-md border border-[#4F7CFF]/15 bg-transparent px-3 py-2 text-[13px] text-[var(--muted)] transition-all hover:border-[#4F7CFF]/30 hover:bg-[var(--surface)]/60 hover:text-[var(--text)]"
                 >
-                  cancel
+                  <X size={13} strokeWidth={2.25} />
+                  Cancel
                 </button>
               </div>
             ) : (
@@ -421,15 +462,15 @@ export default function DocumentUpload({
                 value={institution}
                 onChange={(e) => handleSelectInstitution(e.target.value)}
                 disabled={institutionsLoading}
-                className="w-full rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)] disabled:opacity-50"
+                className="w-full rounded-md border border-[#4F7CFF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-shadow focus:border-[#3558DE]/60 focus:shadow-[0_0_0_3px_rgba(53,88,222,0.15)] disabled:opacity-50"
               >
                 <option value="" disabled>
-                  {institutionsLoading ? "loading institutions…" : "select an institution"}
+                  {institutionsLoading ? "Loading institutions…" : "Select an institution"}
                 </option>
                 {institutions.map((i) => (
                   <option key={i} value={i}>{i}</option>
                 ))}
-                <option value="__create_new__">+ create new institution…</option>
+                <option value="__create_new__">+ Create new institution…</option>
               </select>
             )}
           </div>
@@ -441,8 +482,8 @@ export default function DocumentUpload({
             forking the same class into two folders that can't see each
             other's docs), or create a brand new one explicitly. */}
         <div className="mb-4">
-          <label className="mb-1.5 block text-[11px] text-[var(--muted)]">
-            standard / class folder (required — scopes which students & quizzes can use this)
+          <label className="mb-1.5 block text-sm font-semibold text-[var(--text)]">
+            Standard / class folder <span className="ml-1 text-[12px] font-normal text-[var(--dim)]">Required. Scopes which students and quizzes can use this.</span>
           </label>
 
           {isCreatingFolder ? (
@@ -455,23 +496,25 @@ export default function DocumentUpload({
                   if (e.key === "Enter") { e.preventDefault(); handleConfirmNewFolder(); }
                   if (e.key === "Escape") handleCancelNewFolder();
                 }}
-                placeholder='new folder name, e.g. "5"'
-                className="flex-1 rounded-md border border-[#C89B3C]/40 bg-[var(--surface)]/70 px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+                placeholder='New folder name, e.g. "5"'
+                className="min-w-0 flex-1 rounded-md border border-[#3558DE]/40 bg-[var(--surface)]/70 px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-shadow focus:border-[#3558DE]/60 focus:shadow-[0_0_0_3px_rgba(53,88,222,0.15)]"
               />
               <button
                 type="button"
                 onClick={handleConfirmNewFolder}
                 disabled={!newFolderName.trim()}
-                className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-2 text-xs font-semibold text-[#0B0E14] transition-all disabled:opacity-30"
+                className="flex items-center gap-1.5 rounded-md bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-3.5 py-2 text-[13px] font-semibold text-[#FFFFFF] shadow-[0_4px_12px_-4px_rgba(53,88,222,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(53,88,222,0.65)] disabled:translate-y-0 disabled:opacity-30 disabled:shadow-none"
               >
-                create
+                <Check size={14} strokeWidth={2.5} />
+                Create
               </button>
               <button
                 type="button"
                 onClick={handleCancelNewFolder}
-                className="rounded-md border border-[#2DD4BF]/15 bg-transparent px-3 py-2 text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+                className="flex items-center gap-1.5 rounded-md border border-[#4F7CFF]/15 bg-transparent px-3 py-2 text-[13px] text-[var(--muted)] transition-all hover:border-[#4F7CFF]/30 hover:bg-[var(--surface)]/60 hover:text-[var(--text)]"
               >
-                cancel
+                <X size={13} strokeWidth={2.25} />
+                Cancel
               </button>
             </div>
           ) : (
@@ -479,31 +522,31 @@ export default function DocumentUpload({
               value={standard}
               onChange={(e) => handleSelectFolder(e.target.value)}
               disabled={standardsLoading || (isAdmin && !institution.trim())}
-              className="w-full rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)] disabled:opacity-50"
+              className="w-full rounded-md border border-[#4F7CFF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-shadow focus:border-[#3558DE]/60 focus:shadow-[0_0_0_3px_rgba(53,88,222,0.15)] disabled:opacity-50"
             >
               <option value="" disabled>
                 {isAdmin && !institution.trim()
-                  ? "select an institution first"
-                  : standardsLoading ? "loading folders…" : "select a folder"}
+                  ? "Select an institution first"
+                  : standardsLoading ? "Loading folders…" : "Select a folder"}
               </option>
               {standards.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
-              <option value="__create_new__">+ create new folder…</option>
+              <option value="__create_new__">+ Create new folder…</option>
             </select>
           )}
         </div>
 
         {/* Subject field */}
         <div className="mb-4">
-          <label className="mb-1.5 block text-[11px] text-[var(--muted)]">
-            subject tag (optional — filters retrieval)
+          <label className="mb-1.5 block text-sm font-semibold text-[var(--text)]">
+            Subject tag <span className="ml-1 text-[12px] font-normal text-[var(--dim)]">Optional. Filters retrieval.</span>
           </label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="e.g. data-structures, distributed-systems"
-            className="w-full rounded-md border border-[#2DD4BF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition-shadow focus:border-[#C89B3C]/60 focus:shadow-[0_0_0_3px_rgba(200,155,60,0.15)]"
+            className="w-full rounded-md border border-[#4F7CFF]/15 bg-[var(--surface)]/70 px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-shadow focus:border-[#3558DE]/60 focus:shadow-[0_0_0_3px_rgba(53,88,222,0.15)]"
           />
         </div>
 
@@ -520,25 +563,33 @@ export default function DocumentUpload({
               ? "cursor-not-allowed border-[var(--divider)] bg-[var(--surface)]/30 opacity-60"
               : "cursor-pointer " +
                 (isDragging
-                  ? "-translate-y-1 border-[#C89B3C] bg-[#C89B3C]/[0.07]"
-                  : "border-[#2DD4BF]/15 bg-[var(--surface)]/50 hover:border-[#2DD4BF]/30")
+                  ? "-translate-y-1 border-[#3558DE] bg-[#3558DE]/[0.07]"
+                  : "border-[#4F7CFF]/15 bg-[var(--surface)]/50 hover:border-[#4F7CFF]/30")
           }`}
         >
-          <Upload
-            size={22}
-            strokeWidth={1.5}
-            className={`mx-auto mb-2.5 transition-colors ${isDragging ? "text-[#C89B3C]" : "text-[var(--muted)]"}`}
-          />
-          <div className="mb-1 text-[13px] text-[var(--text)]">
+          <div
+            className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
+              isDragging
+                ? "border-transparent bg-gradient-to-br from-[#4F80F8] to-[#3558DE] shadow-[0_6px_16px_-4px_rgba(53,88,222,0.55)]"
+                : "border-[#4F7CFF]/20 bg-[#4F7CFF]/[0.08]"
+            }`}
+          >
+            <Upload
+              size={18}
+              strokeWidth={2}
+              className={`transition-colors ${isDragging ? "text-white" : "text-[var(--muted)]"}`}
+            />
+          </div>
+          <div className="mb-1 text-sm text-[var(--text)]">
             {canUpload ? (
-              <>drop files here, or <span className="text-[#C89B3C]">browse</span></>
+              <>Drop files here, or <span className="text-[var(--gold-ink)]">browse</span></>
             ) : isAdmin && !institution.trim() ? (
-              "select an institution above to enable uploads"
+              "Select an institution above to enable uploads"
             ) : (
-              "set a standard above to enable uploads"
+              "Set a standard above to enable uploads"
             )}
           </div>
-          <div className="text-[11px] text-[var(--dim)]">pdf, docx, pptx — re-uploading a source replaces its old chunks</div>
+          <div className="text-xs text-[var(--dim)]">PDF, DOCX or PPTX. Re-uploading a source replaces its old chunks.</div>
           <input
             ref={fileInputRef}
             type="file"
@@ -557,24 +608,26 @@ export default function DocumentUpload({
         {queue.length > 0 && (
           <div className="mt-4">
             <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-[11px] text-[var(--muted)]">
+              <span className="text-xs text-[var(--muted)]">
                 {queue.length} file{queue.length !== 1 ? "s" : ""} in queue
               </span>
               <div className="flex gap-2">
                 {hasFinished && (
                   <button
                     onClick={clearFinished}
-                    className="bg-transparent text-[11px] text-[var(--muted)] underline transition-colors hover:text-[var(--text)]"
+                    className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-[var(--muted)] transition-all hover:bg-[var(--surface)]/70 hover:text-[var(--text)]"
                   >
-                    clear finished
+                    <Trash2 size={12} strokeWidth={2} />
+                    Clear finished
                   </button>
                 )}
                 {queuedCount > 0 && (
                   <button
                     onClick={uploadAllQueued}
-                    className="rounded-md bg-gradient-to-br from-[#E4C87A] to-[#C89B3C] px-3.5 py-1.5 text-xs font-semibold text-[#0B0E14] shadow-[0_4px_12px_-4px_rgba(200,155,60,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(200,155,60,0.65)]"
+                    className="flex items-center gap-1.5 rounded-md bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-3.5 py-1.5 text-[13px] font-semibold text-[#FFFFFF] shadow-[0_4px_12px_-4px_rgba(53,88,222,0.55)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(53,88,222,0.65)] active:translate-y-0"
                   >
-                    upload {queuedCount}
+                    <Upload size={13} strokeWidth={2.25} />
+                    Upload {queuedCount}
                   </button>
                 )}
               </div>
@@ -585,35 +638,37 @@ export default function DocumentUpload({
                 <div
                   key={item.id}
                   style={{ animation: "queue-in 220ms cubic-bezier(0.22,1,0.36,1) both", animationDelay: `${idx * 25}ms` }}
-                  className="flex items-center gap-2.5 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-3 py-2.5 text-xs"
+                  className="flex items-center gap-2.5 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-3 py-2.5 text-[13px]"
                 >
-                  <FileText size={14} className="flex-shrink-0 text-[var(--muted)]" />
+                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[#4F7CFF]/10 text-[var(--muted)]">
+                    <FileText size={13} strokeWidth={2} />
+                  </span>
                   <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.file.name}</span>
-                  <span className="hidden flex-shrink-0 text-[11px] text-[var(--dim)] sm:inline">
-                    {(item.file.size / 1024).toFixed(0)} kb
+                  <span className="hidden flex-shrink-0 text-xs text-[var(--dim)] sm:inline">
+                    {(item.file.size / 1024).toFixed(0)} KB
                   </span>
 
                   {item.status === STATUS.QUEUED && (
-                    <span className="flex-shrink-0 text-[11px] text-[var(--muted)]">queued</span>
+                    <span className="flex-shrink-0 text-xs text-[var(--muted)]">Queued</span>
                   )}
                   {item.status === STATUS.UPLOADING && (
-                    <Loader2 size={14} className="flex-shrink-0 animate-spin text-[#C89B3C]" />
+                    <Loader2 size={14} className="flex-shrink-0 animate-spin text-[var(--accent-ink)]" />
                   )}
                   {item.status === STATUS.DONE && (
-                    <CheckCircle2 size={14} className="flex-shrink-0 text-[#2DD4BF]" />
+                    <CheckCircle2 size={14} className="flex-shrink-0 text-[var(--ok)]" />
                   )}
                   {item.status === STATUS.ERROR && (
                     <span title={item.error} className="flex flex-shrink-0 items-center gap-1 text-[#E2725B]">
-                      <AlertCircle size={13} /> <span className="hidden text-[11px] sm:inline">failed</span>
+                      <AlertCircle size={13} /> <span className="hidden text-xs sm:inline">Failed</span>
                     </span>
                   )}
 
                   {item.status !== STATUS.UPLOADING && (
                     <button
                       onClick={() => removeFromQueue(item.id)}
-                      className="flex-shrink-0 bg-transparent p-0.5 text-[var(--dim)] transition-colors hover:text-[var(--text)]"
+                      className="-m-1 flex-shrink-0 rounded-full bg-transparent p-1.5 text-[var(--dim)] transition-all hover:bg-[var(--surface)] hover:text-[var(--text)] active:scale-90"
                     >
-                      <X size={13} />
+                      <X size={13} strokeWidth={2.25} />
                     </button>
                   )}
                 </div>
@@ -625,79 +680,86 @@ export default function DocumentUpload({
         {/* Ingested documents list */}
         <div className="mt-9">
           <div className="mb-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[var(--muted)]">
+            <h2 className="section-title">
               <span className="thread-dot inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
-              ingested documents
+              Ingested documents
             </h2>
 
             {/* Admin-only: flip between "this folder" (same scoping teachers
                 get) and "everything" — every document across every school,
                 for auditing or cleanup. */}
             {isAdmin && (
-              <div className="flex overflow-hidden rounded-md border border-[#2DD4BF]/15 text-[11px]">
+              <div className="flex overflow-hidden rounded-full border border-[#4F7CFF]/15 bg-[var(--surface)]/40 p-0.5 text-xs">
                 <button
                   type="button"
                   onClick={() => setViewMode("folder")}
-                  className={`px-3 py-1.5 transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-all ${
                     viewMode === "folder"
-                      ? "bg-[#2DD4BF]/15 text-[var(--text)]"
+                      ? "bg-[#2DD4BF]/15 text-[var(--text)] shadow-sm"
                       : "bg-transparent text-[var(--muted)] hover:text-[var(--text)]"
                   }`}
                 >
-                  this folder
+                  <Folder size={12} strokeWidth={2.25} />
+                  This folder
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode("all")}
-                  className={`px-3 py-1.5 transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-all ${
                     viewMode === "all"
-                      ? "bg-[#2DD4BF]/15 text-[var(--text)]"
+                      ? "bg-[#2DD4BF]/15 text-[var(--text)] shadow-sm"
                       : "bg-transparent text-[var(--muted)] hover:text-[var(--text)]"
                   }`}
                 >
-                  all documents
+                  <Layers size={12} strokeWidth={2.25} />
+                  All documents
                 </button>
               </div>
             )}
           </div>
 
           {listError && (
-            <div className="mb-3 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-xs text-[#F3B9A8]">
-              couldn't load documents — {listError}
+            <div className="mb-3 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-[13px] text-[var(--error-text)]">
+              Couldn't load documents. {listError}
             </div>
           )}
 
           {listLoading ? (
-            <div className="py-5 text-xs text-[var(--dim)]">loading…</div>
+            <div className="py-5 text-[13px] text-[var(--dim)]">Loading…</div>
           ) : documents.length === 0 ? (
-            <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-xs text-[var(--dim)]">
+            <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-[13px] text-[var(--dim)]">
               {isAdmin && viewMode === "all"
-                ? "no documents have been ingested anywhere yet"
-                : "nothing ingested yet — upload a document above to start building the knowledge base"}
+                ? "No documents have been ingested anywhere yet."
+                : "Nothing ingested yet. Upload a document above to start building the knowledge base."}
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
               {/* overflow-x-auto lets the table scroll sideways instead of
                   breaking the page layout on narrow screens */}
               <div className="lm-scroll max-h-[360px] overflow-x-auto overflow-y-auto">
-                <table className={`w-full ${showScopeColumns ? "min-w-[760px]" : "min-w-[560px]"} border-collapse text-xs`}>
+                <table className={`w-full ${showScopeColumns ? "min-w-[760px]" : "min-w-[560px]"} border-collapse text-[13px]`}>
                   <thead>
                     <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
-                      <th className="px-3 py-2.5 font-medium">source</th>
-                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">institution</th>}
-                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">standard</th>}
-                      <th className="px-3 py-2.5 font-medium">subject</th>
-                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">owner</th>}
-                      <th className="px-3 py-2.5 font-medium">uploaded</th>
-                      <th className="px-3 py-2.5 font-medium">chunks</th>
-                      <th className="px-3 py-2.5 text-right font-medium">actions</th>
+                      <th className="px-3 py-2.5 font-medium">Source</th>
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">Institution</th>}
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">Standard</th>}
+                      <th className="px-3 py-2.5 font-medium">Subject</th>
+                      {showScopeColumns && <th className="px-3 py-2.5 font-medium">Owner</th>}
+                      <th className="px-3 py-2.5 font-medium">Uploaded</th>
+                      <th className="px-3 py-2.5 font-medium">Chunks</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {documents.map((doc) => (
                       <tr key={doc.id} className="lm-row border-t border-[var(--divider)]">
                         <td className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5">
-                          {doc.source ?? doc.fileName ?? "untitled"}
+                          <span className="flex items-center gap-2">
+                            <FileText size={13} strokeWidth={2} className="flex-shrink-0 text-[#4F7CFF]" />
+                            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                              {doc.source ?? doc.fileName ?? "Untitled"}
+                            </span>
+                          </span>
                         </td>
                         {showScopeColumns && (
                           <td className="px-3 py-2.5 text-[var(--muted)]">{doc.institution || "—"}</td>
@@ -717,11 +779,14 @@ export default function DocumentUpload({
                               onClick={() => handleDelete(doc.id)}
                               disabled={deletingId === doc.id}
                               title="Remove this document and its chunks"
-                              className={`bg-transparent p-0.5 transition-colors ${
-                                deletingId === doc.id ? "cursor-default text-[#3A4A45]" : "cursor-pointer text-[#E2725B] hover:text-[#F3B9A8]"
+                              aria-label="Remove document"
+                              className={`-m-1.5 rounded-full p-2 transition-all ${
+                                deletingId === doc.id
+                                  ? "cursor-default bg-transparent text-[#3A4A45]"
+                                  : "cursor-pointer bg-transparent text-[#E2725B] hover:bg-[#E2725B]/10 hover:text-[var(--error-text)] active:scale-90"
                               }`}
                             >
-                              {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.25} />}
                             </button>
                           </div>
                         </td>
