@@ -8,6 +8,7 @@ import ManageUsers from "./components/ManageUsers";
 import Quizzes from "./components/Quizzes";
 import ProfilePage from "./components/Profilepage";
 import Dashboard from "./components/Dashboard";
+import Games from "./components/Games";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 
@@ -25,7 +26,7 @@ export default function App() {
   const [authScreen, setAuthScreen] = useState("landing");
   const [authMode, setAuthMode] = useState("login"); // which tab LoginScreen opens on
 
-  // "chat" | "dashboard" | "upload" | "users" | "quizzes" | "profile"
+  // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile"
   const [view, setView] = useState("chat");
   const [sessionId, setSessionId] = useState(null);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
@@ -83,6 +84,10 @@ export default function App() {
                     onOpenQuizzes={() => setView("quizzes")}
                   />
                 </PageFrame>
+              ) : view === "games" ? (
+                <PageFrame onBack={backToChat}>
+                  <Games />
+                </PageFrame>
               ) : view === "upload" && canUpload ? (
                 <PageFrame onBack={backToChat}>
                   <DocumentUpload
@@ -118,6 +123,7 @@ export default function App() {
                   onOpenQuizzes={() => setView("quizzes")}
                   onOpenProfile={() => setView("profile")}
                   onOpenDashboard={() => setView("dashboard")}
+                  onOpenGames={() => setView("games")}
                   sessionId={sessionId}
                   onSessionCreated={handleSessionCreated}
                   onNewChat={handleNewChat}

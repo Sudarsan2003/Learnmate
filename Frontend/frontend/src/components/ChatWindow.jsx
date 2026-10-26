@@ -1,10 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2 } from "lucide-react";
 import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
 import ThemeToggle from "./ThemeToggle";
+import ChatQuiz, { QUIZ_TOKEN } from "./ChatQuiz";
 
 // Matches the key Quizzes.jsx writes to when a student clicks
 // "Ask LearnMate" after submitting a quiz.
@@ -12,13 +16,32 @@ const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
 
 const EXAMPLE_PROMPTS = [
   "Explain a concept from scratch",
-  "Quiz me on recent material",
+  "Quiz me on Biology Chapter 5",
   "Summarize the last reading",
   "Compare two related ideas",
 ];
 
+// When the backend generates a practice quiz it appends [[LEARNMATE_QUIZ:<id>]] to the message.
+// Returns that attempt id for a tutor message, or null for ordinary messages.
+function quizIdOf(message) {
+  if (message.role !== "tutor" || typeof message.text !== "string") return null;
+  const match = message.text.match(QUIZ_TOKEN);
+  return match ? Number(match[1]) : null;
+}
+
+// Wider than a normal tutor bubble: it holds the interactive quiz (selectable answers,
+// autosaved progress, graded result) instead of plain text.
+function QuizBubble({ attemptId }) {
+  return (
+    <div className="min-w-0 w-full max-w-[95%] rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 px-4 py-3 font-chat text-[16px] leading-[1.7] text-[var(--text)] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.35)] backdrop-blur-sm sm:max-w-[85%]">
+      <ChatQuiz attemptId={attemptId} />
+    </div>
+  );
+}
+
 function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegenerate, canRegenerate }) {
   const { shown, done } = useTypewriter(text, { active: isNew, speed: 12 });
+  const [showSources, setShowSources] = useState(false);
 
   return (
     <div
@@ -28,24 +51,33 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
           : "border border-[#5B8DEF]/20 bg-[var(--surface-2)]/80 text-[var(--text)]"
       }`}
     >
-      <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-        {shown}
+      {/* Tutor answers (and quizzes) are Markdown: headings, lists, bold, tables. */}
+      <div className="chat-md [overflow-wrap:anywhere]">
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{shown}</ReactMarkdown>
         {!done && <span className="typing-cursor" aria-hidden="true">▍</span>}
-      </p>
+      </div>
 
       {done && citations && citations.length > 0 && (
         <div className="citation-thread mt-3 pt-3">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#5B8DEF]/90">
-            <span className="thread-dot" /> Sources
-          </p>
-          <ul className="mt-1.5 space-y-1">
-            {citations.map((c) => (
-              <li key={c.chunkId} className="text-[12.5px] leading-relaxed text-[var(--muted)] [overflow-wrap:anywhere]">
-                <span className="text-[#8B73F5]">[{c.sourceId}]</span> {c.content.slice(0, 90)}
-                {c.content.length > 90 ? "…" : ""}
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            onClick={() => setShowSources((v) => !v)}
+            aria-expanded={showSources}
+            className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#5B8DEF]/90 transition-colors hover:text-[#8B73F5]"
+          >
+            <span className="thread-dot" />
+            {showSources ? "Hide sources" : `Sources (${citations.length})`}
+          </button>
+          {showSources && (
+            <ul className="mt-1.5 space-y-1">
+              {citations.map((c) => (
+                <li key={c.chunkId} className="text-[12.5px] leading-relaxed text-[var(--muted)] [overflow-wrap:anywhere]">
+                  <span className="text-[#8B73F5]">[{c.sourceId}]</span> {c.content.slice(0, 90)}
+                  {c.content.length > 90 ? "…" : ""}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -77,7 +109,12 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
   );
 }
 
-// update the function signature:
+// True when a learner message looks like a quiz answer sheet ("1. B  2. D ...").
+// Regenerating those would re-send answers to an already-graded quiz.
+function looksLikeQuizAnswers(text) {
+  return typeof text === "string" && /^\s*[Qq]?1\s*[.):\-]/.test(text);
+}
+
 export default function ChatWindow({
   currentUser,
   currentRole,
@@ -88,6 +125,7 @@ export default function ChatWindow({
   onOpenQuizzes,
   onOpenProfile,
   onOpenDashboard,
+  onOpenGames,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -98,6 +136,9 @@ export default function ChatWindow({
   const [historyLoading, setHistoryLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
+  );
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -113,41 +154,57 @@ export default function ChatWindow({
   const justCreatedSessionRef = useRef(false);
 
   useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
     document.addEventListener("learnmate:logout", onLogout);
     return () => document.removeEventListener("learnmate:logout", onLogout);
   }, [onLogout]);
+
   // add alongside the existing logout listener:
-useEffect(() => {
-  function handleOpenUsers() {
-    onOpenUsers?.();
-  }
-  document.addEventListener("learnmate:open-users", handleOpenUsers);
-  return () => document.removeEventListener("learnmate:open-users", handleOpenUsers);
-}, [onOpenUsers]);
+  useEffect(() => {
+    function handleOpenUsers() {
+      onOpenUsers?.();
+    }
+    document.addEventListener("learnmate:open-users", handleOpenUsers);
+    return () => document.removeEventListener("learnmate:open-users", handleOpenUsers);
+  }, [onOpenUsers]);
 
-useEffect(() => {
-  function handleOpenQuizzes() {
-    onOpenQuizzes?.();
-  }
-  document.addEventListener("learnmate:open-quizzes", handleOpenQuizzes);
-  return () => document.removeEventListener("learnmate:open-quizzes", handleOpenQuizzes);
-}, [onOpenQuizzes]);
+  useEffect(() => {
+    function handleOpenQuizzes() {
+      onOpenQuizzes?.();
+    }
+    document.addEventListener("learnmate:open-quizzes", handleOpenQuizzes);
+    return () => document.removeEventListener("learnmate:open-quizzes", handleOpenQuizzes);
+  }, [onOpenQuizzes]);
 
-useEffect(() => {
-  function handleOpenDashboard() {
-    onOpenDashboard?.();
-  }
-  document.addEventListener("learnmate:open-dashboard", handleOpenDashboard);
-  return () => document.removeEventListener("learnmate:open-dashboard", handleOpenDashboard);
-}, [onOpenDashboard]);
+  useEffect(() => {
+    function handleOpenDashboard() {
+      onOpenDashboard?.();
+    }
+    document.addEventListener("learnmate:open-dashboard", handleOpenDashboard);
+    return () => document.removeEventListener("learnmate:open-dashboard", handleOpenDashboard);
+  }, [onOpenDashboard]);
 
-useEffect(() => {
-  function handleOpenProfile() {
-    onOpenProfile?.();
-  }
-  document.addEventListener("learnmate:open-profile", handleOpenProfile);
-  return () => document.removeEventListener("learnmate:open-profile", handleOpenProfile);
-}, [onOpenProfile]);
+  useEffect(() => {
+    function handleOpenGames() {
+      onOpenGames?.();
+    }
+    document.addEventListener("learnmate:open-games", handleOpenGames);
+    return () => document.removeEventListener("learnmate:open-games", handleOpenGames);
+  }, [onOpenGames]);
+
+  useEffect(() => {
+    function handleOpenProfile() {
+      onOpenProfile?.();
+    }
+    document.addEventListener("learnmate:open-profile", handleOpenProfile);
+    return () => document.removeEventListener("learnmate:open-profile", handleOpenProfile);
+  }, [onOpenProfile]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -338,41 +395,53 @@ useEffect(() => {
     <div className="relative flex h-full w-full flex-col bg-[var(--bg-canvas)] text-[var(--text)]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
 
-      <header className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 shadow-[0_8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:px-6 sm:py-4">
-        <div className="flex min-w-0 items-center gap-2">
+      <header className="relative z-30 flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-3 py-2.5 shadow-[0_8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:flex-nowrap sm:gap-x-3 sm:px-6 sm:py-4">
+        {/* Left: menu + title (takes remaining space so the profile sits at the far right) */}
+        <div className="order-1 flex min-w-0 flex-1 items-center gap-2">
           <button
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)] sm:h-8 sm:w-8"
           >
-            <Menu size={18} />
+            <Menu size={20} />
           </button>
           <h1 className="hero-serif truncate text-xl text-[var(--text)] sm:text-2xl">
             {sessionId ? "Chat" : "New chat"}
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium text-[var(--muted)] sm:gap-3">
-          <button
-            onClick={handleNewChatClick}
-            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
+
+        {/* Theme + profile: stay on the first row on phones, far right on desktop */}
+        <div className="order-2 flex flex-shrink-0 items-center gap-2 sm:order-3 sm:ml-1">
+          <ThemeToggle />
+          <div
+            className="profile-badge flex-shrink-0 rounded-full"
+            title={currentUser}
           >
-            <Plus size={14} />
+            <ProfileMenu username={currentUser} role={currentRole} />
+          </div>
+        </div>
+
+        {/* Actions: own scrollable row on phones, inline on desktop */}
+        <nav
+          aria-label="Primary actions"
+          className="no-scrollbar order-3 -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-2 overflow-x-auto px-3 pb-0.5 text-[13.5px] font-medium text-[var(--muted)] sm:order-2 sm:mx-0 sm:w-auto sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0"
+        >
+          <button onClick={handleNewChatClick} aria-label="New chat" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+            <Plus size={16} />
             <span className="hidden sm:inline">New chat</span>
           </button>
 
-          <button
-            onClick={onOpenDashboard}
-            aria-label="Dashboard"
-            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
-          >
-            <LayoutDashboard size={14} />
+          <button onClick={onOpenDashboard} aria-label="Dashboard" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+            <LayoutDashboard size={16} />
             <span className="hidden sm:inline">Dashboard</span>
           </button>
 
-          <button
-            onClick={onOpenQuizzes}
-            className="flex items-center gap-1.5 rounded-md border border-[#5B8DEF]/20 px-3 py-1.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)]"
-          >
+          <button onClick={onOpenGames} aria-label="Games" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+            <Gamepad2 size={16} />
+            <span className="hidden sm:inline">Games</span>
+          </button>
+
+          <button onClick={onOpenQuizzes} className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
             <span className="hidden sm:inline">Quizzes</span>
             <span className="sm:hidden">Quiz</span>
           </button>
@@ -380,18 +449,12 @@ useEffect(() => {
           {isAdmin && (
             <button
               onClick={onOpenUpload}
-              className="rounded-md border border-[#6A4DE0]/60 px-3 py-1.5 text-[#8B73F5] transition-all hover:-translate-y-0.5 hover:bg-[#6A4DE0] hover:text-[#FFFFFF] hover:shadow-lg hover:shadow-[#6A4DE0]/20"
+              className="flex h-10 flex-shrink-0 items-center rounded-md border border-[#6A4DE0]/60 px-3 text-[#8B73F5] transition-all hover:-translate-y-0.5 hover:bg-[#6A4DE0] hover:text-[#FFFFFF] hover:shadow-lg hover:shadow-[#6A4DE0]/20 sm:h-auto sm:py-1.5"
             >
               Upload
             </button>
           )}
-
-          <ThemeToggle />
-
-          <div className="ml-0 sm:ml-2">
-            <ProfileMenu username={currentUser} role={currentRole} />
-          </div>
-        </div>
+        </nav>
       </header>
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
@@ -403,13 +466,13 @@ useEffect(() => {
         {!historyLoading && messages.length === 0 && (
           <div
             style={{ animation: "hero-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
-            className="mx-auto flex max-w-2xl flex-col items-center gap-9 pt-8 text-center sm:pt-16"
+            className="mx-auto flex w-full min-w-0 max-w-2xl flex-col items-center gap-6 pt-4 text-center sm:gap-9 sm:pt-16"
           >
             <div className="flex flex-col items-center gap-3.5">
               <div className="orbit-avatar flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#8B73F5] to-[#4A33B5] shadow-[0_6px_20px_rgba(106,77,224,0.35)]">
                 <Orbit size={20} className="text-[#FFFFFF]" />
               </div>
-              <h2 className="hero-serif text-3xl italic leading-[1.15] text-[var(--text)] sm:text-[2.5rem]">
+              <h2 className="hero-serif text-[1.75rem] italic leading-[1.15] text-[var(--text)] [overflow-wrap:anywhere] min-[400px]:text-3xl sm:text-[2.5rem]">
                 What are we studying today?
               </h2>
               <svg width="128" height="12" viewBox="0 0 128 12" fill="none" className="opacity-70">
@@ -432,7 +495,7 @@ useEffect(() => {
                   key={p}
                   onClick={() => handlePromptClick(p)}
                   style={{ animation: "message-in 300ms cubic-bezier(0.22,1,0.36,1) both", animationDelay: `${180 + i * 60}ms` }}
-                  className="prompt-chip group flex items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/50 px-4 py-3 text-left text-sm text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#6A4DE0]/40 hover:bg-[var(--surface-2)]/85 hover:text-[var(--text)]"
+                  className="prompt-chip group flex min-h-11 items-center gap-2.5 rounded-xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/50 px-4 py-3 text-left text-sm text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#6A4DE0]/40 hover:bg-[var(--surface-2)]/85 hover:text-[var(--text)]"
                 >
                   <Sparkles size={14} className="flex-shrink-0 text-[#5B8DEF]/80 transition-colors group-hover:text-[#8B73F5]" />
                   <span className="font-ui">{p}</span>
@@ -459,6 +522,8 @@ useEffect(() => {
                 <div className="message-card min-w-0 max-w-[85%] rounded-xl bg-gradient-to-br from-[#6E9BFF] to-[#3A5FCB] px-4 py-3 font-chat text-[16px] leading-[1.7] text-[#FFFFFF] sm:max-w-[75%]">
                   <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.text}</p>
                 </div>
+              ) : quizIdOf(m) !== null ? (
+                <QuizBubble attemptId={quizIdOf(m)} />
               ) : (
                 <TutorBubble
                   text={m.text}
@@ -467,7 +532,11 @@ useEffect(() => {
                   isError={m.isError}
                   onCopy={() => handleCopy(m.id, m.text)}
                   copied={copiedId === m.id}
-                  canRegenerate={i === lastTutorIndex && !isLoading}
+                  canRegenerate={
+                    i === lastTutorIndex &&
+                    !isLoading &&
+                    !looksLikeQuizAnswers(messages[i - 1]?.text)
+                  }
                   onRegenerate={() => handleRegenerate(i)}
                 />
               )}
@@ -508,9 +577,9 @@ useEffect(() => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about anything in the knowledge base…"
+            placeholder={isMobile ? "Ask anything…" : "Ask about anything in the knowledge base…"}
             rows={1}
-            className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/60 px-4 py-3 font-ui text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#6A4DE0]/50 focus:shadow-[0_0_0_3px_rgba(106,77,224,0.12)] focus:outline-none"
+            className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border border-[#5B8DEF]/20 bg-[var(--surface-2)]/60 px-4 py-3 font-ui text-[16px] text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow sm:text-sm focus:border-[#6A4DE0]/50 focus:shadow-[0_0_0_3px_rgba(106,77,224,0.12)] focus:outline-none"
           />
           {isLoading ? (
             <button
@@ -534,6 +603,30 @@ useEffect(() => {
       </div>
 
       <style>{`
+        /* Markdown inside tutor bubbles (Tailwind preflight strips these defaults) */
+        .chat-md > :first-child { margin-top: 0; }
+        .chat-md > :last-child { margin-bottom: 0; }
+        .chat-md h1 { font-size: 1.4rem; font-weight: 600; margin: 0.25rem 0 0.6rem; }
+        .chat-md h2 { font-size: 1.3rem; font-weight: 600; margin: 0.25rem 0 0.5rem; }
+        .chat-md h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+        .chat-md p { margin: 0.4rem 0; }
+        .chat-md ul { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
+        .chat-md ol { list-style: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
+        .chat-md li { margin: 0.15rem 0; }
+        .chat-md strong { font-weight: 600; }
+        .chat-md code { background: rgba(91, 141, 239, 0.15); padding: 0 0.3rem; border-radius: 4px; font-size: 0.9em; }
+        .chat-md hr { margin: 1rem 0; border: 0; border-top: 1px solid rgba(91, 141, 239, 0.3); }
+        .chat-md table { border-collapse: collapse; margin: 0.6rem 0; display: block; overflow-x: auto; }
+        .chat-md th, .chat-md td { border: 1px solid rgba(91, 141, 239, 0.25); padding: 0.3rem 0.6rem; text-align: left; }
+
+        /* Profile avatar: always clearly visible on dark & light themes */
+        .profile-badge {
+          padding: 2px;
+          background: linear-gradient(135deg, #8B73F5, #5B8DEF);
+          box-shadow: 0 0 0 2px var(--bg-canvas), 0 4px 14px -2px rgba(106, 77, 224, 0.65);
+        }
+        .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         .hero-serif {
           font-family: 'Sora', system-ui, sans-serif;
           font-weight: 600;

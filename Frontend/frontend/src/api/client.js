@@ -47,19 +47,9 @@ export async function sendChatMessage(request) {
   return data;
 }
 
-export async function fetchHistory() {
-  const { data } = await api.get("/api/chat/history");
-  return data;
-}
-
-export async function getChatHistory() {
-  const { data } = await api.get("/api/chat/history");
-  return data;
-}
-
-export async function clearChatHistory() {
-  await api.delete("/api/chat/history");
-}
+// NOTE: the old fetchHistory / getChatHistory / clearChatHistory helpers were
+// removed. The backend requires ?sessionId=..., so they always failed with 400.
+// Use getSessionHistory(sessionId) and deleteSession(sessionId) below.
 
 export async function changePassword(currentPassword, newPassword) {
   await api.put("/api/auth/change-password", {
@@ -81,8 +71,67 @@ export async function getSessionHistory(sessionId) {
 export async function deleteSession(sessionId) {
   await api.delete("/api/chat/history", { params: { sessionId } });
 }
+
+// ---------------------------------------------------------------------------
+// Practice quizzes generated in chat ("Quiz me on Biology Chapter 5").
+// Only the logged-in student's own attempts are ever returned.
+// ---------------------------------------------------------------------------
+
+// List of completed practice quizzes:
+// [{ id, topic, difficulty, scorePercent, correctCount, totalQuestions, completedAt }]
+export async function getChatQuizResults() {
+  const { data } = await api.get("/api/chat-quiz/results");
+  return data;
+}
+
+// One attempt in full: { summary, results: [{ number, type, questionText,
+// optionA-D, correctOption, selectedOption, studentAnswer, verdict, score,
+// feedback, whatToReview, explanation, referenceAnswer }] }
+export async function getChatQuizResult(id) {
+  const { data } = await api.get(`/api/chat-quiz/results/${id}`);
+  return data;
+}
+
+// --- Taking a practice quiz inside chat (powers the ChatQuiz card) ---------
+
+// Loads the quiz card: { id, topic, difficulty, status, questions: [{ number,
+// type, questionText, optionA-D }], answers: { "1": "B", ... }, detail }.
+// `status` is IN_PROGRESS | COMPLETED | ABANDONED; `detail` (same shape as
+// getChatQuizResult) is only present once graded. No correct answers are
+// included while the quiz is in progress.
+export async function getChatQuizAttempt(id) {
+  const { data } = await api.get(`/api/chat-quiz/attempts/${id}`);
+  return data;
+}
+
+// Autosave. `answers` is the FULL map of the student's current answers,
+// e.g. { "1": "B", "6": "my written answer" } — it replaces what was saved.
+export async function saveChatQuizAnswers(id, answers) {
+  await api.put(`/api/chat-quiz/attempts/${id}/answers`, { answers });
+}
+
+// Grades the saved answers and returns the full result (same shape as
+// getChatQuizResult). Safe to call twice.
+export async function submitChatQuiz(id) {
+  const { data } = await api.post(`/api/chat-quiz/attempts/${id}/submit`);
+  return data;
+}
+
 export async function createQuiz(payload) {
   const { data } = await api.post("/api/quizzes", payload);
+  return data;
+}
+
+// Teacher/Admin only (enforced server-side). Send a photo of handwritten or
+// printed exam questions, get back structured MCQs in the same shape the
+// Create Quiz form already uses for manualQuestions -- nothing is saved
+// server-side by this call.
+export async function scanQuizQuestions(imageFile) {
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  const { data } = await api.post("/api/quizzes/scan", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return data;
 }
 
@@ -195,5 +244,28 @@ export async function deleteUser(username) {
 
 export async function setUserLocked(username, locked) {
   const { data } = await api.put(`/api/admin/users/${username}/lock`, { locked });
+  return data;
+}
+
+// Progress for every game (currently MATH and WORDS) for the logged-in
+// student — level unlocked, stars, streak, etc. Powers GamesDashboard and
+// lets MathGame/WordGame resume at the right level.
+export async function getGameProgress() {
+  const { data } = await api.get("/api/games/progress");
+  return data;
+}
+
+// Call once a level ends (win or lose). `payload` is:
+// { gameType: "MATH" | "WORDS", level, won, score, stars, correctCount, totalCount }
+export async function completeGameLevel(payload) {
+  const { data } = await api.post("/api/games/complete", payload);
+  return data;
+}
+
+// Institute-wide leaderboard for one game ("MATH" | "WORDS"), ranked by
+// total stars (ties broken by total points). Scoped server-side to
+// students who share the caller's institution.
+export async function getGameLeaderboard(gameType) {
+  const { data } = await api.get(`/api/games/${gameType}/leaderboard`);
   return data;
 }

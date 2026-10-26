@@ -1,14 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "./ThemeContext";
 
-/**
- * KnowledgeGraph — the signature element.
- * A slowly-rotating 3D point cloud where nodes represent chunks of source
- * material and edges represent semantic proximity. Nearest neighbours pulse
- * a connecting line every few seconds, echoing how LearnMate threads an
- * answer back to a citation. Pure canvas + a hand-rolled perspective
- * projection — no extra dependencies.
- */
+
 function KnowledgeGraph({ light }) {
   const canvasRef = useRef(null);
   const lightRef = useRef(light);

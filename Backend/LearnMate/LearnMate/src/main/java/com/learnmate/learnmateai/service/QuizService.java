@@ -7,6 +7,7 @@ import com.learnmate.learnmateai.model.*;
 import com.learnmate.learnmateai.repository.*;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class QuizService {
     private final UserRepository userRepository;
     private final RetrievalAgent retrievalAgent;
     private final EvaluationAgent evaluationAgent;
+    private final VisionService visionService;
 
     public QuizService(QuizRepository quizRepository,
                        QuizQuestionRepository questionRepository,
@@ -29,7 +31,8 @@ public class QuizService {
                        QuizAnswerRepository answerRepository,
                        UserRepository userRepository,
                        RetrievalAgent retrievalAgent,
-                       EvaluationAgent evaluationAgent) {
+                       EvaluationAgent evaluationAgent,
+                       VisionService visionService) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.attemptRepository = attemptRepository;
@@ -37,6 +40,23 @@ public class QuizService {
         this.userRepository = userRepository;
         this.retrievalAgent = retrievalAgent;
         this.evaluationAgent = evaluationAgent;
+        this.visionService = visionService;
+    }
+
+    /**
+     * Photo -> transcribed text -> structured MCQs, ready to slot straight
+     * into QuizCreateRequest.manualQuestions on the existing Create Quiz
+     * flow. Nothing is persisted here; the teacher reviews/edits and saves
+     * via the normal POST /api/quizzes.
+     *
+     * ADMIN/TEACHER-only is enforced by @PreAuthorize on the controller
+     * endpoint that calls this, matching the pattern used for createQuiz()
+     * and every other staff-only method in this service -- this method does
+     * not re-check the role itself.
+     */
+    public List<QuizCreateRequest.ManualQuestion> scanQuestionsFromImage(MultipartFile image, String username) {
+        String extractedText = visionService.extractQuestionsText(image);
+        return evaluationAgent.structureScannedQuestions(extractedText);
     }
 
     public Quiz createQuiz(QuizCreateRequest req, String createdByUsername) {

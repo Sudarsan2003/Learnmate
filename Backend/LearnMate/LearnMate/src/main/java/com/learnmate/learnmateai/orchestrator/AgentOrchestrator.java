@@ -1,78 +1,473 @@
 package com.learnmate.learnmateai.orchestrator;
 
+import com.learnmate.learnmateai.agent.EvaluationAgent;
 import com.learnmate.learnmateai.agent.LearningAgent;
 import com.learnmate.learnmateai.agent.RetrievalAgent;
 import com.learnmate.learnmateai.dto.ChatRequest;
 import com.learnmate.learnmateai.dto.ChatResponse;
+import com.learnmate.learnmateai.dto.RetrievedChunk;
 import com.learnmate.learnmateai.model.ChatMessage;
+import com.learnmate.learnmateai.model.ChatQuizAttempt;
 import com.learnmate.learnmateai.model.User;
+import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.ChatHistoryService;
+import com.learnmate.learnmateai.service.ChatQuizAttemptService;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class AgentOrchestrator {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(AgentOrchestrator.class);
+
+    private static final Pattern QUIZ_WORD = Pattern.compile("\\bquiz\\b");
+    // "list the topics in social", "what chapters are in science", "show me all units"
+    private static final Pattern LIST_TOPICS = Pattern.compile(
+            "(?is).*\\b(list|show me|show|what are|which|give me)\\b.*\\b(topics|chapters|units|lessons)\\b.*");
+    private static final Pattern LIST_SUBJECT = Pattern.compile(
+            "(?i)\\b(?:in|of|for|from)\\s+(?:the\\s+)?([\\p{L}][\\p{L} ]*?)\\s*[?.!]*\\s*$");
+    private static final Pattern STARTS_WITH_NUMBERED_ANSWER =
+            Pattern.compile("(?s)^\\s*[Qq]?1\\s*[.):\\-].*");
+    // Stray quotes / punctuation around a topic, e.g. Class6_Social_Science".
+    private static final Pattern TOPIC_EDGE_JUNK =
+            Pattern.compile("^[\\s\"'\u201C\u201D\u2018\u2019`]+|[\\s\"'\u201C\u201D\u2018\u2019`.?!,;:]+$");
+
     private final RetrievalAgent retrievalAgent;
     private final LearningAgent learningAgent;
+    private final EvaluationAgent evaluationAgent;
     private final ChatHistoryService chatHistoryService;
     private final UserRepository userRepository;
+    private final ChatQuizAttemptService quizAttemptService;
+    private final DocumentChunkRepository chunkRepository;
 
-    public AgentOrchestrator(RetrievalAgent retrievalAgent, LearningAgent learningAgent,
-                             ChatHistoryService chatHistoryService, UserRepository userRepository) {
+    public AgentOrchestrator(
+            RetrievalAgent retrievalAgent,
+            LearningAgent learningAgent,
+            EvaluationAgent evaluationAgent,
+            ChatHistoryService chatHistoryService,
+            UserRepository userRepository,
+            ChatQuizAttemptService quizAttemptService,
+            DocumentChunkRepository chunkRepository) {
+
         this.retrievalAgent = retrievalAgent;
         this.learningAgent = learningAgent;
+        this.evaluationAgent = evaluationAgent;
         this.chatHistoryService = chatHistoryService;
         this.userRepository = userRepository;
+        this.quizAttemptService = quizAttemptService;
+        this.chunkRepository = chunkRepository;
     }
 
-    public ChatResponse handle(ChatRequest req, String ownerUsername) {
+    public ChatResponse handle(ChatRequest req, String ownerUsername, String sessionId) {
+
         User user = userRepository.findByUsername(ownerUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        List<ChatMessage> history = (req.sessionId() != null && !req.sessionId().isBlank())
-                ? chatHistoryService.getSessionHistory(ownerUsername, req.sessionId())
-                : List.of();
+        try {
+            var active = quizAttemptService.findActive(ownerUsername, sessionId);
+            if (active.isPresent()) {
+                ChatQuizAttempt attempt = active.get();
+
+                if (isCancelRequest(req.query())) {
+                    quizAttemptService.abandon(attempt);
+                    return new ChatResponse("Okay, I've closed that quiz. Ask me for a new one any time.",
+                            List.of(), null);
+                }
+
+                // A message that starts with "1." is an answer sheet, even if it contains the word "quiz".
+                if (!isQuizRequest(req.query()) || startsWithNumberedAnswer(req.query())) {
+                    Map<Integer, String> answers = ChatQuizAttemptService.parseAnswers(
+                            req.query(), quizAttemptService.questionCount(attempt));
+                    if (!answers.isEmpty()) {
+                        try {
+                            // 1) Save the raw answers first, so they survive even if grading fails.
+                            attempt = quizAttemptService.saveAnswers(attempt, answers);
+                            // 2) Grade and store the result.
+                            ChatQuizAttempt done = quizAttemptService.grade(attempt, answers);
+                            return new ChatResponse(quizAttemptService.formatResultsForChat(done),
+                                    List.of(), null);
+                        } catch (RuntimeException e) {
+                            log.error("Grading failed for user '{}'", ownerUsername, e);
+                            return new ChatResponse("Your answers are saved, but I couldn't grade them just now. "
+                                    + "Please send them again to retry.", List.of(), null);
+                        }
+                    }
+                    // No numbered answers found: treat it as a normal question.
+                }
+            }
+
+            // Retrieval is filtered by the student's institution + standard. If either is
+            // missing, every search returns nothing, so say so instead of "not found".
+            if (profileIncomplete(user)) {
+                return new ChatResponse(
+                        "Your profile doesn't have an institution and class (standard) set, so I can't "
+                                + "look up your study material. Please ask your teacher or admin to update "
+                                + "it under Manage users.",
+                        List.of(), null);
+            }
+
+            if (isListTopicsRequest(req.query())) {
+                return handleListTopics(req, user);
+            }
+
+            if (isQuizRequest(req.query())) {
+                return handleQuiz(req, user, ownerUsername, sessionId);
+            }
+            return handleTutoring(req, ownerUsername, user);
+
+        } catch (RuntimeException e) {
+            // Never let the student see a 500: log the real cause, reply politely.
+            log.error("Chat request failed for user '{}', query '{}'", ownerUsername, req.query(), e);
+            return new ChatResponse(
+                    "Sorry, I couldn't answer that just now. Please try again in a moment.",
+                    List.of(), null);
+        }
+    }
+
+    // ------------------------------------------------------------------ quiz (shown in chat, saved so the answers can be graded)
+
+    private ChatResponse handleQuiz(ChatRequest req, User user, String ownerUsername, String sessionId) {
+
+        String topic = normalizeTopic(extractQuizTopic(req.query()));
+
+        if (isVagueTopic(topic)) {
+            return new ChatResponse(
+                    "Which subject, textbook and chapter or unit would you like to be quizzed on? "
+                            + "For example: \"Quiz me on Biology Chapter 5\".",
+                    List.of(), null);
+        }
+
+        // If the topic is the name of an uploaded file, sample chunks across that whole file
+        // (similarity search on a file name returns near-random chunks, often the copyright page).
+        List<RetrievedChunk> quizChunks = retrievalAgent.retrieveWholeDocument(
+                topic, user.getInstitution(), user.getStandard(), 10);
+
+        if (quizChunks.isEmpty()) {
+            quizChunks = retrievalAgent.retrieve(
+                    topic, null, user.getInstitution(), user.getStandard(), 8);
+        }
+
+        if (quizChunks.isEmpty()) {
+            return new ChatResponse(
+                    "I couldn't find that chapter or topic in your study material. "
+                            + "Could you tell me the subject, textbook, and chapter or unit?",
+                    quizChunks, null);
+        }
+
+        if (looksGarbled(quizChunks)) {
+            return new ChatResponse(
+                    "The study material I found for that chapter isn't readable. Its text was not "
+                            + "extracted correctly from the uploaded file. Please ask your teacher to "
+                            + "re-upload that chapter, then try again.",
+                    List.of(), null);
+        }
+
+        try {
+            EvaluationAgent.GeneratedQuiz quiz = evaluationAgent.generateMixedQuiz(
+                    topic, quizChunks, 5, 3, req.level());
+            ChatQuizAttempt attempt = quizAttemptService.start(ownerUsername, sessionId, quiz,
+                    ChatQuizAttemptService.buildStudyMaterial(quizChunks));
+            // The trailing token lets the chat UI swap this text for an interactive quiz card
+            // (it's stored in chat history too, so the card comes back after a reload).
+            return new ChatResponse(
+                    formatQuizForChat(quiz) + "\n\n[[LEARNMATE_QUIZ:" + attempt.getId() + "]]",
+                    quizChunks, null);
+
+        } catch (IllegalArgumentException e) {
+            // e.g. "I couldn't find enough information in the selected chapter..."
+            return new ChatResponse(e.getMessage(), quizChunks, null);
+        } catch (RuntimeException e) {
+            log.error("Quiz generation failed for topic '{}'", topic, e);
+            return new ChatResponse(
+                    "I couldn't build that quiz just now. Please try again, or name the chapter "
+                            + "(for example \"Quiz me on Biology Chapter 5\").",
+                    quizChunks, null);
+        }
+    }
+
+    // ------------------------------------------------------------------ list topics (database lookup, not similarity search)
+
+    private boolean profileIncomplete(User user) {
+        return user.getInstitution() == null || user.getInstitution().isBlank()
+                || user.getStandard() == null || user.getStandard().isBlank();
+    }
+
+    private boolean isListTopicsRequest(String query) {
+        return query != null && LIST_TOPICS.matcher(query).matches();
+    }
+
+    private String extractListSubject(String query) {
+        Matcher m = LIST_SUBJECT.matcher(query.trim());
+        return m.find() ? m.group(1).trim() : "";
+    }
+
+    private ChatResponse handleListTopics(ChatRequest req, User user) {
+        String institution = user.getInstitution();
+        String standard = user.getStandard();
+        String subject = extractListSubject(req.query());
+
+        if (!subject.isBlank()) {
+            List<String> files = chunkRepository.findDistinctFileNames(institution, standard, subject);
+            // "social studies" should still find a subject stored as "social".
+            if (files.isEmpty() && subject.contains(" ")) {
+                subject = subject.substring(0, subject.indexOf(' '));
+                files = chunkRepository.findDistinctFileNames(institution, standard, subject);
+            }
+            if (!files.isEmpty()) {
+                StringBuilder sb = new StringBuilder("## Study material in ").append(subject).append("\n\n");
+                for (String f : files) {
+                    sb.append("- ").append(f.replaceAll("(?i)\\.pdf$", "")).append("\n");
+                }
+                sb.append("\nAsk me to explain any of these, or try \"Quiz me on ")
+                        .append(files.get(0).replaceAll("(?i)\\.pdf$", "")).append("\".");
+                return new ChatResponse(sb.toString(), List.of(), null);
+            }
+        }
+
+        List<String> subjects = chunkRepository.findDistinctSubjects(institution, standard);
+        if (subjects.isEmpty()) {
+            return new ChatResponse("No study material has been uploaded for your class yet.",
+                    List.of(), null);
+        }
+        String intro = subject.isBlank()
+                ? "Here are the subjects available for your class:"
+                : "I couldn't find \"" + subject + "\" for your class. These subjects are available:";
+        return new ChatResponse(intro + "\n\n- " + String.join("\n- ", subjects)
+                + "\n\nAsk \"list the topics in <subject>\" to see what's uploaded.", List.of(), null);
+    }
+
+    // ------------------------------------------------------------------ normal tutoring
+
+    private ChatResponse handleTutoring(ChatRequest req, String ownerUsername, User user) {
+
+        List<ChatMessage> history =
+                (req.sessionId() != null && !req.sessionId().isBlank())
+                        ? chatHistoryService.getSessionHistory(ownerUsername, req.sessionId())
+                        : List.of();
 
         String retrievalQuery = buildRetrievalQuery(req.query(), history);
 
-        // Retrieval is scoped by institution + standard only. Subject is an
-        // optional free-text tag set at upload time (see DocumentController),
-        // so it's inconsistent across documents and easy to mismatch against
-        // whatever the chat request happens to send — that mismatch was
-        // silently filtering out every chunk for a student's own class
-        // folder. A student should be able to ask about anything ingested
-        // for their standard, not just docs tagged with one exact subject.
-        var chunks = retrievalAgent.retrieve(retrievalQuery, null, user.getInstitution(), user.getStandard(), 5);
+        var chunks = retrievalAgent.retrieve(
+                retrievalQuery, null, user.getInstitution(), user.getStandard(), 5);
+
         var answer = learningAgent.explain(req.query(), req.level(), chunks, history);
+
         return new ChatResponse(answer, chunks, null);
     }
 
-    /**
-     * Short follow-ups ("give in telugu and hindi", "explain more", "what about X")
-     * carry no retrievable topic on their own — the embedding/hybrid search has
-     * nothing to match against and pulls random chunks. For short queries,
-     * prepend the student's last question so retrieval still has the real
-     * topic to search against.
-     */
-    private String buildRetrievalQuery(String currentQuery, List<ChatMessage> history) {
-        int wordCount = currentQuery.trim().split("\\s+").length;
+
+    /** True when most retrieved chunks are unreadable symbol soup (bad PDF text extraction). */
+    private boolean looksGarbled(List<RetrievedChunk> chunks) {
+        long bad = chunks.stream().filter(c -> readableRatio(c.content()) < 0.7).count();
+        return bad * 2 > chunks.size();
+    }
+
+    private double readableRatio(String text) {
+        if (text == null || text.isBlank()) return 0;
+        int ok = 0, total = 0;
+        for (int cp : text.codePoints().toArray()) {
+            if (Character.isWhitespace(cp)) continue;
+            total++;
+            boolean readableLetter = Character.isLetterOrDigit(cp) && !(cp >= 0x80 && cp <= 0x24F);
+            if (readableLetter || ".,;:!?'\"()-%/".indexOf(cp) >= 0) ok++;
+        }
+        return total == 0 ? 0 : (double) ok / total;
+    }
+
+    private boolean isCancelRequest(String query) {
+        if (query == null) return false;
+        String q = query.toLowerCase().trim();
+        return q.contains("cancel quiz") || q.contains("stop quiz") || q.contains("quit quiz")
+                || q.contains("exit quiz") || q.contains("end quiz") || q.contains("skip quiz");
+    }
+
+    private boolean isVagueTopic(String topic) {
+        String t = topic == null ? "" : topic.toLowerCase().replaceAll("[^a-z ]", " ").trim();
+        return t.length() < 3
+                || List.of("something", "anything", "random", "whatever", "a quiz", "quiz",
+                "any topic", "any chapter", "anything else", "something else").contains(t);
+    }
+
+    private boolean isQuizRequest(String query) {
+
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+
+        String q = query.toLowerCase().trim();
+
+        return q.contains("quiz me")
+                || q.contains("test me")
+                || q.contains("give me questions")
+                || q.contains("ask me questions")
+                || QUIZ_WORD.matcher(q).find();   // works across newlines, unlike String.matches(".*...*")
+    }
+
+    private boolean startsWithNumberedAnswer(String query) {
+        return query != null && STARTS_WITH_NUMBERED_ANSWER.matcher(query).matches();
+    }
+
+    /** Fixes common typos of subject names so retrieval still finds the chapter. */
+    private String normalizeTopic(String topic) {
+        if (topic == null) return null;
+        return topic
+                .replaceAll("(?i)\\bbiologt\\b|\\bbiolgy\\b|\\bbiologi\\b|\\bbiollogy\\b|\\bbioligy\\b", "Biology")
+                .replaceAll("(?i)\\bphysicss?\\b|\\bphisics\\b|\\bphysycs\\b", "Physics")
+                .replaceAll("(?i)\\bchemestry\\b|\\bchemistery\\b|\\bchemisty\\b", "Chemistry")
+                .replaceAll("(?i)\\bmathamatics\\b|\\bmathmatics\\b|\\bmaths\\b", "Mathematics")
+                .replaceAll("(?i)\\bchapetr\\b|\\bchaptar\\b|\\bchapter(?=\\d)", "Chapter ");
+    }
+
+
+    private String extractQuizTopic(String query) {
+
+        String topic = query.trim();
+
+        String[] prefixes = {
+                "quiz me on ",
+                "test me on ",
+                "quiz me about ",
+                "test me about ",
+                "quiz me ",
+                "test me ",
+                "give me a quiz on ",
+                "give me a quiz about ",
+                "create a quiz on ",
+                "create a quiz about ",
+                "make a quiz on ",
+                "make a quiz about ",
+                "generate a quiz on ",
+                "generate a quiz about ",
+                "give me questions on ",
+                "give me questions about ",
+                "ask me questions on ",
+                "ask me questions about "
+        };
+
+        String lower = topic.toLowerCase();
+
+        for (String prefix : prefixes) {
+
+            if (lower.startsWith(prefix)) {
+
+                topic = topic.substring(prefix.length()).trim();
+
+                break;
+            }
+        }
+
+        // Strip stray quotes / trailing punctuation (e.g. `Class6_Social_Science".`),
+        // which would otherwise break file-name matching and the quoted TOPIC in the prompt.
+        topic = TOPIC_EDGE_JUNK.matcher(topic).replaceAll("").trim();
+
+        // Fallback if nothing is left.
+        if (topic.isBlank()) {
+            return query;
+        }
+
+        return topic;
+    }
+
+
+
+    private String buildRetrievalQuery(
+            String currentQuery,
+            List<ChatMessage> history) {
+
+        int wordCount =
+                currentQuery.trim().split("\\s+").length;
+
         if (wordCount > 6 || history.isEmpty()) {
             return currentQuery;
         }
 
-        String lastLearnerQuery = history.stream()
-                .filter(m -> "learner".equals(m.getRole()))
-                .reduce((first, second) -> second) // last learner message
-                .map(ChatMessage::getContent)
-                .orElse(null);
+        String lastLearnerQuery =
+                history.stream()
+                        .filter(m -> "learner".equals(m.getRole()))
+                        .reduce((first, second) -> second)
+                        .map(ChatMessage::getContent)
+                        .orElse(null);
 
-        if (lastLearnerQuery == null || lastLearnerQuery.isBlank()) {
+        if (lastLearnerQuery == null ||
+                lastLearnerQuery.isBlank()) {
+
             return currentQuery;
         }
 
         return lastLearnerQuery + " " + currentQuery;
+    }
+
+    private String formatQuizForChat(
+            EvaluationAgent.GeneratedQuiz quiz) {
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("## Quiz: ")
+                .append(quiz.topic())
+                .append("\n\n");
+
+        sb.append("**Difficulty:** ")
+                .append(quiz.difficulty())
+                .append("\n\n");
+
+        int questionNumber = 1;
+
+        for (EvaluationAgent.QuizQuestion q : quiz.questions()) {
+
+            sb.append("### Q")
+                    .append(questionNumber)
+                    .append(". ")
+                    .append(q.questionText())
+                    .append("\n\n");
+
+            if ("MCQ".equals(q.type())) {
+
+                sb.append("A. ")
+                        .append(q.optionA())
+                        .append("\n");
+
+                sb.append("B. ")
+                        .append(q.optionB())
+                        .append("\n");
+
+                sb.append("C. ")
+                        .append(q.optionC())
+                        .append("\n");
+
+                sb.append("D. ")
+                        .append(q.optionD())
+                        .append("\n\n");
+
+            } else if ("DESCRIPTIVE".equals(q.type())) {
+
+                sb.append("*Write your answer in your own words.*\n\n");
+            }
+
+            questionNumber++;
+        }
+
+        long total = quiz.questions().size();
+        long mcqCount = quiz.questions().stream().filter(x -> "MCQ".equals(x.type())).count();
+
+        sb.append("---\n\n");
+        sb.append("**Reply with all your answers in one message**, numbered like this:\n\n");
+        if (mcqCount > 0) {
+            sb.append("`1. B  2. D ...` for the multiple-choice questions (1–").append(mcqCount).append(")");
+        }
+        if (total > mcqCount) {
+            if (mcqCount > 0) sb.append(", and ");
+            sb.append("`").append(mcqCount + 1).append(". your written answer` for the descriptive ones (")
+                    .append(mcqCount + 1).append("–").append(total).append(")");
+        }
+        sb.append(".\n\n");
+        sb.append("I'll grade them and save your answers and score. Type \"cancel quiz\" to close it.");
+
+        return sb.toString();
     }
 }

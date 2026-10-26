@@ -33,11 +33,11 @@ public class ChatController {
 
     @PostMapping("/api/chat")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, Authentication auth) {
-        ChatResponse response = orchestrator.handle(request, auth.getName());
-
         String sessionId = (request.sessionId() == null || request.sessionId().isBlank())
                 ? UUID.randomUUID().toString()
                 : request.sessionId();
+
+        ChatResponse response = orchestrator.handle(request, auth.getName(), sessionId);
 
         // --- persisted per-session chat history (drives the sidebar + chat UI) ---
         chatHistoryService.saveLearnerMessage(

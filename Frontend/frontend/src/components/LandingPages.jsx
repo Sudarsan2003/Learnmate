@@ -11,25 +11,34 @@ import {
   Users2,
   ArrowRight,
   ChevronDown,
+  FileText,
+  CheckCircle2,
+  Sparkles,
+  ExternalLink,
+  BookOpen,
 } from "lucide-react";
 import AmbientBackground from "./AmbientBackground";
 import ThemeToggle from "./ThemeToggle";
+import FeatureScrollCards from "./FeatureScrollCards";
+import HorizontalShowcase from "./HorizontalShowcase";
+import ScrollAnimation from "./ScrollAnimation";
+import {
+  ScrollProgress,
+  WordReveal,
+  HeroParallax,
+  HeroSpotlight,
+  ScrollMarquee,
+  ScaleOnScroll,
+} from "./ScrollEffects";
 
-/* ------------------------------------------------------------------ */
-/*  Brand accents — fixed across both themes, same values used         */
-/*  everywhere else in the app (ChatWindow, LoginScreen, ProfileMenu). */
-/*  Only structural bg/text/surface colors come from the CSS vars      */
-/*  ThemeContext sets on :root, so this page inherits light/dark for   */
-/*  free instead of carrying its own palette.                          */
-/* ------------------------------------------------------------------ */
+/* Brand accents — fixed across both themes. Structural colors come from
+   the CSS vars ThemeContext sets on :root. */
 const GOLD = { 1: "#4F80F8", 2: "#3558DE", 3: "#24389E" };
 const TEAL = "#2DD4BF";
 const EMBER = { text: "#6A4DE0", soft: "#8B73F5" };
 const ELECTRIC = { text: "#5B8DEF", soft: "#6E9BFF" };
 
-/* ------------------------------------------------------------------ */
-/*  useReveal — fade/rise an element in once it crosses the viewport   */
-/* ------------------------------------------------------------------ */
+/* useReveal — fade/rise an element in once it crosses the viewport */
 function useReveal(options = {}) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -53,11 +62,7 @@ function useReveal(options = {}) {
   return [ref, visible];
 }
 
-/* ------------------------------------------------------------------ */
-/*  TiltIcon — a "3D" icon badge: gradient sphere + lucide icon that   */
-/*  tilts toward the cursor. Same brand gradients used app-wide, so    */
-/*  it reads fine on either theme without any theme prop.              */
-/* ------------------------------------------------------------------ */
+/* TiltIcon — gradient sphere + lucide icon that tilts toward the cursor */
 function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
   const ref = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -115,9 +120,7 @@ function TiltIcon({ icon: Icon, tone = "gold", size = 44 }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Small building blocks                                              */
-/* ------------------------------------------------------------------ */
+/* Small building blocks */
 function Eyebrow({ children, center }) {
   return (
     <div
@@ -184,9 +187,33 @@ const LOOP = [
   { icon: Link2, title: "Cite", body: "The response links back to its source, so a student can open the original page instead of taking the answer on faith." },
 ];
 
-/* ------------------------------------------------------------------ */
-/*  LoopSection — the signature scroll-linked citation trail           */
-/* ------------------------------------------------------------------ */
+const LOOP_TITLES = ["Library · Class 8 Science", "Chat · Grounded retrieval", "Answer · With citations"];
+
+/* MobileLoopCard — shown under each step on small screens (the sticky
+   side panel is desktop-only). The demo mounts when scrolled into view
+   so its animations play when the reader actually sees it. */
+function MobileLoopCard({ step }) {
+  const [ref, visible] = useReveal({ threshold: 0.2 });
+  return (
+    <div
+      ref={ref}
+      className="relative mt-5 min-h-[300px] overflow-hidden rounded-2xl border border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-3.5 shadow-[0_18px_50px_-24px_rgba(53,88,222,0.55)] lg:hidden"
+    >
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--divider)] pb-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[#FF5F57]/80" />
+          <span className="h-2 w-2 rounded-full bg-[#FEBC2E]/80" />
+          <span className="h-2 w-2 rounded-full bg-[#28C840]/80" />
+        </div>
+        <span className="font-ui text-[11px] text-[var(--dim)]">{LOOP_TITLES[step]}</span>
+        <span className="w-8" />
+      </div>
+      {visible && (step === 0 ? <UploadDemo /> : step === 1 ? <AskDemo /> : <CiteDemo />)}
+    </div>
+  );
+}
+
+/* LoopSection — the signature scroll-linked citation trail */
 function LoopSection() {
   const sectionRef = useRef(null);
   const itemRefs = useRef([]);
@@ -250,7 +277,7 @@ function LoopSection() {
           </p>
         </Reveal>
 
-        <div className="relative grid grid-cols-[56px_1fr] gap-x-8 sm:grid-cols-[64px_1fr]">
+        <div className="relative grid grid-cols-[56px_1fr] gap-x-8 sm:grid-cols-[64px_1fr] lg:grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-10">
           <div className="relative">
             <svg viewBox="0 0 56 560" preserveAspectRatio="none" className="absolute left-0 top-0 h-full w-14 overflow-visible">
               <defs>
@@ -305,10 +332,13 @@ function LoopSection() {
                   <p className="mt-2.5 max-w-md text-[14.5px] leading-relaxed text-[var(--muted)]">
                     {item.body}
                   </p>
+                  <MobileLoopCard step={i} />
                 </div>
               );
             })}
           </div>
+
+          <LoopVisual active={activeIndex} />
         </div>
       </div>
     </section>
@@ -316,31 +346,323 @@ function LoopSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  FeatureCard / RoleCard                                             */
+/*  Small UI mocks — reused by the loop visual and the role cards      */
 /* ------------------------------------------------------------------ */
-function FeatureCard({ feature }) {
+function Pill({ children, className = "" }) {
   return (
-    <div className="feature-card group h-full rounded-2xl border border-[var(--divider)] bg-[var(--surface)] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#4F7CFF]/35 hover:bg-[var(--surface-2)]">
-      <TiltIcon icon={feature.icon} tone={feature.tone} />
-      <h3 className="mt-6 text-base font-semibold text-[var(--text)]">{feature.title}</h3>
-      <p className="mt-2.5 text-[13.5px] leading-relaxed text-[var(--muted)]">{feature.body}</p>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border border-[var(--divider)] bg-[var(--bg)]/60 px-2.5 py-1 font-ui text-[11.5px] text-[var(--muted)] ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function FileRow({ name, meta, state = "done", delay = 0 }) {
+  return (
+    <div
+      className="lp-pop rounded-xl border border-[var(--divider)] bg-[var(--bg)]/60 p-3"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#3558DE]/15 text-[#5B8DEF]">
+          <FileText size={17} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-medium text-[var(--text)]">{name}</div>
+          <div className="text-[11.5px] text-[var(--dim)]">{meta}</div>
+        </div>
+        {state === "done" ? (
+          <span
+            className="lp-pop flex items-center gap-1 text-[11.5px] font-medium text-[#2DD4BF]"
+            style={{ animationDelay: `${delay + 1700}ms` }}
+          >
+            <CheckCircle2 size={14} /> Indexed
+          </span>
+        ) : (
+          <span className="text-[11.5px] text-[var(--dim)]">Indexing…</span>
+        )}
+      </div>
+      <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-[var(--divider)]">
+        <div
+          className={state === "done" ? "lp-bar" : "lp-bar-loop"}
+          style={{
+            height: "100%",
+            width: "100%",
+            background: "linear-gradient(90deg,#5B8DEF,#6A4DE0)",
+            animationDelay: `${delay + 200}ms`,
+          }}
+        />
+      </div>
     </div>
   );
 }
 
-function RoleCard({ tone, tag, icon: Icon, title, items, chip }) {
+function ChatBubble({ me, delay = 0, children }) {
+  return (
+    <div className={`lp-pop flex ${me ? "justify-end" : "justify-start"}`} style={{ animationDelay: `${delay}ms` }}>
+      <div
+        className={
+          me
+            ? "max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-3.5 py-2 text-[13px] text-white"
+            : "max-w-[92%] rounded-2xl rounded-bl-md border border-[var(--divider)] bg-[var(--bg)]/60 px-3.5 py-2.5 text-[13px] leading-relaxed text-[var(--muted)]"
+        }
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CiteChip({ n }) {
+  return (
+    <sup className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-[#3558DE]/20 px-1 text-[10px] font-semibold text-[#5B8DEF]">
+      {n}
+    </sup>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <span className="inline-flex gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-1.5 w-1.5 rounded-full bg-[#5B8DEF]"
+          style={{ animation: "lp-dot 1.2s ease-in-out infinite", animationDelay: `${i * 160}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/* ---------- loop visual: right-hand panel that follows the active step ---------- */
+function UploadDemo() {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="mb-1 flex flex-wrap gap-2">
+        <Pill>Class 8</Pill>
+        <Pill>Science</Pill>
+        <Pill>Your institution</Pill>
+      </div>
+      <FileRow name="biology-ch4.pdf" meta="PDF · 2.4 MB" delay={100} />
+      <FileRow name="water-cycle-slides.pptx" meta="Slides · 18 slides" delay={450} />
+      <FileRow name="practice-set-2.docx" meta="Handout · 3 pages" delay={800} />
+      <div className="lp-pop mt-1 flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--divider)] py-3 font-ui text-[12px] text-[var(--dim)]" style={{ animationDelay: "1100ms" }}>
+        <UploadCloud size={14} /> Drop more files to add them to the library
+      </div>
+    </div>
+  );
+}
+
+function AskDemo() {
+  const passages = [
+    ["biology-ch4.pdf", "p. 42", "Evaporation lifts water from oceans and lakes into the air."],
+    ["water-cycle-slides.pptx", "slide 6", "Vapour cools, condenses and forms clouds."],
+    ["biology-ch4.pdf", "p. 44", "Precipitation returns water to the surface."],
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      <ChatBubble me delay={80}>Explain the water cycle</ChatBubble>
+      <div className="lp-pop flex items-center gap-2 font-ui text-[12px] text-[var(--dim)]" style={{ animationDelay: "500ms" }}>
+        <ThinkingDots /> Retrieving passages from your class library
+      </div>
+      <div className="flex flex-col gap-2">
+        {passages.map(([file, loc, text], i) => (
+          <div
+            key={text}
+            className="lp-pop rounded-xl border border-[var(--divider)] bg-[var(--bg)]/60 px-3 py-2.5"
+            style={{ animationDelay: `${900 + i * 300}ms` }}
+          >
+            <div className="mb-1 flex items-center gap-1.5 font-ui text-[11px] font-medium text-[#5B8DEF]">
+              <BookOpen size={12} /> {file} · {loc}
+            </div>
+            <div className="text-[12.5px] leading-snug text-[var(--muted)]">{text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CiteDemo() {
+  const widths = [92, 100, 86, 96, 72, 100, 64];
+  return (
+    <div className="flex flex-col gap-3">
+      <ChatBubble delay={80}>
+        Water evaporates from oceans and lakes<CiteChip n={1} />, condenses into clouds
+        <CiteChip n={2} />, then returns to the surface as rain<CiteChip n={1} />.
+      </ChatBubble>
+      <div className="lp-pop rounded-xl border border-[var(--divider)] bg-[var(--bg)]/60 p-3.5" style={{ animationDelay: "600ms" }}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-ui text-[12px] font-medium text-[var(--text)]">
+            <FileText size={13} className="text-[#5B8DEF]" /> biology-ch4.pdf · Page 42
+          </div>
+          <span className="flex items-center gap-1 font-ui text-[11.5px] text-[#5B8DEF]">
+            Open original <ExternalLink size={11} />
+          </span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {widths.map((w, i) => {
+            const hl = i === 3 || i === 4;
+            return (
+              <div key={i} className="relative h-2 rounded-full bg-[var(--divider)]" style={{ width: `${w}%` }}>
+                {hl && (
+                  <div
+                    className="lp-bar absolute inset-y-0 left-0 rounded-full"
+                    style={{
+                      width: "100%",
+                      background: "linear-gradient(90deg,#5B8DEF,#6A4DE0)",
+                      animationDelay: `${1000 + (i - 3) * 350}ms`,
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="lp-pop flex items-center gap-2 font-ui text-[12px] text-[var(--dim)]" style={{ animationDelay: "1500ms" }}>
+        <Sparkles size={13} className="text-[#6A4DE0]" /> Every claim links to the exact passage
+      </div>
+    </div>
+  );
+}
+
+function LoopVisual({ active }) {
+  const step = Math.max(active, 0);
+  return (
+    <div className="hidden lg:block">
+      <div className="sticky top-32">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-5 shadow-[0_24px_70px_-28px_rgba(53,88,222,0.55)]">
+          <div
+            className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-30 blur-[80px]"
+            style={{ background: "linear-gradient(135deg,#5B8DEF,#6A4DE0)", animation: "lp-float 7s ease-in-out infinite" }}
+          />
+          <div className="relative flex items-center justify-between border-b border-[var(--divider)] pb-3.5">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#28C840]/80" />
+            </div>
+            <span className="font-ui text-[12px] text-[var(--dim)]">{LOOP_TITLES[step]}</span>
+            <span className="w-10" />
+          </div>
+
+          <div key={step} className="relative mt-4 min-h-[340px]">
+            {step === 0 && <UploadDemo />}
+            {step === 1 && <AskDemo />}
+            {step === 2 && <CiteDemo />}
+          </div>
+
+          <div className="relative mt-3 flex justify-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="h-1.5 rounded-full transition-all duration-500"
+                style={{
+                  width: i === step ? 22 : 6,
+                  background: i === step ? "linear-gradient(90deg,#5B8DEF,#6A4DE0)" : "var(--divider)",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- role card previews ---------- */
+function StudentPreview() {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <ChatBubble me>Explain the water cycle</ChatBubble>
+      <ChatBubble>
+        Water evaporates, condenses into clouds, then falls as rain.
+        <CiteChip n={1} />
+        <CiteChip n={2} />
+        <CiteChip n={3} />
+      </ChatBubble>
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill>
+          <Link2 size={11} className="text-[#5B8DEF]" /> biology-ch4.pdf · p. 42
+        </Pill>
+        <span className="ml-auto flex items-center gap-2 font-ui text-[11.5px] text-[var(--dim)]">
+          <ThinkingDots /> 3 sources found
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function TeacherPreview() {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <FileRow name="chapter-4-notes.pdf" meta="PDF · Class 8 · Science" delay={0} />
+      <FileRow name="water-cycle-slides.pptx" meta="Slides · Class 8 · Science" state="loading" delay={200} />
+      <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--divider)] py-2.5 font-ui text-[12px] text-[var(--dim)]">
+        <UploadCloud size={14} /> Drop files to index them
+      </div>
+    </div>
+  );
+}
+
+/* RoleCard — spotlight follows the cursor, live preview at the bottom */
+function RoleCard({ tone, tag, icon: Icon, title, items, preview, pills = [] }) {
   const tones = {
-    electric: { glow: ELECTRIC.text, text: ELECTRIC.text, bg: "rgba(91,141,239,0.1)", border: "rgba(91,141,239,0.25)" },
-    ember: { glow: EMBER.text, text: EMBER.text, bg: "rgba(106,77,224,0.1)", border: "rgba(106,77,224,0.25)" },
+    electric: {
+      glow: ELECTRIC.text,
+      text: ELECTRIC.text,
+      bg: "rgba(91,141,239,0.1)",
+      border: "rgba(91,141,239,0.25)",
+      spot: "rgba(91,141,239,0.16)",
+      ring: "rgba(91,141,239,0.55)",
+    },
+    ember: {
+      glow: EMBER.text,
+      text: EMBER.text,
+      bg: "rgba(106,77,224,0.1)",
+      border: "rgba(106,77,224,0.25)",
+      spot: "rgba(106,77,224,0.18)",
+      ring: "rgba(106,77,224,0.55)",
+    },
   };
   const t = tones[tone];
 
+  function onMove(e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+  }
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-8">
+    <div
+      onMouseMove={onMove}
+      style={{ "--mx": "70%", "--my": "0%" }}
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-8 transition-transform duration-500 hover:-translate-y-1.5"
+    >
+      {/* drifting colour orb */}
       <div
         className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full opacity-40 blur-[70px]"
-        style={{ background: t.glow }}
+        style={{ background: t.glow, animation: "lp-float 8s ease-in-out infinite" }}
       />
+      {/* cursor spotlight */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ background: `radial-gradient(420px circle at var(--mx) var(--my), ${t.spot}, transparent 60%)` }}
+      />
+      {/* border highlight on hover */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ boxShadow: `inset 0 0 0 1px ${t.ring}` }}
+      />
+      {/* top hairline */}
+      <div
+        className="pointer-events-none absolute inset-x-8 top-0 h-px"
+        style={{ background: `linear-gradient(90deg, transparent, ${t.ring}, transparent)` }}
+      />
+
       <div className="relative flex items-center gap-3">
         <TiltIcon icon={Icon} tone={tone} size={40} />
         <span
@@ -351,24 +673,32 @@ function RoleCard({ tone, tag, icon: Icon, title, items, chip }) {
         </span>
       </div>
       <h3 className="lp-serif relative mt-5 text-xl text-[var(--text)]">{title}</h3>
-      <ul className="relative mt-4 flex flex-col gap-2.5">
+      <ul className="relative mt-4 flex flex-col gap-3">
         {items.map((item) => (
           <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[var(--muted)]">
-            <span className="text-[var(--accent-ink)]">›</span>
+            <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" style={{ color: t.text }} />
             {item}
           </li>
         ))}
       </ul>
-      <div className="relative mt-6 rounded-lg border border-[var(--divider)] bg-[var(--bg)]/50 px-3.5 py-3 font-ui text-[13px] text-[var(--muted)]">
-        {chip}
+
+      <div className="relative mt-auto pt-7">
+        <div className="rounded-xl border border-[var(--divider)] bg-[var(--bg)]/40 p-3.5 backdrop-blur-sm">
+          {preview}
+        </div>
+        {pills.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {pills.map((p) => (
+              <Pill key={p}>{p}</Pill>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main page                                                          */
-/* ------------------------------------------------------------------ */
+/* Main page */
 export default function LandingPage({ onEnter = () => {} }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -382,7 +712,7 @@ export default function LandingPage({ onEnter = () => {} }) {
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-y-auto bg-[var(--bg)] text-[var(--text)] transition-colors duration-500">
+    <div className="relative min-h-screen w-full overflow-x-clip bg-[var(--bg)] text-[var(--text)] transition-colors duration-500">
       <AmbientBackground />
 
       <style>{`
@@ -393,7 +723,6 @@ export default function LandingPage({ onEnter = () => {} }) {
         }
         .lp-cta { box-shadow: 0 4px 16px -4px rgba(53,88,222,0.5); }
         .lp-cta:hover { box-shadow: 0 10px 22px -6px rgba(53,88,222,0.65); }
-        .feature-card { box-shadow: 0 8px 20px -10px rgba(0,0,0,0.4); }
         html { scroll-behavior: smooth; }
         /* The nav is fixed, so anchor targets need room or their headings land under it. */
         section[id], header[id] { scroll-margin-top: 4.5rem; }
@@ -402,13 +731,26 @@ export default function LandingPage({ onEnter = () => {} }) {
           50% { transform: translate(-50%,6px); }
         }
         .lp-cue { animation: lp-cue-bob 2.4s ease-in-out infinite; }
+        @keyframes lp-pop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+        .lp-pop { animation: lp-pop 600ms cubic-bezier(0.16,1,0.3,1) both; }
+        @keyframes lp-bar { from { width: 0; } to { width: 100%; } }
+        .lp-bar { animation: lp-bar 1.5s cubic-bezier(0.4,0,0.2,1) both; }
+        @keyframes lp-bar-loop { 0% { width: 0; } 70%, 100% { width: 100%; } }
+        .lp-bar-loop { animation: lp-bar-loop 3s ease-in-out infinite; }
+        @keyframes lp-dot { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+        @keyframes lp-float { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-14px,14px); } }
+        @keyframes lp-fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+        .lp-fade-up { animation: lp-fade-up 900ms cubic-bezier(0.16,1,0.3,1) both; }
         @media (prefers-reduced-motion: reduce) {
-          .lp-cue { animation: none; }
+          .lp-cue, .lp-pop, .lp-bar, .lp-bar-loop, .lp-fade-up { animation: none; }
           html { scroll-behavior: auto; }
         }
       `}</style>
 
       <div className="relative z-10">
+        <ScrollProgress />
+        <HeroSpotlight />
+
         {/* ---------- nav ---------- */}
         <nav
           className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-300 ${
@@ -450,13 +792,14 @@ export default function LandingPage({ onEnter = () => {} }) {
 
         {/* ---------- hero ---------- */}
         <header id="top" className="relative flex min-h-screen flex-col items-center justify-center px-6 pb-24 pt-36 text-center sm:pt-40">
-          <div className="relative z-[2] max-w-2xl">
+          <HeroParallax className="relative z-[2] max-w-2xl">
             <Eyebrow center>Sourced, not guessed</Eyebrow>
-            <h1 className="lp-serif mt-5 text-[34px] leading-[1.06] text-[var(--text)] sm:text-[52px] lg:text-[62px]">
-              Every answer, <span className="text-[var(--accent-ink)]">traced</span>
-              <br />
-              back to the page it came from.
-            </h1>
+            <WordReveal
+              text="Every answer, traced back to the page it came from."
+              accent="traced"
+              className="lp-serif mt-5 text-[34px] leading-[1.06] text-[var(--text)] sm:text-[52px] lg:text-[62px]"
+            />
+            <div className="lp-fade-up" style={{ animationDelay: "2.4s" }}>
             <p className="mx-auto mt-6 max-w-lg text-[16.5px] leading-relaxed text-[var(--muted)]">
               LearnMate reads the material your teacher actually assigned — textbooks, slides,
               problem sets — and answers questions from that alone, with a citation attached to
@@ -479,13 +822,17 @@ export default function LandingPage({ onEnter = () => {} }) {
             <p className="mt-16 font-ui text-[13px] text-[var(--dim)]">
               Your tutor, grounded in sources
             </p>
-          </div>
+            </div>
+          </HeroParallax>
 
           <div className="lp-cue absolute bottom-7 left-1/2 z-[2] flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--dim)]">
             <span className="font-ui text-[12px] font-medium">Scroll</span>
             <ChevronDown size={14} />
           </div>
         </header>
+
+        {/* ---------- marquee ---------- */}
+        <ScrollMarquee items={["Textbooks", "Slides", "Problem sets", "Handouts"]} />
 
         {/* ---------- loop (signature) ---------- */}
         <LoopSection />
@@ -494,10 +841,10 @@ export default function LandingPage({ onEnter = () => {} }) {
           <div className="h-px bg-gradient-to-r from-transparent via-[#4F7CFF]/25 to-transparent" />
         </div>
 
-        {/* ---------- features ---------- */}
+        {/* ---------- features (scroll-triggered cards) ---------- */}
         <section id="features" className="py-28 sm:py-32">
           <div className="mx-auto max-w-5xl px-6 sm:px-8">
-            <Reveal className="mb-14 max-w-xl">
+            <Reveal className="mb-6 max-w-xl">
               <Eyebrow>The product</Eyebrow>
               <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
                 Built for a real classroom, not a demo.
@@ -508,14 +855,24 @@ export default function LandingPage({ onEnter = () => {} }) {
               </p>
             </Reveal>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {FEATURES.map((f, i) => (
-                <Reveal key={f.title} delay={i * 90}>
-                  <FeatureCard feature={f} />
-                </Reveal>
-              ))}
-            </div>
+            <FeatureScrollCards features={FEATURES} TiltIcon={TiltIcon} />
           </div>
+        </section>
+
+        {/* ---------- tour (horizontal scroll) ---------- */}
+        <section id="tour" className="pt-12 sm:pt-16">
+          <div className="mx-auto max-w-5xl px-6 sm:px-8">
+            <Reveal className="max-w-xl">
+              <Eyebrow>Inside LearnMate</Eyebrow>
+              <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
+                Four things you'll do every week.
+              </h2>
+              <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--muted)]">
+                Keep scrolling — the row moves sideways as you go.
+              </p>
+            </Reveal>
+          </div>
+          <HorizontalShowcase />
         </section>
 
         {/* ---------- roles ---------- */}
@@ -532,8 +889,8 @@ export default function LandingPage({ onEnter = () => {} }) {
               </p>
             </Reveal>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <Reveal>
+            <ScaleOnScroll>
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <RoleCard
                   tone="electric"
                   tag="Student"
@@ -544,15 +901,9 @@ export default function LandingPage({ onEnter = () => {} }) {
                     "Quizzes that match their institution and standard",
                     "A citation on every answer, one tap from the original page",
                   ]}
-                  chip={
-                    <>
-                      <span className="text-[var(--gold-ink)]">Ask</span> "explain the water cycle"{" "}
-                      <span>— 3 sources found</span>
-                    </>
-                  }
+                  preview={<StudentPreview />}
+                  pills={["Cited answers", "Class quizzes", "Source links"]}
                 />
-              </Reveal>
-              <Reveal delay={90}>
                 <RoleCard
                   tone="ember"
                   tag="Teacher / admin"
@@ -563,31 +914,39 @@ export default function LandingPage({ onEnter = () => {} }) {
                     "Institution and standard controls so quizzes reach the right students",
                     "User management for admins across every class",
                   ]}
-                  chip={
-                    <>
-                      <span className="text-[var(--gold-ink)]">Upload</span> chapter-4-notes.pdf{" "}
-                      <span>— indexed</span>
-                    </>
-                  }
+                  preview={<TeacherPreview />}
+                  pills={["Bulk upload", "Class scoping", "User roles"]}
                 />
-              </Reveal>
-            </div>
+              </div>
+            </ScaleOnScroll>
           </div>
         </section>
 
-        {/* ---------- principles ---------- */}
-        <section className="py-24 text-center sm:py-28">
-          <div className="mx-auto flex max-w-5xl flex-col items-center gap-1 px-6">
-            {["No answer without a source.", "No quiz outside your class.", "No document your institution didn't upload."].map((line, i) => (
-              <Reveal
-                key={line}
-                delay={i * 90}
-                as="p"
-                className="lp-serif py-3 text-xl font-medium text-[var(--muted)] sm:text-3xl"
-              >
-                <span className="italic text-[var(--accent-ink)]">No</span> {line.replace(/^No /, "")}
-              </Reveal>
-            ))}
+        {/* ---------- principles (slide in left / right / centre) ---------- */}
+        <section className="py-20 sm:py-28">
+          <div className="mx-auto max-w-5xl px-6 sm:px-8">
+            <ScrollAnimation
+              direction="left"
+              viewport={{ amount: 0.5 }}
+              className="lp-serif max-w-lg py-14 text-left text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
+            >
+              <p><span className="italic text-[var(--accent-ink)]">No</span> answer without a source.</p>
+            </ScrollAnimation>
+
+            <ScrollAnimation
+              direction="right"
+              viewport={{ amount: 0.5 }}
+              className="lp-serif ml-auto max-w-lg py-14 text-right text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
+            >
+              <p><span className="italic text-[var(--accent-ink)]">No</span> quiz outside your class.</p>
+            </ScrollAnimation>
+
+            <ScrollAnimation
+              viewport={{ amount: 0.5 }}
+              className="lp-serif mx-auto max-w-lg py-14 text-center text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
+            >
+              <p><span className="italic text-[var(--accent-ink)]">No</span> document your institution didn't upload.</p>
+            </ScrollAnimation>
           </div>
         </section>
 

@@ -23,6 +23,10 @@ import {
   Users,
   LockOpen,
   ArrowUpRight,
+  Camera,
+  Search,
+  Download,
+  Copy,
 } from "lucide-react";
 import {
   createQuiz,
@@ -36,10 +40,12 @@ import {
   getMyCreatedQuizzes,
   getMyResults,
   getMyAttemptDetail,
+  scanQuizQuestions,
 } from "../api/client";
 import ThemeToggle from "./ThemeToggle";
 import Leaderboard from "./Leaderboard";
 import Confetti, { isCelebrationScore } from "./Confetti";
+import PracticeQuizzes from "./PracticeQuizzes";
 
 // Used to hand a quiz explanation off to the chat page. ChatWindow reads
 // this once on mount, drops it into the conversation, and clears it, so
@@ -49,6 +55,11 @@ const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
 const OPTION_KEYS = ["A", "B", "C", "D"];
 // Admin-selectable quiz timer choices — 15 to 60 minutes in 5-minute steps.
 const DURATION_OPTIONS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+// Standards a quiz can target — 1 to 10 only.
+const STANDARD_OPTIONS = Array.from({ length: 10 }, (_, i) => String(i + 1));
+// Score at or above this percentage counts as a pass in stats and badges.
+const PASS_PERCENT = 50;
+
 const EMPTY_MANUAL_QUESTION = () => ({
   clientId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   questionText: "",
@@ -86,6 +97,7 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
         .lm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .lm-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
         @keyframes row-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { .quiz-view * { animation: none !important; } }
       `}</style>
 
       <div className="mx-auto max-w-[820px]">
@@ -168,7 +180,19 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
                 }}
               />
             ) : (
-              <MyResultsList />
+              <>
+                <MyResultsList />
+                <div className="mt-8">
+                  <h2 className="section-title mb-3">
+                    <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
+                    Practice quizzes
+                  </h2>
+                  <p className="mb-3 text-[12.5px] text-[var(--dim)]">
+                    Quizzes you generated in chat with "Quiz me on ...", with your saved answers and scores.
+                  </p>
+                  <PracticeQuizzes />
+                </div>
+              </>
             )}
           </div>
         )}
@@ -196,6 +220,23 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   );
 }
 
+/* ---------------------------------- shared helpers ---------------------------------- */
+
+function pctOf(score, total) {
+  return total > 0 ? Math.round((score / total) * 100) : 0;
+}
+
+function StatCard({ label, value, tone }) {
+  const toneCls =
+    tone === "bad" ? "text-[#E2725B]" : tone === "good" ? "text-[var(--ok)]" : "text-[var(--text)]";
+  return (
+    <div className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-3.5 py-3">
+      <p className="text-[11.5px] font-medium text-[var(--dim)]">{label}</p>
+      <p className={`mt-1 text-lg font-semibold ${toneCls}`}>{value}</p>
+    </div>
+  );
+}
+
 /* ---------------------------------- admin dashboard ---------------------------------- */
 
 function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
@@ -203,6 +244,13 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
   const [loading, setLoading] = useState(true);
   const [closingId, setClosingId] = useState(null);
   const [error, setError] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | OPEN | CLOSED
+  const [search, setSearch] = useState("");
+  // Two-step close: first click arms the button, second click confirms.
+  const [confirmingId, setConfirmingId] = useState(null);
+  const confirmTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(confirmTimerRef.current), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -233,6 +281,32 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
       setClosingId(null);
     }
   };
+
+  const requestClose = (id) => {
+    clearTimeout(confirmTimerRef.current);
+    if (confirmingId === id) {
+      setConfirmingId(null);
+      handleClose(id);
+      return;
+    }
+    setConfirmingId(id);
+    confirmTimerRef.current = setTimeout(() => setConfirmingId(null), 4000);
+  };
+
+  const openCount = quizzes.filter((q) => q.status === "OPEN").length;
+  const closedCount = quizzes.length - openCount;
+  const needle = search.trim().toLowerCase();
+  const visible = quizzes.filter((q) => {
+    if (statusFilter !== "ALL" && q.status !== statusFilter) return false;
+    if (!needle) return true;
+    return `${q.title} ${q.subject ?? ""} ${q.institution ?? ""}`.toLowerCase().includes(needle);
+  });
+
+  const filters = [
+    { key: "ALL", label: "All", count: quizzes.length },
+    { key: "OPEN", label: "Open", count: openCount },
+    { key: "CLOSED", label: "Closed", count: closedCount },
+  ];
 
   return (
     <div>
@@ -266,17 +340,51 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
         Quizzes you've created
       </h2>
 
+      {quizzes.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-1 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-1">
+            {filters.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                className={`rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
+                  statusFilter === f.key
+                    ? "bg-gradient-to-br from-[#4F80F8] to-[#3558DE] text-[#FFFFFF]"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                {f.label} <span className="opacity-70">{f.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="relative sm:w-56">
+            <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--dim)]" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search quizzes"
+              className="lm-search w-full rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 py-2 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--dim)] focus:border-[#4F7CFF]/50 focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="py-5 text-[13px] text-[var(--dim)]">Loading…</div>
       ) : quizzes.length === 0 ? (
         <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-[13px] text-[var(--dim)]">
           Nothing created yet. Quizzes you create will show up here with live submission counts, so you can jump to their results or close them.
         </div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-lg border border-[var(--divider)] px-4 py-7 text-center text-[13px] text-[var(--dim)]">
+          No quizzes match your filter.
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {quizzes.map((q) => {
+          {visible.map((q) => {
             const isOpen = q.status === "OPEN";
             const isClosing = closingId === q.id;
+            const isConfirming = confirmingId === q.id;
             return (
               <div
                 key={q.id}
@@ -326,13 +434,15 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
                     <ArrowUpRight size={11} className="opacity-0 transition-opacity duration-150 group-hover:opacity-70" />
                   </button>
                   <button
-                    onClick={() => handleClose(q.id)}
+                    onClick={() => requestClose(q.id)}
                     disabled={isClosing || !isOpen}
                     title={isOpen ? "Close quiz" : "Quiz already closed"}
-                    className="lm-pill-btn flex-1 justify-center border-[#E2725B]/25 bg-[#E2725B]/[0.06] text-[#E2725B] hover:border-[#E2725B]/50 hover:bg-[#E2725B]/15 hover:shadow-[0_6px_16px_-8px_rgba(226,114,91,0.5)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none"
+                    className={`lm-pill-btn flex-1 justify-center border-[#E2725B]/25 text-[#E2725B] hover:border-[#E2725B]/50 hover:bg-[#E2725B]/15 hover:shadow-[0_6px_16px_-8px_rgba(226,114,91,0.5)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none ${
+                      isConfirming ? "bg-[#E2725B]/20" : "bg-[#E2725B]/[0.06]"
+                    }`}
                   >
                     {isClosing ? <Loader2 size={13} className="animate-spin" /> : <Lock size={13} />}
-                    {isOpen ? "Close" : "Closed"}
+                    {!isOpen ? "Closed" : isConfirming ? "Click again to confirm" : "Close"}
                   </button>
                 </div>
               </div>
@@ -386,6 +496,12 @@ function CreateQuizForm({ role, onCreated }) {
   const [aiGenerateCount, setAiGenerateCount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  // "Scan Questions" — photograph handwritten/printed questions, get back
+  // structured MCQs, drop them straight into manualQuestions for review.
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
+  const [scanNotice, setScanNotice] = useState(null);
+  const scanFileInputRef = useRef(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -410,21 +526,73 @@ function CreateQuizForm({ role, onCreated }) {
     setManualQuestions((qs) => qs.filter((q) => q.clientId !== clientId));
   const updateManualQuestion = (clientId, field, value) =>
     setManualQuestions((qs) => qs.map((q) => (q.clientId === clientId ? { ...q, [field]: value } : q)));
+  // Copies a question right below the original, handy for similar MCQs.
+  const duplicateManualQuestion = (clientId) =>
+    setManualQuestions((qs) => {
+      const idx = qs.findIndex((q) => q.clientId === clientId);
+      if (idx === -1) return qs;
+      const copy = { ...qs[idx], clientId: EMPTY_MANUAL_QUESTION().clientId };
+      return [...qs.slice(0, idx + 1), copy, ...qs.slice(idx + 1)];
+    });
+
+  const handleScanButtonClick = () => scanFileInputRef.current?.click();
+
+  const handleScanFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    // Reset the input so selecting the same file again still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+
+    setScanError(null);
+    setScanNotice(null);
+    setScanning(true);
+    try {
+      const scanned = await scanQuizQuestions(file);
+      const asManualQuestions = scanned.map((q) => ({
+        ...EMPTY_MANUAL_QUESTION(),
+        questionText: q.questionText ?? "",
+        optionA: q.optionA ?? "",
+        optionB: q.optionB ?? "",
+        optionC: q.optionC ?? "",
+        optionD: q.optionD ?? "",
+        correctOption: q.correctOption ?? "A",
+      }));
+      setManualQuestions((qs) => [...qs, ...asManualQuestions]);
+      setScanNotice(
+        asManualQuestions.length === 0
+          ? "No questions were found in that photo."
+          : `Added ${asManualQuestions.length} ${asManualQuestions.length === 1 ? "question" : "questions"} from your photo. Review them before creating the quiz.`
+      );
+    } catch (err) {
+      setScanError(err.response?.data?.message ?? "Could not read questions from that image.");
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const toIsoOrNull = (localValue) => (localValue ? new Date(localValue).toISOString() : null);
+
+  const aiCountNumber = aiGenerateCount ? parseInt(aiGenerateCount, 10) || 0 : 0;
+  const totalQuestions = manualQuestions.length + Math.max(0, aiCountNumber);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
     if (!title.trim()) return setError("Title is required.");
-    if (!standard.trim()) return setError("Standard is required (e.g. \"5\").");
+    if (!STANDARD_OPTIONS.includes(standard)) return setError("Pick a standard from 1 to 10.");
     if (isAdmin && !institution.trim()) {
       return setError("Institution is required — pick which school/institution this quiz is for.");
     }
-    const aiCount = aiGenerateCount ? parseInt(aiGenerateCount, 10) : 0;
+    const aiCount = aiCountNumber;
     if (manualQuestions.length === 0 && aiCount <= 0) {
       return setError("Add at least one manual question, or set an AI question count.");
+    }
+    if (mode === "SCHEDULED") {
+      if (!opensAt) return setError("Pick when the scheduled quiz opens.");
+      if (closesAt && new Date(closesAt) <= new Date(opensAt)) {
+        return setError("The closing time must be after the opening time.");
+      }
     }
     let parsedDuration = null;
     if (durationMinutes !== "") {
@@ -444,7 +612,7 @@ function CreateQuizForm({ role, onCreated }) {
       const payload = {
         title: title.trim(),
         subject: subject.trim() || null,
-        standard: standard.trim(),
+        standard,
         institution: isAdmin ? institution.trim() : undefined,
         mode,
         opensAt: mode === "SCHEDULED" ? toIsoOrNull(opensAt) : null,
@@ -488,12 +656,18 @@ function CreateQuizForm({ role, onCreated }) {
           />
         </Field>
         <Field label="Standard" hint="The class this quiz targets">
-          <input
+          <select
             value={standard}
             onChange={(e) => setStandard(e.target.value)}
-            placeholder='e.g. "5"'
             className="lm-input"
-          />
+          >
+            <option value="">Select standard</option>
+            {STANDARD_OPTIONS.map((std) => (
+              <option key={std} value={std}>
+                {std}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Subject" hint="Optional. Filters AI question retrieval">
           <input
@@ -561,15 +735,36 @@ function CreateQuizForm({ role, onCreated }) {
             <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
             Manual questions
           </h2>
-          <button
-            type="button"
-            onClick={addManualQuestion}
-            className="flex items-center gap-1.5 rounded-md border border-[#4F7CFF]/20 px-2.5 py-1.5 text-xs text-[var(--ok)] transition-colors hover:bg-[#4F7CFF]/10"
-          >
-            <Plus size={12} />
-            Add question
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={scanFileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              capture="environment"
+              onChange={handleScanFileSelected}
+              className="hidden"
+            />
+            <button type="button" onClick={handleScanButtonClick} disabled={scanning} className="lm-btn-secondary">
+              {scanning ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+              {scanning ? "Reading photo…" : "Scan questions"}
+            </button>
+            <button type="button" onClick={addManualQuestion} className="lm-btn-secondary">
+              <Plus size={12} />
+              Add question
+            </button>
+          </div>
         </div>
+
+        {scanError && (
+          <div className="mb-3 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-[13px] text-[var(--error-text)]">
+            {scanError}
+          </div>
+        )}
+        {scanNotice && !scanError && (
+          <div className="mb-3 rounded-lg border border-[#2DD4BF]/25 bg-[#2DD4BF]/5 px-3 py-2.5 text-[13px] text-[var(--ok)]">
+            {scanNotice}
+          </div>
+        )}
 
         {manualQuestions.length === 0 ? (
           <p className="text-[13px] text-[var(--dim)]">None yet. Optional if you're using AI-generated questions.</p>
@@ -579,17 +774,32 @@ function CreateQuizForm({ role, onCreated }) {
               <div
                 key={q.clientId}
                 style={{ animation: "row-in 180ms ease both" }}
-                className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-3"
+                className="lm-card"
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs text-[var(--dim)]">Question {idx + 1}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeManualQuestion(q.clientId)}
-                    className="text-[#E2725B] transition-colors hover:text-[var(--error-text)]"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="text-[11.5px] font-semibold tracking-[-0.003em] text-[var(--dim)]">
+                    Question {idx + 1}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => duplicateManualQuestion(q.clientId)}
+                      aria-label={`Duplicate question ${idx + 1}`}
+                      title="Duplicate question"
+                      className="lm-btn-icon lm-btn-icon-neutral"
+                    >
+                      <Copy size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeManualQuestion(q.clientId)}
+                      aria-label={`Remove question ${idx + 1}`}
+                      title="Remove question"
+                      className="lm-btn-icon"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
                 <input
                   value={q.questionText}
@@ -610,12 +820,12 @@ function CreateQuizForm({ role, onCreated }) {
                     />
                   ))}
                 </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-[var(--dim)]">Correct option</span>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-[12px] font-medium text-[var(--dim)]">Correct option</span>
                   <select
                     value={q.correctOption}
                     onChange={(e) => updateManualQuestion(q.clientId, "correctOption", e.target.value)}
-                    className="lm-input w-auto py-1.5 text-[12px]"
+                    className="lm-input lm-select-compact"
                   >
                     {OPTION_KEYS.map((key) => (
                       <option key={key} value={key}>
@@ -644,11 +854,16 @@ function CreateQuizForm({ role, onCreated }) {
         </div>
       </Field>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] py-2.5 text-sm font-medium text-[#FFFFFF] shadow-[0_4px_14px_-4px_rgba(53,88,222,0.55)] transition-all hover:-translate-y-0.5 disabled:opacity-40"
-      >
+      <div className="flex items-center justify-between rounded-lg border border-[var(--divider)] bg-[var(--surface)]/50 px-3.5 py-2.5 text-[12.5px] text-[var(--muted)]">
+        <span>
+          {manualQuestions.length} manual + {Math.max(0, aiCountNumber)} AI
+        </span>
+        <span className="font-semibold text-[var(--text)]">
+          {totalQuestions} {totalQuestions === 1 ? "question" : "questions"} in total
+        </span>
+      </div>
+
+      <button type="submit" disabled={submitting} className="lm-btn-primary">
         {submitting && <Loader2 size={14} className="animate-spin" />}
         Create quiz
       </button>
@@ -656,18 +871,105 @@ function CreateQuizForm({ role, onCreated }) {
       <style>{`
         .lm-input {
           width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid color-mix(in srgb, #4F7CFF 22%, transparent);
-          background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-          padding: 0.625rem 0.75rem;
+          border-radius: 0.7rem;
+          border: 1.5px solid color-mix(in srgb, #4F7CFF 16%, transparent);
+          background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+          box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+          padding: 0.65rem 0.85rem;
           font-size: 14px;
+          font-weight: 450;
           color: var(--text);
           outline: none;
-          transition: box-shadow 140ms ease, border-color 140ms ease;
+          transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
         }
+        .lm-input::placeholder { color: var(--dim); font-weight: 400; }
+        .lm-input:hover { border-color: color-mix(in srgb, #4F7CFF 30%, transparent); }
         .lm-input:focus {
-          border-color: rgba(53,88,222,0.6);
-          box-shadow: 0 0 0 3px rgba(53,88,222,0.15);
+          border-color: #3558DE;
+          background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+          box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05), 0 0 0 3.5px rgba(53,88,222,0.16);
+        }
+        .lm-select-compact { width: auto; padding: 0.4rem 2rem 0.4rem 0.7rem; font-size: 12.5px; font-weight: 600; }
+
+        .lm-label {
+          display: block;
+          margin-bottom: 0.4rem;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: -0.006em;
+          color: var(--text);
+        }
+        .lm-label-hint { margin-left: 0.45rem; font-size: 11.5px; font-weight: 450; color: var(--dim); }
+
+        .lm-btn-primary {
+          position: relative;
+          display: flex;
+          width: 100%;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          border-radius: 0.7rem;
+          padding: 0.75rem 1rem;
+          font-size: 14.5px;
+          font-weight: 600;
+          letter-spacing: -0.005em;
+          color: #FFFFFF;
+          background: linear-gradient(135deg, #5A8BFF 0%, #3558DE 100%);
+          box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 20px -8px rgba(53,88,222,0.65);
+          transition: transform 160ms ease, box-shadow 160ms ease;
+        }
+        .lm-btn-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 1px 0 rgba(255,255,255,0.22) inset, 0 12px 26px -8px rgba(53,88,222,0.75);
+        }
+        .lm-btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.99); }
+        .lm-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .lm-btn-secondary {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          border-radius: 0.6rem;
+          border: 1.3px solid color-mix(in srgb, #4F7CFF 26%, transparent);
+          background: color-mix(in srgb, var(--surface-2) 30%, transparent);
+          padding: 0.45rem 0.8rem;
+          font-size: 12.5px;
+          font-weight: 600;
+          letter-spacing: -0.003em;
+          color: var(--ok);
+          transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+        }
+        .lm-btn-secondary:hover:not(:disabled) {
+          background: rgba(79,124,255,0.12);
+          border-color: rgba(79,124,255,0.45);
+          transform: translateY(-1px);
+        }
+        .lm-btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .lm-btn-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 1.65rem;
+          width: 1.65rem;
+          border-radius: 0.5rem;
+          color: #E2725B;
+          transition: background 140ms ease, color 140ms ease;
+        }
+        .lm-btn-icon:hover { background: rgba(226,114,91,0.14); color: var(--error-text); }
+        .lm-btn-icon-neutral { color: var(--muted); }
+        .lm-btn-icon-neutral:hover { background: rgba(79,124,255,0.12); color: var(--text); }
+
+        .lm-card {
+          border-radius: 0.85rem;
+          border: 1px solid var(--divider);
+          background: color-mix(in srgb, var(--surface) 65%, transparent);
+          padding: 0.9rem;
+          transition: border-color 160ms ease, box-shadow 160ms ease;
+        }
+        .lm-card:hover {
+          border-color: color-mix(in srgb, #4F7CFF 24%, transparent);
+          box-shadow: 0 6px 18px -12px rgba(53,88,222,0.35);
         }
       `}</style>
     </form>
@@ -677,9 +979,9 @@ function CreateQuizForm({ role, onCreated }) {
 function Field({ label, hint, children }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-semibold text-[var(--text)]">
+      <label className="lm-label">
         {label}
-        {hint && <span className="ml-1.5 text-[12px] font-normal text-[var(--dim)]">{hint}</span>}
+        {hint && <span className="lm-label-hint">{hint}</span>}
       </label>
       {children}
     </div>
@@ -786,6 +1088,10 @@ function MyResultsList() {
     load();
   }, [load]);
 
+  const percents = results.map((r) => pctOf(r.score, r.totalQuestions));
+  const avgPct = percents.length ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length) : 0;
+  const bestPct = percents.length ? Math.max(...percents) : 0;
+
   return (
     <div>
       <div className="mb-3 flex justify-end">
@@ -804,6 +1110,14 @@ function MyResultsList() {
         </div>
       )}
 
+      {!loading && results.length > 0 && (
+        <div className="mb-4 grid grid-cols-3 gap-2.5">
+          <StatCard label="Quizzes taken" value={results.length} />
+          <StatCard label="Average" value={`${avgPct}%`} tone={avgPct >= PASS_PERCENT ? "good" : "bad"} />
+          <StatCard label="Best score" value={`${bestPct}%`} tone="good" />
+        </div>
+      )}
+
       {loading ? (
         <div className="py-5 text-[13px] text-[var(--dim)]">Loading…</div>
       ) : results.length === 0 ? (
@@ -814,7 +1128,8 @@ function MyResultsList() {
         <div className="flex flex-col gap-2">
           {results.map((r) => {
             const isOpen = expandedQuizId === r.quizId;
-            const pct = r.totalQuestions > 0 ? Math.round((r.score / r.totalQuestions) * 100) : 0;
+            const pct = pctOf(r.score, r.totalQuestions);
+            const passed = pct >= PASS_PERCENT;
             return (
               <div key={r.quizId} className="overflow-hidden rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60">
                 <button
@@ -830,9 +1145,16 @@ function MyResultsList() {
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-3">
                     <div className="flex items-center gap-1.5 text-[13px]">
-                      <Award size={13} className={pct >= 50 ? "text-[var(--ok)]" : "text-[#E2725B]"} />
-                      <span className={pct >= 50 ? "text-[var(--text)]" : "text-[var(--error-text)]"}>
+                      <Award size={13} className={passed ? "text-[var(--ok)]" : "text-[#E2725B]"} />
+                      <span className={passed ? "text-[var(--text)]" : "text-[var(--error-text)]"}>
                         {r.score} / {r.totalQuestions}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          passed ? "bg-[#2DD4BF]/10 text-[var(--ok)]" : "bg-[#E2725B]/10 text-[#E2725B]"
+                        }`}
+                      >
+                        {pct}%
                       </span>
                     </div>
                     {isOpen ? (
@@ -856,6 +1178,7 @@ function AttemptReview({ quizId }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [wrongOnly, setWrongOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -885,9 +1208,26 @@ function AttemptReview({ quizId }) {
     );
   }
 
+  const wrongCount = detail.questions.filter((q) => !q.correct).length;
+  // Keep original numbering even when filtering, so "Q7" stays Q7.
+  const shown = detail.questions
+    .map((q, idx) => ({ q, idx }))
+    .filter(({ q }) => !wrongOnly || !q.correct);
+
   return (
     <div className="space-y-2.5 border-t border-[var(--divider)] px-4 py-4">
-      {detail.questions.map((q, idx) => (
+      {wrongCount > 0 && (
+        <label className="flex w-fit cursor-pointer select-none items-center gap-2 text-[12.5px] text-[var(--muted)]">
+          <input
+            type="checkbox"
+            checked={wrongOnly}
+            onChange={(e) => setWrongOnly(e.target.checked)}
+            className="accent-[#3558DE]"
+          />
+          Show only questions I got wrong ({wrongCount})
+        </label>
+      )}
+      {shown.map(({ q, idx }) => (
         <div
           key={q.questionId}
           className={`rounded-md border px-3 py-2.5 text-[13px] ${
@@ -955,6 +1295,7 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
   const [secondsLeft, setSecondsLeft] = useState(null);
   const [askingLearnMate, setAskingLearnMate] = useState(false);
   const [askError, setAskError] = useState(null);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
   const autoSubmittedRef = useRef(false);
 
   useEffect(() => {
@@ -979,8 +1320,10 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
     };
   }, [quizId]);
 
-  const selectAnswer = (questionId, option) =>
+  const selectAnswer = (questionId, option) => {
+    setConfirmSubmit(false);
     setAnswers((a) => ({ ...a, [questionId]: option }));
+  };
 
   const handleSubmit = useCallback(async () => {
     setSubmitting(true);
@@ -1019,6 +1362,35 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [deadline, result, submitting, handleSubmit]);
+
+  // Warn before the tab is closed/refreshed mid-quiz so answers aren't lost.
+  const quizInProgress = !!questions && !result;
+  useEffect(() => {
+    if (!quizInProgress) return;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [quizInProgress]);
+
+  const answeredCount = Object.keys(answers).length;
+  const totalCount = questions?.length ?? 0;
+  const unansweredCount = totalCount - answeredCount;
+
+  // If any questions are blank, ask once before submitting. The timer's
+  // auto-submit calls handleSubmit directly, so it is never blocked.
+  const requestSubmit = () => {
+    if (unansweredCount > 0 && !confirmSubmit) {
+      setConfirmSubmit(true);
+      return;
+    }
+    handleSubmit();
+  };
+
+  const scrollToQuestion = (id) =>
+    document.getElementById(`quiz-q-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
 
   const handleAskLearnMate = async () => {
     setAskingLearnMate(true);
@@ -1072,6 +1444,9 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
         <p className="text-lg text-[var(--text)]">
           {result.score} / {result.totalQuestions}
         </p>
+        <p className="text-[13px] font-medium text-[var(--muted)]">
+          {pctOf(result.score, result.totalQuestions)}%
+        </p>
         {celebrate && (
           <p className="text-[15px] font-semibold text-[var(--accent-ink)]">
             {perfect ? "Perfect score! 🎉" : "Outstanding! 🎉"}
@@ -1114,21 +1489,60 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
   }
 
   const timeIsShort = secondsLeft !== null && secondsLeft <= 60;
+  const progressPct = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
 
   return (
     <div className="space-y-4">
-      {deadline && secondsLeft !== null && (
-        <div
-          className={`sticky top-0 z-10 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold backdrop-blur-sm ${
-            timeIsShort
-              ? "border-[#E2725B]/40 bg-[var(--error-bg)]/80 text-[var(--error-text)]"
-              : "border-[#4F7CFF]/20 bg-[var(--surface)]/80 text-[var(--text)]"
-          }`}
-        >
-          <Timer size={14} className={timeIsShort ? "text-[#E2725B]" : "text-[var(--accent-ink)]"} />
-          Time left: {formatCountdown(secondsLeft)}
+      <div className="sticky top-0 z-10 space-y-2 bg-[var(--bg)]/85 pb-2 backdrop-blur-sm">
+        {deadline && secondsLeft !== null && (
+          <div
+            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
+              timeIsShort
+                ? "border-[#E2725B]/40 bg-[var(--error-bg)]/80 text-[var(--error-text)]"
+                : "border-[#4F7CFF]/20 bg-[var(--surface)]/80 text-[var(--text)]"
+            }`}
+          >
+            <Timer size={14} className={timeIsShort ? "text-[#E2725B]" : "text-[var(--accent-ink)]"} />
+            Time left: {formatCountdown(secondsLeft)}
+          </div>
+        )}
+        <div className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/80 px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[12px] text-[var(--muted)]">
+            <span>
+              {answeredCount} of {totalCount} answered
+            </span>
+            <span>{Math.round(progressPct)}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--divider)]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#4F80F8] to-[#3558DE] transition-all duration-300"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Question navigator: tap a number to jump, filled = answered */}
+      <div className="flex flex-wrap gap-1.5">
+        {questions.map((q, idx) => {
+          const done = answers[q.id] !== undefined;
+          return (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => scrollToQuestion(q.id)}
+              aria-label={`Go to question ${idx + 1}${done ? " (answered)" : ""}`}
+              className={`h-7 w-7 rounded-md border text-[12px] font-semibold transition-colors ${
+                done
+                  ? "border-[#3558DE]/60 bg-[#3558DE]/15 text-[var(--text)]"
+                  : "border-[var(--divider)] text-[var(--dim)] hover:border-[#4F7CFF]/40"
+              }`}
+            >
+              {idx + 1}
+            </button>
+          );
+        })}
+      </div>
 
       {error && (
         <div className="rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-[13px] text-[var(--error-text)]">
@@ -1137,7 +1551,11 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
       )}
 
       {questions.map((q, idx) => (
-        <div key={q.id} className="rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-4">
+        <div
+          key={q.id}
+          id={`quiz-q-${q.id}`}
+          className="scroll-mt-28 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 p-4"
+        >
           <p className="mb-3 text-sm text-[var(--text)] [overflow-wrap:anywhere]">
             <span className="text-[var(--accent-ink)]">{idx + 1}.</span> {q.questionText}
           </p>
@@ -1170,13 +1588,23 @@ function TakeQuiz({ quizId, onDone, onAskLearnMate }) {
         </div>
       ))}
 
+      {confirmSubmit && unansweredCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/50 px-3 py-2.5 text-[13px] text-[var(--error-text)]">
+          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+          <span>
+            You have {unansweredCount} unanswered {unansweredCount === 1 ? "question" : "questions"}. Press submit
+            again to send your answers as they are.
+          </span>
+        </div>
+      )}
+
       <button
-        onClick={handleSubmit}
-        disabled={submitting || Object.keys(answers).length === 0}
+        onClick={requestSubmit}
+        disabled={submitting || answeredCount === 0}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] py-2.5 text-sm font-medium text-[#FFFFFF] shadow-[0_4px_14px_-4px_rgba(53,88,222,0.55)] transition-all hover:-translate-y-0.5 disabled:opacity-40"
       >
         {submitting && <Loader2 size={14} className="animate-spin" />}
-        Submit answers
+        {confirmSubmit && unansweredCount > 0 ? "Submit anyway" : "Submit answers"}
       </button>
     </div>
   );
@@ -1188,6 +1616,7 @@ function QuizResultsPanel({ quizId }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sortBy, setSortBy] = useState("score"); // score | name | date
 
   useEffect(() => {
     let cancelled = false;
@@ -1219,6 +1648,48 @@ function QuizResultsPanel({ quizId }) {
     );
   }
 
+  const scores = results.studentScores;
+  const percents = scores.map((s) => pctOf(s.score, s.totalQuestions));
+  const avgPct = percents.length ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length) : 0;
+  const highPct = percents.length ? Math.max(...percents) : 0;
+  const lowPct = percents.length ? Math.min(...percents) : 0;
+  const passRate = percents.length
+    ? Math.round((percents.filter((p) => p >= PASS_PERCENT).length / percents.length) * 100)
+    : 0;
+
+  const sorted = [...scores].sort((a, b) => {
+    if (sortBy === "name") return a.username.localeCompare(b.username);
+    if (sortBy === "date") return new Date(b.submittedAt) - new Date(a.submittedAt);
+    return pctOf(b.score, b.totalQuestions) - pctOf(a.score, a.totalQuestions);
+  });
+
+  const exportCsv = () => {
+    const rows = [
+      ["Student", "Score", "Total", "Percent", "Submitted"],
+      ...sorted.map((s) => [
+        s.username,
+        s.score,
+        s.totalQuestions,
+        `${pctOf(s.score, s.totalQuestions)}%`,
+        formatDate(s.submittedAt),
+      ]),
+    ];
+    const csv = rows
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    // BOM keeps Telugu/Hindi names readable when the file opens in Excel.
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeTitle = (results.title || "quiz").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+    a.href = url;
+    a.download = `${safeTitle || "quiz"}-results.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="flex items-center gap-2 text-base text-[var(--text)]">
@@ -1226,12 +1697,45 @@ function QuizResultsPanel({ quizId }) {
         {results.title}
       </h2>
 
+      {scores.length > 0 && (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <StatCard label="Submissions" value={scores.length} />
+          <StatCard label="Class average" value={`${avgPct}%`} tone={avgPct >= PASS_PERCENT ? "good" : "bad"} />
+          <StatCard label="Highest / lowest" value={`${highPct}% / ${lowPct}%`} />
+          <StatCard label={`Pass rate (${PASS_PERCENT}%+)`} value={`${passRate}%`} tone={passRate >= PASS_PERCENT ? "good" : "bad"} />
+        </div>
+      )}
+
       <div>
-        <h3 className="section-title mb-3">Student scores</h3>
-        {results.studentScores.length === 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="section-title">Student scores</h3>
+          {scores.length > 0 && (
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sort scores"
+                className="rounded-md border border-[var(--divider)] bg-[var(--surface)]/60 px-2.5 py-1.5 text-[12.5px] text-[var(--muted)] focus:border-[#4F7CFF]/50 focus:outline-none"
+              >
+                <option value="score">Highest score first</option>
+                <option value="name">Name (A to Z)</option>
+                <option value="date">Latest submission</option>
+              </select>
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="flex items-center gap-1.5 rounded-md border border-[#4F7CFF]/25 bg-transparent px-3 py-1.5 text-[12.5px] font-semibold text-[var(--ok)] transition-all hover:-translate-y-0.5 hover:bg-[#4F7CFF]/10"
+              >
+                <Download size={12} />
+                Export CSV
+              </button>
+            </div>
+          )}
+        </div>
+        {scores.length === 0 ? (
           <p className="text-[13px] text-[var(--dim)]">No submissions yet</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
+          <div className="overflow-x-auto rounded-lg border border-[var(--divider)]">
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr className="bg-[var(--surface)]/70 text-left text-[var(--dim)]">
@@ -1241,15 +1745,19 @@ function QuizResultsPanel({ quizId }) {
                 </tr>
               </thead>
               <tbody>
-                {results.studentScores.map((s) => (
-                  <tr key={s.username} className="lm-row border-t border-[var(--divider)]">
-                    <td className="px-3 py-2.5">{s.username}</td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">
-                      {s.score} / {s.totalQuestions}
-                    </td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">{formatDate(s.submittedAt)}</td>
-                  </tr>
-                ))}
+                {sorted.map((s) => {
+                  const pct = pctOf(s.score, s.totalQuestions);
+                  return (
+                    <tr key={s.username} className="lm-row border-t border-[var(--divider)]">
+                      <td className="px-3 py-2.5">{s.username}</td>
+                      <td className="px-3 py-2.5 text-[var(--muted)]">
+                        {s.score} / {s.totalQuestions}{" "}
+                        <span className={pct >= PASS_PERCENT ? "text-[var(--ok)]" : "text-[#E2725B]"}>({pct}%)</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-[var(--muted)]">{formatDate(s.submittedAt)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

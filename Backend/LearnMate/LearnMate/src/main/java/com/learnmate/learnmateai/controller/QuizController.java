@@ -3,9 +3,11 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.dto.*;
 import com.learnmate.learnmateai.model.Quiz;
 import com.learnmate.learnmateai.service.QuizService;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -24,6 +26,17 @@ public class QuizController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public Quiz create(@RequestBody QuizCreateRequest req, Authentication auth) {
         return quizService.createQuiz(req, auth.getName());
+    }
+
+    // Teacher/Admin only: photograph handwritten (or printed) exam questions
+    // and get back structured MCQs, in the exact shape the Create Quiz form
+    // already uses for manualQuestions. Nothing is saved by this call --
+    // the caller reviews/edits, then POSTs the normal create request.
+    @PostMapping(value = "/scan", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public List<QuizCreateRequest.ManualQuestion> scan(
+            @RequestParam("image") MultipartFile image, Authentication auth) {
+        return quizService.scanQuestionsFromImage(image, auth.getName());
     }
 
     @GetMapping("/available")
