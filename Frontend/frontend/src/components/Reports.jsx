@@ -86,6 +86,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [printing, setPrinting] = useState(null); // { kind: "class" } | { kind: "cards", students }
+  const [tab, setTab] = useState("report"); // "report" | "toppers"
   const [weekToppers, setWeekToppers] = useState(null);
   const [monthToppers, setMonthToppers] = useState(null);
 
@@ -195,73 +196,106 @@ export default function Reports() {
 
       {report && (
         <>
-          <section className="rp-stats" aria-label="Class summary">
-            <div className="rp-stat">
-              <span className="rp-stat-n">{report.students.length}</span>
-              <span className="rp-stat-l">students</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat-n">{report.quizzes.length}</span>
-              <span className="rp-stat-l">quizzes set</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat-n">{report.classAveragePercent == null ? "–" : `${report.classAveragePercent}%`}</span>
-              <span className="rp-stat-l">class average</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat-n">{notStarted}</span>
-              <span className="rp-stat-l">took no quiz</span>
-            </div>
-          </section>
-
-          <div className="rp-actions">
-            <button type="button" className="rp-btn" onClick={() => downloadCsv(report)} disabled={!report.students.length}>
-              <Download size={15} /> Download for Excel
-            </button>
-            <button type="button" className="rp-btn" onClick={() => setPrinting({ kind: "class" })} disabled={!report.students.length}>
-              <Printer size={15} /> Print class sheet
+          <div className="rp-tabs" role="tablist" aria-label="Report view">
+            <button
+              type="button"
+              role="tab"
+              id="rp-tab-report"
+              aria-selected={tab === "report"}
+              aria-controls="rp-panel-report"
+              className={`rp-tab ${tab === "report" ? "rp-tab-on" : ""}`}
+              onClick={() => setTab("report")}
+            >
+              <FileBarChart2 size={15} aria-hidden="true" /> Class report
             </button>
             <button
               type="button"
-              className="rp-btn"
-              onClick={() => setPrinting({ kind: "cards", students: report.students })}
-              disabled={!report.students.length}
+              role="tab"
+              id="rp-tab-toppers"
+              aria-selected={tab === "toppers"}
+              aria-controls="rp-panel-toppers"
+              className={`rp-tab ${tab === "toppers" ? "rp-tab-on" : ""}`}
+              onClick={() => setTab("toppers")}
             >
-              <FileText size={15} /> Print all report cards
+              <Trophy size={15} aria-hidden="true" /> Toppers
             </button>
           </div>
-          <p className="rp-hint">Tip: choose “Save as PDF” in the print window to get a file you can email to parents.</p>
 
-          <InactivePanel key={`i-${report.standard}-${report.generatedAt}`} standard={report.standard} />
-
-          <section className="rp-section" aria-labelledby="rp-toppers-h">
-            <h2 id="rp-toppers-h" className="rp-h2"><Trophy size={17} aria-hidden="true" /> Toppers</h2>
-            <div className="rp-toppers-grid">
-              <TopperPanel key={`w-${report.standard}-${report.generatedAt}`} standard={report.standard} period="WEEK" onData={setWeekToppers} />
-              <TopperPanel key={`m-${report.standard}-${report.generatedAt}`} standard={report.standard} period="MONTH" onData={setMonthToppers} />
-            </div>
-          </section>
-
-          {report.quizzes.length > 0 && (
-            <section className="rp-section" aria-labelledby="rp-podium-h">
-              <h2 id="rp-podium-h" className="rp-h2">Quiz toppers</h2>
-              <div className="rp-podium-grid">
-                {report.quizzes.map((q) => (
-                  <QuizPodium key={q.id} quiz={q} />
-                ))}
+          {/* Both panels stay mounted (the hidden one just isn't shown) so the
+              printed class sheet always has the week's and month's toppers. */}
+          <div role="tabpanel" id="rp-panel-report" aria-labelledby="rp-tab-report" hidden={tab !== "report"}>
+            <section className="rp-stats" aria-label="Class summary">
+              <div className="rp-stat">
+                <span className="rp-stat-n">{report.students.length}</span>
+                <span className="rp-stat-l">students</span>
+              </div>
+              <div className="rp-stat">
+                <span className="rp-stat-n">{report.quizzes.length}</span>
+                <span className="rp-stat-l">quizzes set</span>
+              </div>
+              <div className="rp-stat">
+                <span className="rp-stat-n">{report.classAveragePercent == null ? "–" : `${report.classAveragePercent}%`}</span>
+                <span className="rp-stat-l">class average</span>
+              </div>
+              <div className="rp-stat">
+                <span className="rp-stat-n">{notStarted}</span>
+                <span className="rp-stat-l">took no quiz</span>
               </div>
             </section>
-          )}
 
-          {report.students.length === 0 ? (
-            <div className="rp-empty">
-              <p>No students in Class {report.standard} yet.</p>
+            <div className="rp-actions">
+              <button type="button" className="rp-btn" onClick={() => downloadCsv(report)} disabled={!report.students.length}>
+                <Download size={15} /> Download for Excel
+              </button>
+              <button type="button" className="rp-btn" onClick={() => setPrinting({ kind: "class" })} disabled={!report.students.length}>
+                <Printer size={15} /> Print class sheet
+              </button>
+              <button
+                type="button"
+                className="rp-btn"
+                onClick={() => setPrinting({ kind: "cards", students: report.students })}
+                disabled={!report.students.length}
+              >
+                <FileText size={15} /> Print all report cards
+              </button>
             </div>
-          ) : (
-            <div className="rp-table-wrap">
-              <ClassTable report={report} rows={ranked} onCard={(s) => setPrinting({ kind: "cards", students: [s] })} />
-            </div>
-          )}
+            <p className="rp-hint">Tip: choose “Save as PDF” in the print window to get a file you can email to parents.</p>
+
+            {report.students.length === 0 ? (
+              <div className="rp-empty">
+                <p>No students in Class {report.standard} yet.</p>
+              </div>
+            ) : (
+              <div className="rp-table-wrap">
+                <ClassTable report={report} rows={ranked} onCard={(s) => setPrinting({ kind: "cards", students: [s] })} />
+              </div>
+            )}
+
+            <InactivePanel key={`i-${report.standard}-${report.generatedAt}`} standard={report.standard} />
+          </div>
+
+          <div role="tabpanel" id="rp-panel-toppers" aria-labelledby="rp-tab-toppers" hidden={tab !== "toppers"}>
+            <section className="rp-section rp-section-first" aria-labelledby="rp-toppers-h">
+              <h2 id="rp-toppers-h" className="rp-h2">Weekly and monthly toppers</h2>
+              <div className="rp-toppers-grid">
+                <TopperPanel key={`w-${report.standard}-${report.generatedAt}`} standard={report.standard} period="WEEK" onData={setWeekToppers} />
+                <TopperPanel key={`m-${report.standard}-${report.generatedAt}`} standard={report.standard} period="MONTH" onData={setMonthToppers} />
+              </div>
+            </section>
+
+            <section className="rp-section" aria-labelledby="rp-podium-h">
+              <h2 id="rp-podium-h" className="rp-h2">Quiz toppers</h2>
+              {report.quizzes.length === 0 ? (
+                <p className="rp-toppers-empty">No quizzes were set for this class in this period.</p>
+              ) : (
+                <div className="rp-podium-grid">
+                  {report.quizzes.map((q) => (
+                    <QuizPodium key={q.id} quiz={q} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </>
       )}
 
@@ -785,6 +819,12 @@ const CSS = `
 .rp-legend { margin: .4rem 0 0; font-size: 12px; color: var(--dim); }
 
 .rp-section { margin-top: 1.5rem; }
+.rp-section-first { margin-top: 0; }
+.rp-tabs { display: flex; gap: .4rem; margin: 1.25rem 0 1rem; padding: .3rem; border-radius: 14px; border: 1px solid var(--divider); background: var(--surface); width: fit-content; max-width: 100%; }
+.rp-tab { display: inline-flex; align-items: center; gap: .45rem; padding: .55rem 1.1rem; border: none; border-radius: 10px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.rp-tab:hover { color: var(--text); background: var(--surface-2); }
+.rp-tab-on, .rp-tab-on:hover { color: #fff; background: linear-gradient(135deg, #4F80F8, #3558DE); }
+[role="tabpanel"] > .rp-stats:first-child { margin-top: 0; }
 .rp-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
 .rp-section-head .rp-h2 { margin: 0; }
 .rp-days { display: inline-flex; align-items: center; gap: .45rem; font-size: 13px; color: var(--muted); }
