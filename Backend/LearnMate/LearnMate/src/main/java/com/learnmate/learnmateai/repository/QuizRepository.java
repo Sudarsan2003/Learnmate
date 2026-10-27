@@ -11,4 +11,7 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
     // Class reports: every quiz set for one class at a school, oldest first.
     List<Quiz> findByInstitutionAndStandardOrderByCreatedAtAsc(String institution, String standard);
+
+    // Results announcements: recent quizzes in any school.
+    List<Quiz> findByCreatedAtAfter(java.time.Instant after);
 }

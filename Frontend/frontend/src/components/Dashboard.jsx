@@ -23,6 +23,7 @@ import {
   getAvailableQuizzes,
   getMyAttemptDetail,
 } from "../api/client";
+import HallOfFame from "./HallOfFame";
 import ThemeToggle from "./ThemeToggle";
 import Leaderboard from "./Leaderboard";
 
@@ -231,7 +232,7 @@ export default function Dashboard({ role, currentUsername, onOpenQuizzes }) {
         {isStaff ? (
           <StaffDashboard role={role} currentUsername={currentUsername} />
         ) : (
-          <StudentDashboard onOpenQuizzes={onOpenQuizzes} />
+          <StudentDashboard onOpenQuizzes={onOpenQuizzes} currentUsername={currentUsername} />
         )}
       </div>
     </div>
@@ -1063,7 +1064,7 @@ function StudentsPanel({ loading, scoped, results, loadResults, resultsRef }) {
 /*  student                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function StudentDashboard({ onOpenQuizzes }) {
+function StudentDashboard({ onOpenQuizzes, currentUsername }) {
   const [results, setResults] = useState([]);
   const [available, setAvailable] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1138,6 +1139,8 @@ function StudentDashboard({ onOpenQuizzes }) {
               { label: "Open for you", value: available.length, sub: available.length === 1 ? "quiz waiting" : "quizzes waiting" },
             ]}
           />
+
+          <HallOfFame username={currentUsername} />
 
           <div className="db-two mt-6">
             <section aria-label="Recent scores">

@@ -18,6 +18,8 @@ public class Notification {
 
     public static final String QUIZ = "QUIZ";
     public static final String GAME = "GAME";
+    public static final String ACHIEVEMENT = "ACHIEVEMENT"; // medals and toppers, for students
+    public static final String ALERT = "ALERT";             // inactive-student alerts, for teachers
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

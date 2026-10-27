@@ -124,6 +124,13 @@ public class NotificationService implements ApplicationRunner {
         notifications.markAllRead(username, Instant.now());
     }
 
+    /** Sends one notification to each named user (used by AnnouncementJob). */
+    @Transactional
+    public int sendTo(List<String> usernames, String type, String title, String message, String link) {
+        List<User> recipients = usernames.stream().map(users::findByUsername).flatMap(java.util.Optional::stream).toList();
+        return send(recipients, type, title, message, link);
+    }
+
     private int send(List<User> recipients, String type, String title, String message, String link) {
         List<Notification> batch = new ArrayList<>(recipients.size());
         Instant now = Instant.now();

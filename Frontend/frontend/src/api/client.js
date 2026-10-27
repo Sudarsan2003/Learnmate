@@ -324,6 +324,39 @@ export async function getToppers({ standard, period, date }) {
   return data;
 }
 
+// The signed-in student's medals and their class's toppers:
+// { standard, gold, silver, bronze, medals: [{ quizId, title, subject, rank, percent, participants, date }],
+//   thisWeek, lastWeek, thisMonth }  (each toppers object is shaped like getToppers()).
+export async function getMyAchievements() {
+  const { data } = await api.get("/api/me/achievements");
+  return data;
+}
+
+// TEACHER/ADMIN: students of a class with no activity for `days` days.
+// { standard, days, quizzesSet, classSize, students: [{ username, fullName, mobile, lastActive, missedQuizzes }] }
+export async function getInactiveStudents({ standard, days = 7 }) {
+  const { data } = await api.get("/api/reports/inactive", { params: { standard, days } });
+  return data;
+}
+
+// ADMIN: year-end promotion. Plan: { institution, passedOutLabel, last: { batchId, at, doneBy, moved, undone } | null,
+//   classes: [{ standard, studentCount, suggestedTarget, students: [{ username, fullName }] }] }
+export async function getPromotionPlan() {
+  const { data } = await api.get("/api/admin/promotion");
+  return data;
+}
+
+// targets: { "9": "10", "10": "Passed out 2027" }; holdBack: usernames who keep their class.
+export async function promoteClasses(targets, holdBack) {
+  const { data } = await api.post("/api/admin/promotion", { targets, holdBack });
+  return data;
+}
+
+export async function undoPromotion() {
+  const { data } = await api.post("/api/admin/promotion/undo");
+  return data;
+}
+
 // ADMIN only: customer schools and their sign-up codes.
 // [{ id, name, joinCode, active, createdAt, memberCount }]
 export async function listSchools() {

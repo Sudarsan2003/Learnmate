@@ -169,6 +169,8 @@ public class AuthController {
 
         User user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        user.setLastLoginAt(java.time.Instant.now());
+        userRepository.save(user);
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token, user.getUsername(), user.getRole());

@@ -33,6 +33,7 @@ import {
 import ThemeToggle from "./ThemeToggle";
 import SchoolsView from "./SchoolsView";
 import ImportStudents from "./ImportStudents";
+import PromoteClasses from "./PromoteClasses";
 
 /* -------------------------------------------------------------------------- */
 /*  constants + helpers                                                        */
@@ -207,6 +208,7 @@ function Toast({ message, onDismiss }) {
 export default function ManageUsers({ currentUsername }) {
   const [viewMode, setViewMode] = useState("all"); // "all" | "institutions" | "schools"
   const [importing, setImporting] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null); // the list itself failed to load
@@ -432,6 +434,10 @@ export default function ManageUsers({ currentUsername }) {
               <FileUp size={15} />
               Import students
             </button>
+            <button type="button" className="um-btn um-btn-quiet" onClick={() => setPromoting(true)}>
+              <GraduationCap size={15} />
+              Year-end promotion
+            </button>
             <button
               type="button"
               className="um-btn um-btn-quiet"
@@ -445,6 +451,7 @@ export default function ManageUsers({ currentUsername }) {
         </header>
 
         {importing && <ImportStudents onClose={() => setImporting(false)} onImported={loadUsers} />}
+        {promoting && <PromoteClasses onClose={() => setPromoting(false)} onChanged={loadUsers} />}
 
         <div className="um-toolbar">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

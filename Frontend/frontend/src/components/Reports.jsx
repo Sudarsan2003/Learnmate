@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight } from "lucide-react";
-import { getReportClasses, getClassReport, getToppers } from "../api/client";
+import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight, UserX, Phone } from "lucide-react";
+import { getReportClasses, getClassReport, getToppers, getInactiveStudents } from "../api/client";
+import { PlaceMedal, MedalLegend } from "./Medal";
 
 /**
  * Class reports (teachers and admins).
@@ -34,39 +35,6 @@ function periodLabel(report) {
   return report.from ? `From ${fmtDate(report.from)}` : `Up to ${fmtDate(report.to)}`;
 }
 
-// Gold, silver and bronze medals for 1st, 2nd and 3rd place. Drawn as SVG
-// (not emoji, which print tiny and blurry in PDFs) so they look the same on
-// every device and print in colour.
-const MEDAL_COLOURS = {
-  1: { fill: "#F2B705", stroke: "#B8860B", name: "Gold" },
-  2: { fill: "#B9C1CA", stroke: "#7C8691", name: "Silver" },
-  3: { fill: "#CD7F32", stroke: "#8B5A2B", name: "Bronze" },
-};
-
-/** A gold/silver/bronze medal for places 1-3; nothing for any other place. */
-function PlaceMedal({ rank, size = 14 }) {
-  const c = MEDAL_COLOURS[rank];
-  if (!c) return null;
-  return (
-    <svg className="rp-medal" width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={`${c.name} medal, ${ordinal(rank)} place`}>
-      <path d="M6.5 1.5h4.2l2.3 6.3H8.8z" fill="#3B6FD8" />
-      <path d="M17.5 1.5h-4.2l-2.3 6.3h4.2z" fill="#D9534F" />
-      <circle cx="12" cy="15" r="7.2" fill={c.fill} stroke={c.stroke} strokeWidth="1.4" />
-      <text x="12" y="18.6" textAnchor="middle" fontSize="9.5" fontWeight="700" fontFamily="Arial, sans-serif" fill="#fff">
-        {rank}
-      </text>
-    </svg>
-  );
-}
-
-/** Key explaining the medals, for printed sheets and report cards. */
-function MedalLegend() {
-  return (
-    <p className="rp-legend">
-      <PlaceMedal rank={1} /> 1st in class &nbsp; <PlaceMedal rank={2} /> 2nd &nbsp; <PlaceMedal rank={3} /> 3rd
-    </p>
-  );
-}
 const ordinal = (n) => {
   const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th";
   return `${n}${s}`;
@@ -196,7 +164,8 @@ export default function Reports() {
             {classes?.length === 0 && <option>No classes yet</option>}
             {classes?.map((c) => (
               <option key={c.standard} value={c.standard}>
-                Class {c.standard} ({c.studentCount} {c.studentCount === 1 ? "student" : "students"})
+                {/^passed out/i.test(c.standard) ? c.standard : `Class ${c.standard}`} ({c.studentCount}{" "}
+                {c.studentCount === 1 ? "student" : "students"})
               </option>
             ))}
           </select>
@@ -262,6 +231,8 @@ export default function Reports() {
             </button>
           </div>
           <p className="rp-hint">Tip: choose “Save as PDF” in the print window to get a file you can email to parents.</p>
+
+          <InactivePanel key={`i-${report.standard}-${report.generatedAt}`} standard={report.standard} />
 
           <section className="rp-section" aria-labelledby="rp-toppers-h">
             <h2 id="rp-toppers-h" className="rp-h2"><Trophy size={17} aria-hidden="true" /> Toppers</h2>
@@ -577,6 +548,87 @@ function TopperPanel({ standard, period, onData }) {
   );
 }
 
+function lastSeen(iso) {
+  if (!iso) return "Never";
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days < 1) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 60) return `${days} days ago`;
+  return fmtDate(iso);
+}
+
+/** Students in this class with no login, quiz, chat, practice or game for a while. */
+function InactivePanel({ standard }) {
+  const [days, setDays] = useState(7);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getInactiveStudents({ standard, days })
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        setError("");
+      })
+      .catch((err) => !cancelled && setError(err.response?.data?.message ?? "Could not check activity."));
+    return () => {
+      cancelled = true;
+    };
+  }, [standard, days]);
+
+  return (
+    <section className="rp-section" aria-labelledby="rp-inactive-h">
+      <div className="rp-section-head">
+        <h2 id="rp-inactive-h" className="rp-h2"><UserX size={17} aria-hidden="true" /> Needs attention</h2>
+        <label className="rp-days">
+          No activity for
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={7}>7 days</option>
+            <option value={14}>14 days</option>
+            <option value={30}>30 days</option>
+          </select>
+        </label>
+      </div>
+      {error ? (
+        <p className="rp-error">{error}</p>
+      ) : !data ? (
+        <p className="rp-toppers-empty">Checking…</p>
+      ) : data.students.length === 0 ? (
+        <p className="rp-allgood">Everyone in Class {data.standard} has been active in the last {data.days} days.</p>
+      ) : (
+        <div className="rp-inactive">
+          <p className="rp-inactive-sum">
+            <strong>{data.students.length}</strong> of {data.classSize} students haven&apos;t logged in, taken a quiz, chatted or
+            played in the last {data.days} days.
+          </p>
+          <ul>
+            {data.students.map((s) => (
+              <li key={s.username}>
+                <span className="rp-inactive-name">
+                  {nameOf(s)}
+                  {s.fullName && <span className="rp-user">{s.username}</span>}
+                </span>
+                <span className={`rp-inactive-seen ${s.lastActive ? "" : "rp-never"}`}>Last active: {lastSeen(s.lastActive)}</span>
+                <span className="rp-inactive-missed">
+                  {data.quizzesSet > 0 ? `Missed ${s.missedQuizzes} of ${data.quizzesSet} recent ${data.quizzesSet === 1 ? "quiz" : "quizzes"}` : ""}
+                </span>
+                {s.mobile ? (
+                  <a className="rp-call" href={`tel:${s.mobile.replace(/[^\d+]/g, "")}`}>
+                    <Phone size={13} aria-hidden="true" /> {s.mobile}
+                  </a>
+                ) : (
+                  <span className="rp-dim">No mobile</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** 1st, 2nd and 3rd on one quiz (tied students share a place). */
 function QuizPodium({ quiz }) {
   return (
@@ -733,6 +785,21 @@ const CSS = `
 .rp-legend { margin: .4rem 0 0; font-size: 12px; color: var(--dim); }
 
 .rp-section { margin-top: 1.5rem; }
+.rp-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+.rp-section-head .rp-h2 { margin: 0; }
+.rp-days { display: inline-flex; align-items: center; gap: .45rem; font-size: 13px; color: var(--muted); }
+.rp-days select { height: 2.1rem; padding: 0 .5rem; border-radius: 8px; border: 1px solid var(--divider); background: var(--surface); color: var(--text); font: inherit; }
+.rp-allgood { margin: 0; padding: .8rem 1rem; border-radius: 12px; font-size: 13.5px; color: #0F8A5F; background: color-mix(in srgb, #0F8A5F 10%, var(--surface)); }
+.rp-inactive { border: 1px solid color-mix(in srgb, #E5484D 35%, var(--divider)); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.rp-inactive-sum { margin: 0; padding: .7rem 1rem; font-size: 13.5px; background: color-mix(in srgb, #E5484D 8%, var(--surface)); }
+.rp-inactive ul { margin: 0; padding: 0; list-style: none; }
+.rp-inactive li { display: grid; grid-template-columns: minmax(9rem, 1.4fr) 1fr 1.2fr auto; gap: .5rem 1rem; align-items: center; padding: .6rem 1rem; border-top: 1px solid var(--divider); font-size: 13px; }
+@media (max-width: 640px) { .rp-inactive li { grid-template-columns: 1fr 1fr; } }
+.rp-inactive-name { font-weight: 600; }
+.rp-inactive-seen { color: var(--muted); }
+.rp-never { color: #C2432B; font-weight: 600; }
+.rp-inactive-missed { color: var(--dim); }
+.rp-call { display: inline-flex; align-items: center; gap: .3rem; font-weight: 600; color: #4F80F8; text-decoration: none; white-space: nowrap; }
 .rp-h2 { display: flex; align-items: center; gap: .45rem; margin: 0 0 .75rem; font-family: 'Sora', system-ui, sans-serif; font-size: 1.05rem; font-weight: 700; }
 .rp-toppers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .75rem; }
 .rp-podium-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .75rem; }

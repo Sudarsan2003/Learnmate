@@ -50,4 +50,7 @@ public class User {
 
     @Column(nullable = false)
     private boolean locked = false;
+
+    // Set on every successful login; feeds the "inactive students" list.
+    private java.time.Instant lastLoginAt;
 }

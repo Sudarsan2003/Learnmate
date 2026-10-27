@@ -2,6 +2,7 @@ package com.learnmate.learnmateai.controller;
 
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
+import com.learnmate.learnmateai.service.AchievementService;
 import com.learnmate.learnmateai.service.ReportService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +26,13 @@ public class ReportController {
 
     private final ReportService reportService;
     private final UserRepository userRepository;
+    private final AchievementService achievementService;
 
-    public ReportController(ReportService reportService, UserRepository userRepository) {
+    public ReportController(ReportService reportService, UserRepository userRepository,
+                            AchievementService achievementService) {
         this.reportService = reportService;
         this.userRepository = userRepository;
+        this.achievementService = achievementService;
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -62,6 +66,16 @@ public class ReportController {
             @RequestParam(value = "institution", required = false) String institution,
             Authentication auth) {
         return reportService.toppers(schoolFor(auth, institution), standard.trim(), period, date);
+    }
+
+    // Students of a class with no activity (login, quiz, chat, practice, game) for `days` days.
+    @GetMapping("/inactive")
+    public AchievementService.InactiveList inactive(
+            @RequestParam String standard,
+            @RequestParam(value = "days", defaultValue = "7") int days,
+            @RequestParam(value = "institution", required = false) String institution,
+            Authentication auth) {
+        return achievementService.inactive(schoolFor(auth, institution), standard.trim(), days);
     }
 
     private String schoolFor(Authentication auth, String requested) {

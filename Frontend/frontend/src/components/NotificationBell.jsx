@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, ClipboardList, Gamepad2, X, CheckCheck } from "lucide-react";
+import { Bell, ClipboardList, Gamepad2, X, CheckCheck, Trophy, UserX } from "lucide-react";
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../api/client";
 
 /**
- * Students' notification bell for the navbar: "New quiz: Fractions",
- * "7 new games to try". Shows an unread badge, a dropdown of cards, and a
- * pop-up card for anything that arrived since the student last saw it.
- * Clicking a card marks it read and opens the quiz list or that game.
- *
- * Only students get notifications, so the bell renders nothing for teachers
- * and admins. It checks for new ones every minute while the tab is visible.
+ * Notification bell for the navbar. Students get "New quiz: Fractions",
+ * "7 new games to try" and medal/topper news; teachers and admins get the
+ * weekly inactive-students alert. Shows an unread badge, a dropdown of cards,
+ * and a pop-up card for anything that arrived since it was last seen.
+ * Clicking a card marks it read and opens the page it's about.
+ * It checks for new ones every minute while the tab is visible.
  */
 
 const POLL_MS = 60_000;
@@ -52,12 +51,17 @@ function openLink(link) {
   document.dispatchEvent(new CustomEvent("learnmate:navigate", { detail: { view, gameType } }));
 }
 
-const Icon = ({ type, size = 16 }) => (type === "GAME" ? <Gamepad2 size={size} /> : <ClipboardList size={size} />);
+const ICONS = { GAME: Gamepad2, ACHIEVEMENT: Trophy, ALERT: UserX, QUIZ: ClipboardList };
+const Icon = ({ type, size = 16 }) => {
+  const C = ICONS[type] ?? ClipboardList;
+  return <C size={size} />;
+};
+const ACTION = { GAME: "Play now", ACHIEVEMENT: "See my medals", ALERT: "Open reports", QUIZ: "Open quizzes" };
 
 export default function NotificationBell() {
-  const isStudent = (() => {
+  const signedIn = (() => {
     try {
-      return localStorage.getItem("learnmate_role") === "USER";
+      return !!localStorage.getItem("learnmate_token");
     } catch {
       return false;
     }
@@ -88,7 +92,7 @@ export default function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    if (!isStudent) return undefined;
+    if (!signedIn) return undefined;
     const first = window.setTimeout(refresh, 0);
     const id = window.setInterval(() => document.visibilityState === "visible" && refresh(), POLL_MS);
     const onFocus = () => refresh();
@@ -100,7 +104,7 @@ export default function NotificationBell() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener(CHANGED, onFocus);
     };
-  }, [isStudent, refresh]);
+  }, [signedIn, refresh]);
 
   // Close the dropdown on outside click or Escape.
   useEffect(() => {
@@ -122,7 +126,7 @@ export default function NotificationBell() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  if (!isStudent) return null;
+  if (!signedIn) return null;
 
   function activate(n) {
     setOpen(false);
@@ -201,7 +205,7 @@ export default function NotificationBell() {
               {toast.message && <span className="nb-msg">{toast.message}</span>}
               {toast.more > 0 && <span className="nb-time">+{toast.more} more in your notifications</span>}
               <button type="button" className="nb-view" onClick={() => activate(toast)}>
-                {toast.type === "GAME" ? "Play now" : "Open quizzes"}
+                {ACTION[toast.type] ?? "Open"}
               </button>
             </div>
             <button type="button" className="nb-close" onClick={() => setToast(null)} aria-label="Dismiss">
@@ -251,6 +255,8 @@ const CSS = `
   color: #fff; background: linear-gradient(135deg, #4F80F8, #3558DE);
 }
 [data-type="GAME"] .nb-icon { background: linear-gradient(135deg, #8B73F5, #6A4DE0); }
+[data-type="ACHIEVEMENT"] .nb-icon { background: linear-gradient(135deg, #F2B705, #C98A00); }
+[data-type="ALERT"] .nb-icon { background: linear-gradient(135deg, #E5484D, #B4232A); }
 .nb-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
 .nb-card-title { font-size: 13.5px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
 .nb-msg { font-size: 12.5px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }

@@ -40,4 +40,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
         String getFirstMessage();
         Instant getLastMessageAt();
     }
+
+    // Activity: each user's latest chat message, as [username, Instant].
+    @Query("SELECT m.ownerUsername, MAX(m.createdAt) FROM ChatMessage m WHERE m.ownerUsername IN :usernames GROUP BY m.ownerUsername")
+    List<Object[]> lastMessageByUser(@Param("usernames") java.util.Collection<String> usernames);
 }

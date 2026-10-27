@@ -25,6 +25,7 @@ public class QuizService {
     private final EvaluationAgent evaluationAgent;
     private final VisionService visionService;
     private final NotificationService notificationService;
+    private final AnnouncementJob announcementJob;
 
     public QuizService(QuizRepository quizRepository,
                        QuizQuestionRepository questionRepository,
@@ -34,7 +35,8 @@ public class QuizService {
                        RetrievalAgent retrievalAgent,
                        EvaluationAgent evaluationAgent,
                        VisionService visionService,
-                       NotificationService notificationService) {
+                       NotificationService notificationService,
+                       AnnouncementJob announcementJob) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.attemptRepository = attemptRepository;
@@ -44,6 +46,7 @@ public class QuizService {
         this.evaluationAgent = evaluationAgent;
         this.visionService = visionService;
         this.notificationService = notificationService;
+        this.announcementJob = announcementJob;
     }
 
     /**
@@ -522,6 +525,8 @@ public class QuizService {
 
         quiz.setStatus(Quiz.QuizStatus.CLOSED);
         quizRepository.save(quiz);
+        // Medal winners hear about it now rather than at the next hourly check.
+        announcementJob.announceQuizResults(quiz);
     }
 
     private Quiz requireVisible(Long quizId, String username) {

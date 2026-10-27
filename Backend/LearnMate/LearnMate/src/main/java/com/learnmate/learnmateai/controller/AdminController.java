@@ -5,6 +5,7 @@ import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.SchoolService;
 import com.learnmate.learnmateai.service.StudentImportService;
+import com.learnmate.learnmateai.service.PromotionService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.ResponseEntity;
@@ -31,13 +32,50 @@ public class AdminController {
     private final PasswordEncoder passwordEncoder;
     private final SchoolService schoolService;
     private final StudentImportService studentImportService;
+    private final PromotionService promotionService;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                           SchoolService schoolService, StudentImportService studentImportService) {
+                           SchoolService schoolService, StudentImportService studentImportService,
+                           PromotionService promotionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.schoolService = schoolService;
         this.studentImportService = studentImportService;
+        this.promotionService = promotionService;
+    }
+
+    // ------------------------------------------------------------------ year-end promotion
+
+    // Classes with their students and a suggested next class, plus the last promotion (for undo).
+    @GetMapping("/promotion")
+    public PromotionService.Plan promotionPlan() {
+        return promotionService.plan(adminSchool());
+    }
+
+    // Body: { "targets": { "9": "10", "10": "Passed out 2027" }, "holdBack": ["ravi.kumar"] }
+    @PostMapping("/promotion")
+    public PromotionService.Result promote(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> targets = (Map<String, String>) body.getOrDefault("targets", Map.of());
+        @SuppressWarnings("unchecked")
+        List<String> holdBack = (List<String>) body.getOrDefault("holdBack", List.of());
+        String admin = SecurityContextHolder.getContext().getAuthentication().getName();
+        return promotionService.promote(adminSchool(), targets, Set.copyOf(holdBack), admin);
+    }
+
+    @PostMapping("/promotion/undo")
+    public Map<String, Object> undoPromotion() {
+        return Map.of("restored", promotionService.undoLast(adminSchool()));
+    }
+
+    // Promotion acts on the admin's own school (each school runs its own copy).
+    private String adminSchool() {
+        String admin = SecurityContextHolder.getContext().getAuthentication().getName();
+        String school = userRepository.findByUsername(admin).map(User::getInstitution).orElse(null);
+        if (school == null || school.isBlank()) {
+            throw new IllegalArgumentException("Set a school on your admin account first (Manage users → edit your account).");
+        }
+        return school;
     }
 
     // ------------------------------------------------------------------ bulk import

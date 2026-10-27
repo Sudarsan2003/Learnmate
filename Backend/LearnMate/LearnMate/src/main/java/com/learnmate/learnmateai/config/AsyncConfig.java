@@ -3,12 +3,14 @@ package com.learnmate.learnmateai.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
 @Configuration
 @EnableAsync
+@EnableScheduling // hourly check for weekly/monthly announcements (AnnouncementJob)
 public class AsyncConfig {
 
     // Dedicated pool for document ingestion so a burst of uploads can't

@@ -17,4 +17,9 @@ public interface ChatQuizAttemptRepository extends JpaRepository<ChatQuizAttempt
 
     // Class reports: practice quizzes for a group of students.
     List<ChatQuizAttempt> findByUsernameInAndStatus(java.util.Collection<String> usernames, String status);
+
+    // Activity: each student's latest practice quiz, as [username, Instant].
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT c.username, MAX(c.createdAt) FROM ChatQuizAttempt c WHERE c.username IN :usernames GROUP BY c.username")
+    List<Object[]> lastPracticeByUser(@org.springframework.data.repository.query.Param("usernames") java.util.Collection<String> usernames);
 }
