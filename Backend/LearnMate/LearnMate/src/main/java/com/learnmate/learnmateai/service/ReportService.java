@@ -10,6 +10,7 @@ import com.learnmate.learnmateai.repository.GameProgressRepository;
 import com.learnmate.learnmateai.repository.QuizAttemptRepository;
 import com.learnmate.learnmateai.repository.QuizRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,9 +31,21 @@ public class ReportService {
 
     public record ClassSummary(String standard, long studentCount) {}
 
-    public record QuizColumn(Long id, String title, String subject, Instant createdAt) {}
+    /** One place on a quiz's podium (1st, 2nd, 3rd; tied students share a place). */
+    public record PodiumEntry(int rank, String username, String fullName, int score, int total, int percent,
+                              long timeTakenSeconds) {}
 
-    public record QuizScore(int score, int total, int percent, Instant submittedAt) {}
+    public record QuizColumn(Long id, String title, String subject, Instant createdAt,
+                             int participants, List<PodiumEntry> podium) {}
+
+    // rank: this student's place among the class on that quiz (1 = top)
+    public record QuizScore(int score, int total, int percent, Instant submittedAt, long timeTakenSeconds,
+                            int rank, int participants) {}
+
+    public record Topper(int rank, String username, String fullName, int averagePercent, int quizzesTaken) {}
+
+    /** Best students over one week (Monday to Sunday) or one calendar month. */
+    public record Toppers(String period, LocalDate start, LocalDate end, int quizzesSet, List<Topper> toppers) {}
 
     public record StudentRow(
             String username,
@@ -64,10 +77,15 @@ public class ReportService {
     private final QuizAttemptRepository attemptRepository;
     private final ChatQuizAttemptRepository chatQuizRepository;
     private final GameProgressRepository gameProgressRepository;
+    // The school's own time zone, so "this week" and date ranges follow the school
+    // calendar even when the server runs on UTC.
+    private final ZoneId zone;
 
     public ReportService(UserRepository userRepository, QuizRepository quizRepository,
                          QuizAttemptRepository attemptRepository, ChatQuizAttemptRepository chatQuizRepository,
-                         GameProgressRepository gameProgressRepository) {
+                         GameProgressRepository gameProgressRepository,
+                         @Value("${learnmate.timezone:Asia/Kolkata}") String timezone) {
+        this.zone = ZoneId.of(timezone);
         this.userRepository = userRepository;
         this.quizRepository = quizRepository;
         this.attemptRepository = attemptRepository;
@@ -94,7 +112,6 @@ public class ReportService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new IllegalArgumentException("The start date is after the end date.");
         }
-        ZoneId zone = ZoneId.systemDefault();
         Instant start = from == null ? null : from.atStartOfDay(zone).toInstant();
         Instant end = to == null ? null : to.plusDays(1).atStartOfDay(zone).toInstant();
 
@@ -127,6 +144,15 @@ public class ReportService {
                 : gameProgressRepository.findByUsernameIn(usernames).stream()
                         .collect(Collectors.groupingBy(GameProgress::getUsername));
 
+        // Each quiz's ranking among this class's students: quizId -> username -> rank.
+        Map<String, User> byUsername = students.stream().collect(Collectors.toMap(User::getUsername, u -> u));
+        Map<Long, List<QuizAttempt>> perQuiz = new HashMap<>();
+        attempts.forEach((user, map) -> {
+            if (byUsername.containsKey(user)) map.forEach((qid, a) -> perQuiz.computeIfAbsent(qid, k -> new ArrayList<>()).add(a));
+        });
+        Map<Long, Map<String, Integer>> ranks = new HashMap<>();
+        perQuiz.forEach((qid, list) -> ranks.put(qid, rankAttempts(list)));
+
         List<StudentRow> rows = new ArrayList<>();
         for (User u : students) {
             Map<Long, QuizScore> scores = new LinkedHashMap<>();
@@ -134,7 +160,8 @@ public class ReportService {
             for (Map.Entry<Long, QuizAttempt> e : attempts.getOrDefault(u.getUsername(), Map.of()).entrySet()) {
                 QuizAttempt a = e.getValue();
                 scores.put(e.getKey(), new QuizScore(a.getScore(), a.getTotalQuestions(),
-                        percent(a.getScore(), a.getTotalQuestions()), a.getSubmittedAt()));
+                        percent(a.getScore(), a.getTotalQuestions()), a.getSubmittedAt(), secondsTaken(a),
+                        ranks.get(e.getKey()).get(u.getUsername()), perQuiz.get(e.getKey()).size()));
                 lastActive = later(lastActive, a.getSubmittedAt());
             }
             List<ChatQuizAttempt> myPractice = practice.getOrDefault(u.getUsername(), List.of());
@@ -164,9 +191,115 @@ public class ReportService {
 
         Integer classAverage = average(rows.stream().map(StudentRow::averagePercent).filter(Objects::nonNull).toList());
         List<QuizColumn> columns = quizzes.stream()
-                .map(q -> new QuizColumn(q.getId(), q.getTitle(), q.getSubject(), q.getCreatedAt()))
+                .map(q -> {
+                    List<QuizAttempt> list = perQuiz.getOrDefault(q.getId(), List.of());
+                    Map<String, Integer> r = ranks.getOrDefault(q.getId(), Map.of());
+                    // A medal needs at least one right answer: a 0% "3rd place" in a small
+                    // group would only embarrass a student on a printed sheet.
+                    List<PodiumEntry> podium = list.stream()
+                            .filter(a -> r.get(a.getUsername()) <= 3 && a.getScore() > 0)
+                            .sorted(Comparator.comparing((QuizAttempt a) -> r.get(a.getUsername()))
+                                    .thenComparing(a -> displayName(byUsername.get(a.getUsername())), String.CASE_INSENSITIVE_ORDER))
+                            .map(a -> new PodiumEntry(r.get(a.getUsername()), a.getUsername(),
+                                    byUsername.get(a.getUsername()).getFullName(), a.getScore(), a.getTotalQuestions(),
+                                    percent(a.getScore(), a.getTotalQuestions()), secondsTaken(a)))
+                            .toList();
+                    return new QuizColumn(q.getId(), q.getTitle(), q.getSubject(), q.getCreatedAt(), list.size(), podium);
+                })
                 .toList();
         return new ClassReport(institution, standard, from, to, Instant.now(), columns, rows, classAverage);
+    }
+
+    /**
+     * Toppers for the week (Monday to Sunday) or calendar month containing `date`.
+     * Each student's score is their average over every quiz set for the class in
+     * that period, counting a missed quiz as 0, so taking one easy quiz can't beat
+     * doing them all. Ties go to whoever took more quizzes, then the faster total
+     * time; only an exact tie shares a place. Returns places 1 to 3, and only
+     * students who scored something.
+     */
+    @Transactional(readOnly = true)
+    public Toppers toppers(String institution, String standard, String period, LocalDate date) {
+        if (standard == null || standard.isBlank()) throw new IllegalArgumentException("Choose a class.");
+        LocalDate day = date == null ? LocalDate.now(zone) : date;
+        boolean week = !"MONTH".equalsIgnoreCase(period);
+        LocalDate start = week ? day.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+                : day.withDayOfMonth(1);
+        LocalDate end = week ? start.plusDays(6) : day.with(java.time.temporal.TemporalAdjusters.lastDayOfMonth());
+        Instant from = start.atStartOfDay(zone).toInstant();
+        Instant until = end.plusDays(1).atStartOfDay(zone).toInstant();
+
+        List<Quiz> quizzes = quizRepository.findByInstitutionAndStandardOrderByCreatedAtAsc(institution, standard).stream()
+                .filter(q -> inRange(q.getCreatedAt(), from, until))
+                .toList();
+        String label = week ? "WEEK" : "MONTH";
+        if (quizzes.isEmpty()) return new Toppers(label, start, end, 0, List.of());
+
+        Map<String, User> students = userRepository.findByInstitutionAndStandardAndRoleOrderByUsernameAsc(
+                institution, standard, "USER").stream().collect(Collectors.toMap(User::getUsername, u -> u));
+        Map<String, List<QuizAttempt>> byStudent = attemptRepository
+                .findByQuizIdInAndSubmittedAtIsNotNull(quizzes.stream().map(Quiz::getId).toList()).stream()
+                .filter(a -> students.containsKey(a.getUsername()))
+                .collect(Collectors.groupingBy(QuizAttempt::getUsername));
+
+        record Total(String username, double average, int taken, long seconds) {}
+        List<Total> totals = byStudent.entrySet().stream()
+                .map(e -> new Total(e.getKey(),
+                        e.getValue().stream().mapToDouble(a -> 100.0 * a.getScore() / Math.max(1, a.getTotalQuestions())).sum()
+                                / quizzes.size(),
+                        e.getValue().size(),
+                        e.getValue().stream().mapToLong(ReportService::secondsTaken).sum()))
+                .filter(t -> t.average() > 0) // no medal for scoring nothing
+                .sorted(Comparator.comparingDouble(Total::average).reversed()
+                        .thenComparing(Comparator.comparingInt(Total::taken).reversed())
+                        .thenComparingLong(Total::seconds)
+                        .thenComparing(t -> displayName(students.get(t.username())), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+
+        List<Topper> toppers = new ArrayList<>();
+        int rank = 0;
+        Total previous = null;
+        for (int i = 0; i < totals.size(); i++) {
+            Total t = totals.get(i);
+            boolean tied = previous != null && Math.abs(t.average() - previous.average()) < 1e-9
+                    && t.taken() == previous.taken() && t.seconds() == previous.seconds();
+            if (!tied) rank = i + 1;
+            if (rank > 3) break;
+            toppers.add(new Topper(rank, t.username(), students.get(t.username()).getFullName(),
+                    (int) Math.round(t.average()), t.taken()));
+            previous = t;
+        }
+        return new Toppers(label, start, end, quizzes.size(), toppers);
+    }
+
+    /**
+     * Places on one quiz, the same rule as the quiz leaderboard students see:
+     * most marks first, then whoever finished faster; only an exact tie (same
+     * marks and same time) shares a place.
+     */
+    static Map<String, Integer> rankAttempts(List<QuizAttempt> attempts) {
+        List<QuizAttempt> sorted = attempts.stream()
+                .sorted(Comparator.comparingInt(QuizAttempt::getScore).reversed()
+                        .thenComparingLong(ReportService::secondsTaken))
+                .toList();
+        Map<String, Integer> ranks = new HashMap<>();
+        int rank = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            QuizAttempt a = sorted.get(i);
+            QuizAttempt prev = i == 0 ? null : sorted.get(i - 1);
+            if (prev == null || prev.getScore() != a.getScore() || secondsTaken(prev) != secondsTaken(a)) rank = i + 1;
+            ranks.put(a.getUsername(), rank);
+        }
+        return ranks;
+    }
+
+    static long secondsTaken(QuizAttempt a) {
+        if (a.getStartedAt() == null || a.getSubmittedAt() == null) return Long.MAX_VALUE / 4;
+        return Math.max(0, java.time.Duration.between(a.getStartedAt(), a.getSubmittedAt()).getSeconds());
+    }
+
+    private static String displayName(User u) {
+        return u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername();
     }
 
     private static boolean inRange(Instant t, Instant start, Instant end) {

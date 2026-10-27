@@ -316,6 +316,14 @@ export async function getClassReport({ standard, from, to }) {
   return data;
 }
 
+// Weekly (Monday-Sunday) or monthly toppers for a class. `date` ("YYYY-MM-DD")
+// picks the week/month; default is the current one. Returns
+// { period, start, end, quizzesSet, toppers: [{ rank, username, fullName, averagePercent, quizzesTaken }] }
+export async function getToppers({ standard, period, date }) {
+  const { data } = await api.get("/api/reports/toppers", { params: { standard, period, date } });
+  return data;
+}
+
 // ADMIN only: customer schools and their sign-up codes.
 // [{ id, name, joinCode, active, createdAt, memberCount }]
 export async function listSchools() {

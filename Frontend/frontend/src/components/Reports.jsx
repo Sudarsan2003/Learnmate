@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users } from "lucide-react";
-import { getReportClasses, getClassReport } from "../api/client";
+import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight } from "lucide-react";
+import { getReportClasses, getClassReport, getToppers } from "../api/client";
 
 /**
  * Class reports (teachers and admins).
@@ -33,6 +33,13 @@ function periodLabel(report) {
   if (report.from && report.to) return `${fmtDate(report.from)} to ${fmtDate(report.to)}`;
   return report.from ? `From ${fmtDate(report.from)}` : `Up to ${fmtDate(report.to)}`;
 }
+
+const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
+const ordinal = (n) => {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th";
+  return `${n}${s}`;
+};
+const fmtTime = (sec) => (sec == null || sec > 864000 ? "" : sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`);
 
 // Real name when the school has given one (e.g. through bulk import), otherwise the username.
 const nameOf = (s) => s.fullName || s.username;
@@ -79,6 +86,8 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [printing, setPrinting] = useState(null); // { kind: "class" } | { kind: "cards", students }
+  const [weekToppers, setWeekToppers] = useState(null);
+  const [monthToppers, setMonthToppers] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +231,25 @@ export default function Reports() {
           </div>
           <p className="rp-hint">Tip: choose “Save as PDF” in the print window to get a file you can email to parents.</p>
 
+          <section className="rp-section" aria-labelledby="rp-toppers-h">
+            <h2 id="rp-toppers-h" className="rp-h2"><Trophy size={17} aria-hidden="true" /> Toppers</h2>
+            <div className="rp-toppers-grid">
+              <TopperPanel key={`w-${report.standard}-${report.generatedAt}`} standard={report.standard} period="WEEK" onData={setWeekToppers} />
+              <TopperPanel key={`m-${report.standard}-${report.generatedAt}`} standard={report.standard} period="MONTH" onData={setMonthToppers} />
+            </div>
+          </section>
+
+          {report.quizzes.length > 0 && (
+            <section className="rp-section" aria-labelledby="rp-podium-h">
+              <h2 id="rp-podium-h" className="rp-h2">Quiz toppers</h2>
+              <div className="rp-podium-grid">
+                {report.quizzes.map((q) => (
+                  <QuizPodium key={q.id} quiz={q} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {report.students.length === 0 ? (
             <div className="rp-empty">
               <p>No students in Class {report.standard} yet.</p>
@@ -247,6 +275,34 @@ export default function Reports() {
                   {report.classAveragePercent == null ? "–" : `${report.classAveragePercent}%`} · printed {fmtDate(report.generatedAt)}
                 </p>
                 <ClassTable report={report} rows={ranked} />
+                {[weekToppers, monthToppers].filter((t) => t?.toppers?.length).map((t) => (
+                  <div key={t.period}>
+                    <h2>{t.period === "WEEK" ? "Toppers of the week" : "Toppers of the month"}: {periodTitle(t)}</h2>
+                    <p>
+                      {t.toppers.map((x) => `${MEDAL[x.rank]} ${nameOf(x)} (${x.averagePercent}%)`).join("   ")}
+                    </p>
+                  </div>
+                ))}
+                {report.quizzes.some((q) => q.podium.length) && (
+                  <>
+                    <h2>Quiz toppers</h2>
+                    <table>
+                      <thead><tr><th>Quiz</th><th>1st</th><th>2nd</th><th>3rd</th></tr></thead>
+                      <tbody>
+                        {report.quizzes.map((q) => (
+                          <tr key={q.id}>
+                            <td>{q.title}</td>
+                            {[1, 2, 3].map((place) => (
+                              <td key={place}>
+                                {q.podium.filter((p) => p.rank === place).map((p) => `${nameOf(p)} (${p.percent}%)`).join(", ") || "–"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
               </div>
             ) : (
               printing.students.map((s) => (
@@ -288,8 +344,13 @@ function ClassTable({ report, rows, onCard }) {
             {report.quizzes.map((q) => {
               const r = s.quizScores[q.id];
               return (
-                <td key={q.id} className={r ? band(r.percent) : "rp-missing"} title={r ? `${r.score} of ${r.total}` : "Not attempted"}>
+                <td
+                  key={q.id}
+                  className={r ? band(r.percent) : "rp-missing"}
+                  title={r ? `${r.score} of ${r.total} · ${ordinal(r.rank)} of ${r.participants}` : "Not attempted"}
+                >
                   {r ? `${r.percent}%` : "–"}
+                  {r && r.percent > 0 && MEDAL[r.rank] && <span className="rp-medal" aria-label={`${ordinal(r.rank)} place`}> {MEDAL[r.rank]}</span>}
                 </td>
               );
             })}
@@ -313,6 +374,127 @@ function ClassTable({ report, rows, onCard }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** "19–25 Oct 2026" for a week, "October 2026" for a month. */
+function periodTitle(t) {
+  const s = new Date(`${t.start}T00:00:00`);
+  const e = new Date(`${t.end}T00:00:00`);
+  if (t.period === "MONTH") return s.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const sameMonth = s.getMonth() === e.getMonth();
+  const left = s.toLocaleDateString(undefined, sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" });
+  return `${left}–${e.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+}
+
+const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Weekly or monthly toppers for a class, with arrows to step back through earlier periods. */
+function TopperPanel({ standard, period, onData }) {
+  const [anchor, setAnchor] = useState(() => isoDate(new Date()));
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getToppers({ standard, period, date: anchor })
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        setError("");
+        onData?.(d);
+      })
+      .catch((err) => !cancelled && setError(err.response?.data?.message ?? "Could not load toppers."));
+    return () => {
+      cancelled = true;
+    };
+  }, [standard, period, anchor, onData]);
+
+  function step(dir) {
+    const d = new Date(`${anchor}T00:00:00`);
+    if (period === "WEEK") d.setDate(d.getDate() + 7 * dir);
+    else d.setMonth(d.getMonth() + dir, 1);
+    setAnchor(isoDate(d));
+  }
+
+  const today = isoDate(new Date());
+  const current = data && data.start <= today && today <= data.end;
+  const label = period === "WEEK" ? (current ? "This week" : "Week") : current ? "This month" : "Month";
+
+  return (
+    <div className="rp-toppers">
+      <div className="rp-toppers-head">
+        <button type="button" className="rp-arrow" onClick={() => step(-1)} aria-label={`Previous ${period === "WEEK" ? "week" : "month"}`}>
+          <ChevronLeft size={16} />
+        </button>
+        <div className="rp-toppers-title">
+          <span>{label}</span>
+          <small>{data ? periodTitle(data) : "…"}</small>
+        </div>
+        <button
+          type="button"
+          className="rp-arrow"
+          onClick={() => step(1)}
+          disabled={!data || data.end >= today}
+          aria-label={`Next ${period === "WEEK" ? "week" : "month"}`}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      {error ? (
+        <p className="rp-toppers-empty">{error}</p>
+      ) : !data ? (
+        <p className="rp-toppers-empty">Loading…</p>
+      ) : data.toppers.length === 0 ? (
+        <p className="rp-toppers-empty">
+          {data.quizzesSet === 0 ? "No quizzes were set in this period." : "No one has taken this period's quizzes yet."}
+        </p>
+      ) : (
+        <ol className="rp-topper-list">
+          {data.toppers.map((t) => (
+            <li key={t.username} className={`rp-topper rp-place-${t.rank}`}>
+              <span className="rp-topper-medal" aria-label={`${ordinal(t.rank)} place`}>{MEDAL[t.rank]}</span>
+              <span className="rp-topper-name">{nameOf(t)}</span>
+              <span className="rp-topper-score">
+                {t.averagePercent}%<small>{t.quizzesTaken} of {data.quizzesSet} {data.quizzesSet === 1 ? "quiz" : "quizzes"}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** 1st, 2nd and 3rd on one quiz (tied students share a place). */
+function QuizPodium({ quiz }) {
+  return (
+    <div className="rp-podium">
+      <div className="rp-podium-head">
+        <span className="rp-podium-title" title={quiz.title}>{quiz.title}</span>
+        <small>
+          {quiz.subject ? `${quiz.subject} · ` : ""}
+          {quiz.participants} {quiz.participants === 1 ? "student" : "students"} took it
+        </small>
+      </div>
+      {quiz.podium.length === 0 ? (
+        <p className="rp-toppers-empty">
+          {quiz.participants === 0 ? "No one has taken this quiz yet." : "No one has scored on this quiz yet."}
+        </p>
+      ) : (
+        <ol className="rp-topper-list">
+          {quiz.podium.map((p) => (
+            <li key={p.username} className={`rp-topper rp-place-${p.rank}`}>
+              <span className="rp-topper-medal" aria-label={`${ordinal(p.rank)} place`}>{MEDAL[p.rank]}</span>
+              <span className="rp-topper-name">{nameOf(p)}</span>
+              <span className="rp-topper-score">
+                {p.percent}%<small>{p.score}/{p.total}{fmtTime(p.timeTakenSeconds) ? ` · ${fmtTime(p.timeTakenSeconds)}` : ""}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -347,7 +529,7 @@ function ReportCard({ report, student }) {
       ) : (
         <table>
           <thead>
-            <tr><th>Quiz</th><th>Subject</th><th>Date</th><th>Score</th><th>%</th></tr>
+            <tr><th>Quiz</th><th>Subject</th><th>Date</th><th>Score</th><th>%</th><th>Place in class</th></tr>
           </thead>
           <tbody>
             {report.quizzes.map((q) => {
@@ -359,6 +541,7 @@ function ReportCard({ report, student }) {
                   <td>{fmtDate(r?.submittedAt ?? q.createdAt)}</td>
                   <td>{r ? `${r.score} / ${r.total}` : "Not attempted"}</td>
                   <td>{r ? `${r.percent}%` : ""}</td>
+                  <td>{r && r.percent > 0 ? `${MEDAL[r.rank] ? `${MEDAL[r.rank]} ` : ""}${ordinal(r.rank)} of ${r.participants}` : ""}</td>
                 </tr>
               );
             })}
@@ -430,6 +613,29 @@ const CSS = `
 .rp-link { border: none; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: #4F80F8; cursor: pointer; }
 .rp-link:hover { text-decoration: underline; }
 .rp-print { display: none; }
+.rp-medal { font-size: 13px; }
+
+.rp-section { margin-top: 1.5rem; }
+.rp-h2 { display: flex; align-items: center; gap: .45rem; margin: 0 0 .75rem; font-family: 'Sora', system-ui, sans-serif; font-size: 1.05rem; font-weight: 700; }
+.rp-toppers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .75rem; }
+.rp-podium-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .75rem; }
+.rp-toppers, .rp-podium { padding: .9rem 1rem; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
+.rp-toppers { background: linear-gradient(160deg, color-mix(in srgb, #E4A93B 10%, var(--surface)), var(--surface) 60%); }
+.rp-toppers-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; }
+.rp-toppers-title { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; font-weight: 700; font-size: 14.5px; }
+.rp-toppers-title small, .rp-podium-head small { font-size: 12px; font-weight: 500; color: var(--dim); }
+.rp-arrow { display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 999px; border: 1px solid var(--divider); background: var(--surface); color: var(--text); cursor: pointer; }
+.rp-arrow:disabled { opacity: .35; cursor: not-allowed; }
+.rp-podium-head { display: flex; flex-direction: column; gap: .1rem; margin-bottom: .6rem; }
+.rp-podium-title { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-toppers-empty { margin: .4rem 0; font-size: 13px; color: var(--dim); text-align: center; }
+.rp-topper-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .35rem; }
+.rp-topper { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 10px; background: var(--surface-2); }
+.rp-place-1 { background: color-mix(in srgb, #E4A93B 18%, var(--surface)); }
+.rp-topper-medal { font-size: 1.2rem; line-height: 1; }
+.rp-topper-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-topper-score { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-size: 13.5px; }
+.rp-topper-score small { font-size: 11px; font-weight: 500; color: var(--dim); }
 `;
 
 // Only applies while printing: hide the app, show the print container.

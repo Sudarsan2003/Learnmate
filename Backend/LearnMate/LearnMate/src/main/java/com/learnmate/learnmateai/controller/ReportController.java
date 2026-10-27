@@ -52,6 +52,18 @@ public class ReportController {
         return reportService.classReport(schoolFor(auth, institution), standard.trim(), from, to);
     }
 
+    // Weekly (Monday to Sunday) or monthly toppers for a class; `date` picks the
+    // week or month (default: the current one).
+    @GetMapping("/toppers")
+    public ReportService.Toppers toppers(
+            @RequestParam String standard,
+            @RequestParam(value = "period", defaultValue = "WEEK") String period,
+            @RequestParam(value = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(value = "institution", required = false) String institution,
+            Authentication auth) {
+        return reportService.toppers(schoolFor(auth, institution), standard.trim(), period, date);
+    }
+
     private String schoolFor(Authentication auth, String requested) {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
