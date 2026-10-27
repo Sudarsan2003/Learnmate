@@ -2,6 +2,11 @@ spring:
   application:
     name: LearnMate
 
+  # Dev tools would otherwise turn on stack traces in error responses
+  # (overriding server.error below) whenever the app runs via spring-boot:run.
+  devtools:
+    add-properties: false
+
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
@@ -26,6 +31,9 @@ spring:
 
 server:
   port: ${PORT:8080}
+  # Never send Java stack traces to the browser (dev tools turn them on otherwise).
+  error:
+    include-stacktrace: never
 
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-please-32chars}

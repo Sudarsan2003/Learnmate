@@ -2,6 +2,8 @@ package com.learnmate.learnmateai.dto;
 
 import com.learnmate.learnmateai.model.Quiz;
 
+import java.time.Instant;
+
 
 public record QuizSummaryDto(
         Long id,
@@ -12,5 +14,6 @@ public record QuizSummaryDto(
         Quiz.QuizMode mode,
         Quiz.QuizStatus status,
         Integer durationMinutes,
-        long submittedAttempts
+        long submittedAttempts,
+        Instant createdAt
 ) {}

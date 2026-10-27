@@ -30,6 +30,7 @@ import {
   setUserLocked,
 } from "../api/client";
 import ThemeToggle from "./ThemeToggle";
+import SchoolsView from "./SchoolsView";
 
 /* -------------------------------------------------------------------------- */
 /*  constants + helpers                                                        */
@@ -202,7 +203,7 @@ function Toast({ message, onDismiss }) {
 /* -------------------------------------------------------------------------- */
 
 export default function ManageUsers({ currentUsername }) {
-  const [viewMode, setViewMode] = useState("all"); // "all" | "institutions"
+  const [viewMode, setViewMode] = useState("all"); // "all" | "institutions" | "schools"
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null); // the list itself failed to load
@@ -473,11 +474,16 @@ export default function ManageUsers({ currentUsername }) {
               <button type="button" aria-pressed={viewMode === "institutions"} onClick={() => setViewMode("institutions")}>
                 By institution
               </button>
+              <button type="button" aria-pressed={viewMode === "schools"} onClick={() => setViewMode("schools")}>
+                Schools
+              </button>
             </div>
           </div>
         </div>
 
-        {viewMode === "institutions" ? (
+        {viewMode === "schools" ? (
+          <SchoolsView />
+        ) : viewMode === "institutions" ? (
           <InstitutionsView tokens={tokens} query={query} refreshTick={refreshTick} onClear={clearFilters} />
         ) : (
           <>

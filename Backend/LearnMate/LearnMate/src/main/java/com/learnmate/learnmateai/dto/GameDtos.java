@@ -6,7 +6,7 @@ public class GameDtos {
 
     // Sent by the client when a level ends (win or lose).
     public record GameCompleteRequest(
-            String gameType,      // "MATH" | "WORDS" | "RACE" | "BALLOON" | "MEMORY" | "BIGGER" | "SHOP" | "PUZZLE" | "SHAPE" | "DETECTIVE"
+            String gameType,      // "MATH" | "WORDS" | "RACE" | "BALLOON" | "MEMORY" | "BIGGER" | "SHOP" | "PUZZLE" | "SHAPE" | "DETECTIVE" | "CODE" | "ODDONE" | "DIRECTION" | "CLOCK"
             int level,            // which level was just played
             boolean won,          // did they clear the level's pass threshold?
             int score,            // raw points earned this round

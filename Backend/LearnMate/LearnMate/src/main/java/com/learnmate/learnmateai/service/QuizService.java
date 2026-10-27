@@ -352,7 +352,8 @@ public class QuizService {
                 .map(q -> new QuizSummaryDto(
                         q.getId(), q.getTitle(), q.getSubject(), q.getStandard(), q.getInstitution(),
                         q.getMode(), q.getStatus(), q.getDurationMinutes(),
-                        attemptRepository.countByQuizIdAndSubmittedAtIsNotNull(q.getId())))
+                        attemptRepository.countByQuizIdAndSubmittedAtIsNotNull(q.getId()),
+                        q.getCreatedAt()))
                 .toList();
     }
 

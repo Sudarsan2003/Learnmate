@@ -59,7 +59,7 @@ export async function register(username, password, profile = {}) {
     mobile: profile.mobile || undefined,
     gender: profile.gender || undefined,
     address: profile.address || undefined,
-    institution: profile.institution || undefined,
+    schoolCode: profile.schoolCode || undefined,
     standard: profile.standard || undefined,
   });
   return data;
@@ -280,6 +280,30 @@ export async function getMyAttemptDetail(quizId) {
 
 export async function listUsers() {
   const { data } = await api.get("/api/admin/users");
+  return data;
+}
+
+// ADMIN only: customer schools and their sign-up codes.
+// [{ id, name, joinCode, active, createdAt, memberCount }]
+export async function listSchools() {
+  const { data } = await api.get("/api/admin/schools");
+  return data;
+}
+
+export async function createSchool(name) {
+  const { data } = await api.post("/api/admin/schools", { name });
+  return data;
+}
+
+// Issues a new join code; the old one stops working immediately.
+export async function regenerateSchoolCode(id) {
+  const { data } = await api.post(`/api/admin/schools/${id}/regenerate-code`);
+  return data;
+}
+
+// Inactive schools keep their data but accept no new sign-ups.
+export async function setSchoolActive(id, active) {
+  const { data } = await api.put(`/api/admin/schools/${id}/active`, { active });
   return data;
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Loader2, Flame, Star, Calculator, SpellCheck2, Sparkles, Play, RefreshCw, Trophy,
-  Car, PartyPopper, Brain, Scale, ShoppingCart, Puzzle, Hexagon, Search,
+  Car, PartyPopper, Brain, Scale, ShoppingCart, Puzzle, Hexagon, Search, KeyRound, Shapes, Compass, Clock
 } from "lucide-react";
 import { getGameProgress } from "../api/client";
 
@@ -16,8 +16,15 @@ const GAME_META = {
   PUZZLE: { label: "Maths Puzzle", icon: Puzzle, color: "#6A4DE0", glow: "#B39DFF" },
   SHAPE: { label: "Shape Builder", icon: Hexagon, color: "#1E9BD1", glow: "#7FCBEA" },
   DETECTIVE: { label: "Maths Detective", icon: Search, color: "#8C6A3F", glow: "#CDAA7E" },
+  CODE: { label: "Code Cracker", icon: KeyRound, color: "#2F7DD3", glow: "#8DBDF0" },
+  ODDONE: { label: "Odd One Out", icon: Shapes, color: "#C2558B", glow: "#E8A2C6" },
+  DIRECTION: { label: "Direction Sense", icon: Compass, color: "#2E9A6B", glow: "#86D3B0" },
+  CLOCK: { label: "Clock & Calendar", icon: Clock, color: "#C47A1E", glow: "#EDBE7E" },
 };
-const GAME_ORDER = ["MATH", "WORDS", "RACE", "BALLOON", "MEMORY", "BIGGER", "SHOP", "PUZZLE", "SHAPE", "DETECTIVE"];
+const GAME_ORDER = [
+  "MATH", "WORDS", "RACE", "BALLOON", "MEMORY", "BIGGER", "SHOP", "PUZZLE", "SHAPE", "DETECTIVE",
+  "CODE", "ODDONE", "DIRECTION", "CLOCK",
+];
 
 // How many level-path pips to show before/around the current level.
 const PATH_WINDOW = 12;

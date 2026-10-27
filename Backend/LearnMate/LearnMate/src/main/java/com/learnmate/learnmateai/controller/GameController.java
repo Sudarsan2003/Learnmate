@@ -31,11 +31,14 @@ public class GameController {
 
     // Every game the API accepts. MATH/WORDS are the original two; the rest
     // are the Arcade games (Maths Race, Balloon Maths, Memory Match, Which Is
-    // Bigger?, Virtual Shop, Maths Puzzle, Shape Builder, Maths Detective). A List (not Set.of) so /progress returns cards in this order.
+    // Bigger?, Virtual Shop, Maths Puzzle, Shape Builder, Maths Detective), then
+    // the Aptitude games (Code Cracker, Odd One Out, Direction Sense, Clock &
+    // Calendar). A List (not Set.of) so /progress returns cards in this order.
     // gameType is a plain string column, so adding a game needs no migration.
     private static final List<String> GAME_TYPES =
             List.of("MATH", "WORDS", "RACE", "BALLOON", "MEMORY", "BIGGER",
-                    "SHOP", "PUZZLE", "SHAPE", "DETECTIVE");
+                    "SHOP", "PUZZLE", "SHAPE", "DETECTIVE",
+                    "CODE", "ODDONE", "DIRECTION", "CLOCK");
     private static final int MAX_LEVEL = 9999; // ladder tops out here; tune freely
 
     private final GameProgressRepository gameProgressRepository;
@@ -111,7 +114,7 @@ public class GameController {
 
         gp.setStarsByLevel(serializeStars(starsByLevel));
         gp.setTotalStars(starsByLevel.values().stream().mapToInt(Integer::intValue).sum());
-        gp.setTotalPoints(gp.getTotalPoints() + Math.max(0, req.score()));
+        gp.setTotalPoints(gp.getTotalPoints() + plausibleScore(req));
         gp.setGamesPlayed(gp.getGamesPlayed() + 1);
 
         // Keep the denormalized institution current so the leaderboard below
@@ -123,6 +126,16 @@ public class GameController {
 
         gameProgressRepository.save(gp);
         return toResponse(gp, leveledUp);
+    }
+
+    // The score comes from the browser, so cap it at what a real round can
+    // earn; otherwise one crafted request tops the school leaderboard. No game
+    // awards more than ~30 points per question (the word game's per-word points
+    // grow 4% per level, hence the level factor), and rounds are short.
+    private static int plausibleScore(GameCompleteRequest req) {
+        int questions = Math.max(0, Math.min(req.totalCount(), 50));
+        int maxPerQuestion = (int) Math.round(30 * (1 + req.level() * 0.04));
+        return Math.max(0, Math.min(req.score(), questions * maxPerQuestion));
     }
 
     // Institute-wide leaderboard for one game, ranked by total stars (then

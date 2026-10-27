@@ -28,9 +28,17 @@ export const ARCADE_ID_BY_TYPE = Object.fromEntries(GAMES.map((g) => [g.gameType
  * has its own levels, stars and unlocking (see ArcadeShared's LevelShell).
  * Going back to the list unmounts the game, so it reopens on its level screen.
  */
-export default function Arcade({ initialId = null }) {
+const RULES =
+  "Every right answer scores 10 points, and every third right answer in a row adds a 20-point bonus. Clear a level " +
+  "with 70% or more to unlock the next one, and earn up to three stars for accuracy.";
+
+/**
+ * `games` and `rules` let another tab (Aptitude) reuse this list-and-play
+ * screen with its own set of games.
+ */
+export default function Arcade({ initialId = null, games = GAMES, rules = RULES, backLabel = "All arcade games" }) {
   const [activeId, setActiveId] = useState(initialId);
-  const active = GAMES.find((g) => g.id === activeId);
+  const active = games.find((g) => g.id === activeId);
 
   if (active) {
     const Game = active.Component;
@@ -38,7 +46,7 @@ export default function Arcade({ initialId = null }) {
       <div className="ar-root">
         <style>{CSS}</style>
         <button type="button" className="ar-back" onClick={() => setActiveId(null)}>
-          <ArrowLeft size={14} /> All arcade games
+          <ArrowLeft size={14} /> {backLabel}
         </button>
         <Game />
       </div>
@@ -49,7 +57,7 @@ export default function Arcade({ initialId = null }) {
     <div className="ar-root">
       <style>{CSS}</style>
       <ul className="ar-list">
-        {GAMES.map((g) => {
+        {games.map((g) => {
           const Icon = g.icon;
           return (
             <li key={g.id}>
@@ -68,10 +76,7 @@ export default function Arcade({ initialId = null }) {
           );
         })}
       </ul>
-      <p className="ar-rules">
-        Every right answer scores 10 points, and every third right answer in a row adds a 20-point bonus. Clear a level
-        with 70% or more to unlock the next one, and earn up to three stars for accuracy.
-      </p>
+      <p className="ar-rules">{rules}</p>
     </div>
   );
 }

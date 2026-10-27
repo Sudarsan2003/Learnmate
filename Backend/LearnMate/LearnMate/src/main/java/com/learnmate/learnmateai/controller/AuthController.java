@@ -3,10 +3,13 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.dto.AuthResponse;
 import com.learnmate.learnmateai.dto.LoginRequest;
 import com.learnmate.learnmateai.dto.RegisterRequest;
+import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.security.JwtService;
+import com.learnmate.learnmateai.service.SchoolService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,33 +24,50 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final SchoolService schoolService;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          AuthenticationManager authenticationManager, JwtService jwtService) {
+                          AuthenticationManager authenticationManager, JwtService jwtService,
+                          SchoolService schoolService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.schoolService = schoolService;
+    }
+
+    // "Username already taken", "school code isn't valid", ... are the caller's
+    // mistake: answer 400 with { "message": ... } so the form can show it.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<java.util.Map<String, String>> badRequest(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
     }
 
     @PostMapping("/register")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
-        if (userRepository.findByUsername(request.username()).isPresent()) {
-            throw new IllegalArgumentException("Username already taken");
+        String username = request.username().trim();
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException("That username is already taken. Please choose another.");
         }
+        if (request.password().length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters.");
+        }
+        // The school comes from its join code, so a student can only join a
+        // school whose code they were given -- not any school they can name.
+        School school = schoolService.forJoinCode(request.schoolCode());
 
         // Public self-registration is always a plain USER. TEACHER/ADMIN can
         // only be granted via promoteToTeacher() below, which requires an
         // existing ADMIN's token — never trust role from client input here.
         User user = new User();
-        user.setUsername(request.username());
+        user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole("USER");
         user.setEmail(request.email());
         user.setMobile(request.mobile());
         user.setGender(request.gender());
         user.setAddress(request.address());
-        user.setInstitution(request.institution());
+        user.setInstitution(school.getName());
         user.setStandard(request.standard()); // was missing — students never got their class saved
         userRepository.save(user);
 

@@ -1,12 +1,16 @@
 package com.learnmate.learnmateai.controller;
 
+import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
+import com.learnmate.learnmateai.service.SchoolService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,10 +26,71 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SchoolService schoolService;
 
-    public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                           SchoolService schoolService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.schoolService = schoolService;
+    }
+
+    // Validation problems are the caller's mistake: answer 400 with
+    // { "message": ... } so the admin screen can show the reason.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> badRequest(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
+    // ------------------------------------------------------------------ schools (customers)
+
+    // Every customer school with its sign-up code and how many people have joined.
+    @GetMapping("/schools")
+    public List<Map<String, Object>> listSchools() {
+        Map<String, Long> members = userRepository.findAll().stream()
+                .filter(u -> u.getInstitution() != null)
+                .collect(Collectors.groupingBy(u -> u.getInstitution().toLowerCase(), Collectors.counting()));
+        return schoolService.list().stream()
+                .map(s -> schoolRow(s, members.getOrDefault(s.getName().toLowerCase(), 0L)))
+                .toList();
+    }
+
+    // Institution matching elsewhere is exact, so if users already belong to this
+    // school under a different capitalisation, reuse that spelling; otherwise new
+    // sign-ups would land in a separate, empty pool of material and quizzes.
+    @PostMapping("/schools")
+    public Map<String, Object> createSchool(@RequestBody Map<String, String> body) {
+        String requested = body.get("name") == null ? "" : body.get("name").trim().replaceAll("\\s{2,}", " ");
+        String name = userRepository.findAll().stream()
+                .map(User::getInstitution)
+                .filter(i -> i != null && i.trim().equalsIgnoreCase(requested))
+                .findFirst()
+                .orElse(requested);
+        long members = userRepository.findAll().stream()
+                .filter(u -> name.equals(u.getInstitution()))
+                .count();
+        return schoolRow(schoolService.create(name), members);
+    }
+
+    @PostMapping("/schools/{id}/regenerate-code")
+    public Map<String, Object> regenerateSchoolCode(@PathVariable Long id) {
+        return schoolRow(schoolService.regenerateCode(id), null);
+    }
+
+    @PutMapping("/schools/{id}/active")
+    public Map<String, Object> setSchoolActive(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+        return schoolRow(schoolService.setActive(id, Boolean.TRUE.equals(body.get("active"))), null);
+    }
+
+    private static Map<String, Object> schoolRow(School s, Long memberCount) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", s.getId());
+        row.put("name", s.getName());
+        row.put("joinCode", s.getJoinCode());
+        row.put("active", s.isActive());
+        row.put("createdAt", s.getCreatedAt());
+        if (memberCount != null) row.put("memberCount", memberCount);
+        return row;
     }
 
     // Password hashes never leave this method — only safe fields go out.

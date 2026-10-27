@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trophy, Calculator, SpellCheck2, Car, PartyPopper, Brain, Scale, ShoppingCart, Puzzle, Hexagon, Search } from "lucide-react";
+import { Trophy, Calculator, SpellCheck2, Car, PartyPopper, Brain, Scale, ShoppingCart, Puzzle, Hexagon, Search, KeyRound, Shapes, Compass, Clock } from "lucide-react";
 import GameLeaderboard from "./GameLeaderboard";
 
 const SUB_TABS = [
@@ -13,6 +13,10 @@ const SUB_TABS = [
   { id: "PUZZLE", label: "Puzzle", icon: Puzzle, color: "#6A4DE0" },
   { id: "SHAPE", label: "Shapes", icon: Hexagon, color: "#1E9BD1" },
   { id: "DETECTIVE", label: "Detective", icon: Search, color: "#8C6A3F" },
+  { id: "CODE", label: "Codes", icon: KeyRound, color: "#2F7DD3" },
+  { id: "ODDONE", label: "Odd One", icon: Shapes, color: "#C2558B" },
+  { id: "DIRECTION", label: "Directions", icon: Compass, color: "#2E9A6B" },
+  { id: "CLOCK", label: "Clock", icon: Clock, color: "#C47A1E" },
 ];
 
 /**

@@ -10,16 +10,19 @@ import logoImg from "../assets/icon-512 (1).png"; // tip: rename to icon-512.png
 
 const REMEMBER_KEY = "learnmate_remember";
 
-// Light obfuscation only (NOT encryption) so the password isn't stored as plain text.
-const encode = (s) => btoa(unescape(encodeURIComponent(s)));
-const decode = (s) => decodeURIComponent(escape(atob(s)));
-
+// "Remember me" keeps only the username. Passwords are never stored: school
+// computers are shared, and anything in localStorage is readable by the next
+// person at the keyboard. Older versions saved an encoded password here, so
+// drop it from any existing entry.
 function loadRemembered() {
   try {
     const raw = localStorage.getItem(REMEMBER_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    return { username: data.username ?? "", password: data.password ? decode(data.password) : "" };
+    if (data.password) {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: data.username ?? "" }));
+    }
+    return { username: data.username ?? "" };
   } catch {
     return null;
   }
@@ -80,14 +83,14 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
 
   const [mode, setMode] = useState(initialMode); // "login" | "register"
   const [username, setUsername] = useState(remembered?.username ?? "");
-  const [password, setPassword] = useState(remembered?.password ?? "");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(!!remembered);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
-  const [institution, setInstitution] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
   const [standard, setStandard] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -101,16 +104,13 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
     try {
       const result = mode === "login"
         ? await login(username, password)
-        : await register(username, password, { email, mobile, gender, address, institution, standard });
+        : await register(username, password, { email, mobile, gender, address, schoolCode, standard });
       localStorage.setItem("learnmate_token", result.token);
       localStorage.setItem("learnmate_username", result.username);
 
       try {
         if (rememberMe) {
-          localStorage.setItem(
-            REMEMBER_KEY,
-            JSON.stringify({ username, password: encode(password) })
-          );
+          localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username }));
         } else {
           localStorage.removeItem(REMEMBER_KEY);
         }
@@ -315,10 +315,14 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                 </select>
 
                 <input
-                  value={institution}
-                  onChange={(e) => setInstitution(e.target.value)}
-                  placeholder="Institution"
-                  className={inputCls}
+                  value={schoolCode}
+                  onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
+                  placeholder="School code (ask your teacher)"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  required
+                  className={`${inputCls} font-mono tracking-widest`}
                 />
 
                 <input

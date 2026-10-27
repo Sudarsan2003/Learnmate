@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Calculator, SpellCheck2, Gamepad2, Sparkles, Trophy, Zap } from "lucide-react";
+import { Calculator, SpellCheck2, Gamepad2, Sparkles, Trophy, Zap, Lightbulb } from "lucide-react";
 import MathGame from "./MathGame";
 import WordGame from "./WordGame";
 import Arcade, { ARCADE_ID_BY_TYPE } from "./Arcade";
+import { APTITUDE_GAMES, APTITUDE_ID_BY_TYPE } from "./aptitudeList";
 import GamesDashboard from "./GamesDashboard";
 import GamesLeaderboardPage from "./GameLeaderboardPage";
 
@@ -10,6 +11,7 @@ const TABS = [
   { id: "math", label: "Math", icon: Calculator, color: "#4F80F8" },
   { id: "words", label: "Words", icon: SpellCheck2, color: "#8B73F5" },
   { id: "arcade", label: "Arcade", icon: Zap, color: "#E2725B" },
+  { id: "aptitude", label: "Aptitude", icon: Lightbulb, color: "#2F7DD3" },
   { id: "progress", label: "Progress", icon: Sparkles, color: "#E2A93B" },
   { id: "leaderboard", label: "Leaderboard", icon: Trophy, color: "#E4A93B" },
 ];
@@ -20,6 +22,8 @@ const TABS = [
  *  - Words: level-based unscramble-the-word with picture hints
  *  - Arcade: short maths games (Maths Race, Balloon Maths, Memory Match,
  *    Which Is Bigger?), each with its own levels and stars
+ *  - Aptitude: reasoning games (Code Cracker, Odd One Out, Direction Sense,
+ *    Clock & Calendar), on the same level/stars plumbing as the Arcade
  *  - Progress: GamesDashboard — stars, streaks, level path for both games
  *  - Leaderboard: GamesLeaderboardPage — institute-wide ranking, with one
  *    sub-tab per game
@@ -59,7 +63,7 @@ export default function Games() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => {
-                  if (t.id === "arcade") setArcadeGame(null);
+                  if (t.id === "arcade" || t.id === "aptitude") setArcadeGame(null);
                   setTab(t.id);
                 }}
                 className={`gm-tab ${active ? "gm-tab-active" : ""}`}
@@ -80,13 +84,24 @@ export default function Games() {
           <WordGame key="words" />
         ) : tab === "arcade" ? (
           <Arcade key={`arcade-${arcadeGame ?? "list"}`} initialId={arcadeGame} />
+        ) : tab === "aptitude" ? (
+          <Arcade
+            key={`aptitude-${arcadeGame ?? "list"}`}
+            initialId={arcadeGame}
+            games={APTITUDE_GAMES}
+            backLabel="All aptitude games"
+            rules="Reasoning games for aptitude tests. Every right answer scores 10 points, and every third in a row adds a 20-point bonus. Clear a level with 70% or more to unlock the next one."
+          />
         ) : tab === "progress" ? (
           <GamesDashboard
             key="progress"
             onPlayGame={(gameType) => {
               if (gameType === "MATH") setTab("math");
               else if (gameType === "WORDS") setTab("words");
-              else {
+              else if (APTITUDE_ID_BY_TYPE[gameType]) {
+                setArcadeGame(APTITUDE_ID_BY_TYPE[gameType]);
+                setTab("aptitude");
+              } else {
                 setArcadeGame(ARCADE_ID_BY_TYPE[gameType] ?? null);
                 setTab("arcade");
               }
