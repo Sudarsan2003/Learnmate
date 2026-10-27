@@ -8,4 +8,7 @@ import java.util.List;
 public interface QuizRepository extends JpaRepository<Quiz, Long> {
     List<Quiz> findByInstitutionOrderByCreatedAtDesc(String institution);
     List<Quiz> findByCreatedByUsernameOrderByCreatedAtDesc(String username);
+
+    // Class reports: every quiz set for one class at a school, oldest first.
+    List<Quiz> findByInstitutionAndStandardOrderByCreatedAtAsc(String institution, String standard);
 }

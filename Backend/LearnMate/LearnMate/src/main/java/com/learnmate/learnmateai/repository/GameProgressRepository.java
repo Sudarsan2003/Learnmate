@@ -19,4 +19,7 @@ public interface GameProgressRepository extends JpaRepository<GameProgress, Long
     // ordering here just keeps things tidy for debugging/logging.
     List<GameProgress> findByGameTypeAndInstitutionAndGamesPlayedGreaterThanOrderByTotalStarsDescTotalPointsDesc(
             String gameType, String institution, int gamesPlayed);
+
+    // Class reports: game progress for a group of students.
+    List<GameProgress> findByUsernameIn(java.util.Collection<String> usernames);
 }

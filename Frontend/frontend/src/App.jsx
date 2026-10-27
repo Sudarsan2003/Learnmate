@@ -9,6 +9,7 @@ import Quizzes from "./components/Quizzes";
 import ProfilePage from "./components/Profilepage";
 import Dashboard from "./components/Dashboard";
 import Games from "./components/Games";
+import Reports from "./components/Reports";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 import { SESSION_EXPIRED_MESSAGE } from "./api/client";
@@ -28,7 +29,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login"); // which tab LoginScreen opens on
   const [authNotice, setAuthNotice] = useState(""); // shown on the login screen, e.g. after a session expires
 
-  // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile"
+  // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile" | "reports"
   const [view, setView] = useState("chat");
   const [sessionId, setSessionId] = useState(null);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
@@ -112,6 +113,10 @@ export default function App() {
                     apiBase={`${import.meta.env.VITE_API_BASE_URL}/api/documents`}
                   />
                 </PageFrame>
+              ) : view === "reports" && canUpload ? (
+                <PageFrame onBack={backToChat}>
+                  <Reports />
+                </PageFrame>
               ) : view === "users" && isAdmin ? (
                 <PageFrame onBack={backToChat}>
                   <ManageUsers currentUsername={user.username} />
@@ -139,6 +144,7 @@ export default function App() {
                   onOpenQuizzes={() => setView("quizzes")}
                   onOpenProfile={() => setView("profile")}
                   onOpenDashboard={() => setView("dashboard")}
+                  onOpenReports={() => setView("reports")}
                   onOpenGames={() => setView("games")}
                   sessionId={sessionId}
                   onSessionCreated={handleSessionCreated}

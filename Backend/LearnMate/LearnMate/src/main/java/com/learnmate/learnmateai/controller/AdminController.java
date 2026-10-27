@@ -4,6 +4,9 @@ import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.SchoolService;
+import com.learnmate.learnmateai.service.StudentImportService;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,12 +30,36 @@ public class AdminController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final SchoolService schoolService;
+    private final StudentImportService studentImportService;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                           SchoolService schoolService) {
+                           SchoolService schoolService, StudentImportService studentImportService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.schoolService = schoolService;
+        this.studentImportService = studentImportService;
+    }
+
+    // ------------------------------------------------------------------ bulk import
+
+    // Creates student accounts from an Excel/CSV class list. dryRun=true (the
+    // default) only checks the file; call again with dryRun=false to create
+    // them. Nothing is created unless every row is valid. The school defaults
+    // to the admin's own; a different one must be one of the configured schools.
+    @PostMapping(value = "/users/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public StudentImportService.ImportResult importStudents(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "dryRun", defaultValue = "true") boolean dryRun,
+            @RequestParam(value = "institution", required = false) String institution) {
+        String admin = SecurityContextHolder.getContext().getAuthentication().getName();
+        String school = institution == null || institution.isBlank()
+                ? userRepository.findByUsername(admin).map(User::getInstitution).orElse(null)
+                : schoolService.list().stream()
+                        .map(School::getName)
+                        .filter(n -> n.equalsIgnoreCase(institution.trim()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Unknown school: " + institution));
+        return studentImportService.importStudents(file, school, dryRun);
     }
 
     // Validation problems are the caller's mistake: answer 400 with
@@ -101,6 +128,7 @@ public class AdminController {
                     Map<String, Object> row = new java.util.HashMap<>();
                     row.put("id", u.getId());
                     row.put("username", u.getUsername());
+                    row.put("fullName", u.getFullName() == null ? "" : u.getFullName());
                     row.put("email", u.getEmail() == null ? "" : u.getEmail());
                     row.put("mobile", u.getMobile() == null ? "" : u.getMobile());
                     row.put("gender", u.getGender() == null ? "" : u.getGender());
@@ -200,6 +228,9 @@ public class AdminController {
         if (body.containsKey("email")) {
             user.setEmail(emptyToNull(body.get("email")));
         }
+        if (body.containsKey("fullName")) {
+            user.setFullName(emptyToNull(body.get("fullName")));
+        }
         if (body.containsKey("mobile")) {
             user.setMobile(emptyToNull(body.get("mobile")));
         }
@@ -214,6 +245,7 @@ public class AdminController {
 
         return Map.of(
                 "username", user.getUsername(),
+                "fullName", user.getFullName() == null ? "" : user.getFullName(),
                 "email", user.getEmail() == null ? "" : user.getEmail(),
                 "mobile", user.getMobile() == null ? "" : user.getMobile(),
                 "gender", user.getGender() == null ? "" : user.getGender(),

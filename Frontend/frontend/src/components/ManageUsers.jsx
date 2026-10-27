@@ -19,6 +19,7 @@ import {
   MapPin,
   GraduationCap,
   User,
+  FileUp,
 } from "lucide-react";
 import {
   listUsers,
@@ -31,6 +32,7 @@ import {
 } from "../api/client";
 import ThemeToggle from "./ThemeToggle";
 import SchoolsView from "./SchoolsView";
+import ImportStudents from "./ImportStudents";
 
 /* -------------------------------------------------------------------------- */
 /*  constants + helpers                                                        */
@@ -204,6 +206,7 @@ function Toast({ message, onDismiss }) {
 
 export default function ManageUsers({ currentUsername }) {
   const [viewMode, setViewMode] = useState("all"); // "all" | "institutions" | "schools"
+  const [importing, setImporting] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null); // the list itself failed to load
@@ -425,6 +428,10 @@ export default function ManageUsers({ currentUsername }) {
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             <ThemeToggle />
+            <button type="button" className="um-btn um-btn-quiet" onClick={() => setImporting(true)}>
+              <FileUp size={15} />
+              Import students
+            </button>
             <button
               type="button"
               className="um-btn um-btn-quiet"
@@ -436,6 +443,8 @@ export default function ManageUsers({ currentUsername }) {
             </button>
           </div>
         </header>
+
+        {importing && <ImportStudents onClose={() => setImporting(false)} onImported={loadUsers} />}
 
         <div className="um-toolbar">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -880,6 +889,7 @@ function EditUserDrawer({ user, onClose, onSaved }) {
   useDialog(ref, onClose);
 
   const [form, setForm] = useState({
+    fullName: user.fullName || "",
     email: user.email || "",
     mobile: user.mobile || "",
     gender: user.gender || "",
@@ -905,6 +915,7 @@ function EditUserDrawer({ user, onClose, onSaved }) {
     setError(null);
     try {
       const updated = await updateUserProfile(user.username, {
+        fullName: form.fullName.trim(),
         email: form.email.trim(),
         mobile: form.mobile.trim(),
         gender: form.gender.trim(),
@@ -970,13 +981,20 @@ function EditUserDrawer({ user, onClose, onSaved }) {
           <form id="um-edit-form" onSubmit={handleSave} className="space-y-7">
             <section className="space-y-3.5">
               <h3 className="um-h3">Contact</h3>
+              <Field label="Full name (shown on report cards)">
+                <input
+                  className="um-input"
+                  value={form.fullName}
+                  onChange={(e) => setField("fullName", e.target.value)}
+                  autoFocus
+                />
+              </Field>
               <Field label="Email">
                 <input
                   type="email"
                   className="um-input"
                   value={form.email}
                   onChange={(e) => setField("email", e.target.value)}
-                  autoFocus
                 />
               </Field>
               <div className="grid gap-3.5 sm:grid-cols-2">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LogOut, User, KeyRound, Users, ClipboardList, ChevronDown } from "lucide-react";
+import { LogOut, User, KeyRound, Users, ClipboardList, ChevronDown, FileBarChart2 } from "lucide-react";
 import ChangePasswordModal from "./ChangePasswordModal";
 
 const ROLE_META = {
@@ -115,6 +115,9 @@ export default function ProfileMenu({ username, role }) {
           <div className="pm-group" role="none">
             <MenuItem icon={User} label="View profile" onClick={choose(() => emit("learnmate:open-profile"))} />
             <MenuItem icon={ClipboardList} label="Quizzes" onClick={choose(() => emit("learnmate:open-quizzes"))} />
+            {(role === "ADMIN" || role === "TEACHER") && (
+              <MenuItem icon={FileBarChart2} label="Class reports" onClick={choose(() => emit("learnmate:open-reports"))} />
+            )}
             {role === "ADMIN" && (
               <MenuItem icon={Users} label="Manage users" onClick={choose(() => emit("learnmate:open-users"))} />
             )}

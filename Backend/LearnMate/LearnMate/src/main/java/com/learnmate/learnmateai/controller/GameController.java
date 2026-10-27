@@ -33,12 +33,13 @@ public class GameController {
     // are the Arcade games (Maths Race, Balloon Maths, Memory Match, Which Is
     // Bigger?, Virtual Shop, Maths Puzzle, Shape Builder, Maths Detective), then
     // the Aptitude games (Code Cracker, Odd One Out, Direction Sense, Clock &
-    // Calendar). A List (not Set.of) so /progress returns cards in this order.
+    // Calendar, Family Tree, Seating Arrangement, Analogies). A List (not
+    // Set.of) so /progress returns cards in this order.
     // gameType is a plain string column, so adding a game needs no migration.
     private static final List<String> GAME_TYPES =
             List.of("MATH", "WORDS", "RACE", "BALLOON", "MEMORY", "BIGGER",
                     "SHOP", "PUZZLE", "SHAPE", "DETECTIVE",
-                    "CODE", "ODDONE", "DIRECTION", "CLOCK");
+                    "CODE", "ODDONE", "DIRECTION", "CLOCK", "FAMILY", "SEATING", "ANALOGY");
     private static final int MAX_LEVEL = 9999; // ladder tops out here; tune freely
 
     private final GameProgressRepository gameProgressRepository;

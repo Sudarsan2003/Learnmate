@@ -283,6 +283,24 @@ export async function listUsers() {
   return data;
 }
 
+// Class reports (TEACHER/ADMIN; scoped server-side to the caller's school).
+// [{ standard, studentCount }]
+export async function getReportClasses() {
+  const { data } = await api.get("/api/reports/classes");
+  return data;
+}
+
+// { institution, standard, from, to, generatedAt, classAveragePercent,
+//   quizzes: [{ id, title, subject, createdAt }],
+//   students: [{ username, email, quizScores: { [quizId]: { score, total, percent, submittedAt } },
+//               quizzesTaken, averagePercent, practiceQuizzes, practiceAveragePercent,
+//               gameStars, gameRounds, lastActive }] }
+// `from`/`to` are optional "YYYY-MM-DD" dates.
+export async function getClassReport({ standard, from, to }) {
+  const { data } = await api.get("/api/reports/class", { params: { standard, from, to } });
+  return data;
+}
+
 // ADMIN only: customer schools and their sign-up codes.
 // [{ id, name, joinCode, active, createdAt, memberCount }]
 export async function listSchools() {
@@ -307,6 +325,24 @@ export async function setSchoolActive(id, active) {
   return data;
 }
 
+// ADMIN only: create student accounts from an Excel (.xlsx/.xls) or CSV
+// class list. With dryRun (the default) nothing is saved: the result lists
+// each row and any problems. Pass dryRun=false to create them; nothing is
+// created unless every row is valid. Returns
+// { dryRun, created, institution, rows: [{ row, fullName, username, standard,
+//   email, mobile, password, usernameGenerated, passwordGenerated }],
+//   errors: [{ row, message }] } (password only for generated ones, after a real import).
+export async function importStudents(file, { dryRun = true, institution } = {}) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("dryRun", String(dryRun));
+  if (institution) formData.append("institution", institution);
+  const { data } = await api.post("/api/admin/users/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
 export async function listInstitutions() {
   const { data } = await api.get("/api/admin/institutions");
   return data;
@@ -319,9 +355,10 @@ export async function updateUserRole(username, role) {
 
 export async function updateUserProfile(
   username,
-  { institution, standard, email, mobile, gender, address } = {}
+  { institution, standard, email, mobile, gender, address, fullName } = {}
 ) {
   const body = {};
+  if (fullName !== undefined) body.fullName = fullName;
   if (institution !== undefined) body.institution = institution;
   if (standard !== undefined) body.standard = standard;
   if (email !== undefined) body.email = email;

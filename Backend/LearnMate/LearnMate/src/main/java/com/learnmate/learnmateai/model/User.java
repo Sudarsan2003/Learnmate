@@ -19,6 +19,10 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
+    // The person's real name, shown on report cards. Optional: accounts made
+    // through self sign-up only have a username until someone fills it in.
+    private String fullName;
+
     @Column(nullable = false)
     private String passwordHash;
 

@@ -16,4 +16,7 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, Long> 
 
     // Powers the "submissions" count on GET /api/quizzes/mine.
     long countByQuizIdAndSubmittedAtIsNotNull(Long quizId);
+
+    // Class reports: all submitted attempts for a set of quizzes.
+    List<QuizAttempt> findByQuizIdInAndSubmittedAtIsNotNull(java.util.Collection<Long> quizIds);
 }

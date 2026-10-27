@@ -14,4 +14,7 @@ public interface ChatQuizAttemptRepository extends JpaRepository<ChatQuizAttempt
     List<ChatQuizAttempt> findByUsernameAndStatusOrderByCompletedAtDesc(String username, String status);
 
     Optional<ChatQuizAttempt> findByIdAndUsername(Long id, String username);
+
+    // Class reports: practice quizzes for a group of students.
+    List<ChatQuizAttempt> findByUsernameInAndStatus(java.util.Collection<String> usernames, String status);
 }

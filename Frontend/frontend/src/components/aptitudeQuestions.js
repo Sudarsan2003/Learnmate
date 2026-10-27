@@ -348,4 +348,295 @@ function clockQuestion(level, seen) {
   });
 }
 
-export { codeQuestion, oddQuestion, directionQuestion, clockQuestion };
+/* ------------------------------------------------------------------ */
+/* Family Tree (blood relations)                                       */
+/* ------------------------------------------------------------------ */
+
+const MALE_NAMES = ["Ravi", "Arjun", "Suresh", "Vikram", "Rahul", "Mohan", "Anil", "Karthik", "Ramesh", "Imran", "Joseph", "Gopal"];
+const FEMALE_NAMES = ["Sita", "Priya", "Lakshmi", "Kavya", "Meena", "Anjali", "Divya", "Radha", "Fatima", "Mary", "Geeta", "Usha"];
+
+// Gendered words for each relation: [male, female].
+const TERMS = {
+  parent: ["father", "mother"], child: ["son", "daughter"], sibling: ["brother", "sister"], spouse: ["husband", "wife"],
+  grandparent: ["grandfather", "grandmother"], grandchild: ["grandson", "granddaughter"],
+  uncle: ["uncle", "aunt"], nephew: ["nephew", "niece"], cousin: ["cousin", "cousin"],
+  parentInLaw: ["father-in-law", "mother-in-law"], childInLaw: ["son-in-law", "daughter-in-law"],
+  siblingInLaw: ["brother-in-law", "sister-in-law"],
+};
+const termFor = (kind, person) => TERMS[kind][person.male ? 0 : 1];
+
+/**
+ * A three-generation family with no remarriages or half-siblings, so the
+ * usual exam conventions hold (a father's wife is the mother, and so on):
+ * grandparents, their 2-3 married children, and 1-2 grandchildren each.
+ */
+function buildFamily() {
+  const men = shuffle(MALE_NAMES);
+  const women = shuffle(FEMALE_NAMES);
+  const people = [];
+  const add = (male) => {
+    const p = { name: male ? men.pop() : women.pop(), male, parents: [], spouse: null };
+    people.push(p);
+    return p;
+  };
+  const marry = (a, b) => {
+    a.spouse = b;
+    b.spouse = a;
+  };
+  const gf = add(true);
+  const gm = add(false);
+  marry(gf, gm);
+  for (let i = 0, n = randInt(2, 3); i < n; i++) {
+    const male = Math.random() < 0.5;
+    const kid = add(male);
+    kid.parents = [gf, gm];
+    const partner = add(!male);
+    marry(kid, partner);
+    for (let j = 0, m = randInt(1, 2); j < m; j++) {
+      const grandkid = add(Math.random() < 0.5);
+      grandkid.parents = [kid, partner];
+    }
+  }
+  return people;
+}
+
+const isParent = (x, y) => y.parents.includes(x);
+const isSibling = (x, y) => x !== y && x.parents.length > 0 && x.parents[0] === y.parents[0];
+
+/** How x is related to y (genderless kind), or null for relations not used here. */
+function kinship(x, y) {
+  if (x === y) return null;
+  if (isParent(x, y)) return "parent";
+  if (isParent(y, x)) return "child";
+  if (isSibling(x, y)) return "sibling";
+  if (x.spouse === y) return "spouse";
+  if (y.parents.some((p) => isParent(x, p))) return "grandparent";
+  if (x.parents.some((p) => isParent(y, p))) return "grandchild";
+  if (y.parents.some((p) => isSibling(x, p) || (x.spouse && isSibling(x.spouse, p)))) return "uncle";
+  if (x.parents.some((p) => isSibling(p, y) || (y.spouse && isSibling(p, y.spouse)))) return "nephew";
+  if (x.parents.some((px) => y.parents.some((py) => isSibling(px, py)))) return "cousin";
+  if (y.spouse && isParent(x, y.spouse)) return "parentInLaw";
+  if (x.spouse && isParent(y, x.spouse)) return "childInLaw";
+  if ((y.spouse && isSibling(x, y.spouse)) || (x.spouse && isSibling(x.spouse, y))) return "siblingInLaw";
+  return null;
+}
+
+const DIRECT = ["parent", "child", "sibling", "spouse"];
+
+function familyQuestion(level, seen) {
+  return fresh(seen, () => {
+    const steps = level >= 8 && Math.random() < 0.5 ? 3 : 2;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const people = buildFamily();
+      const path = [pickOne(people)];
+      while (path.length <= steps) {
+        const here = path[path.length - 1];
+        const next = shuffle(people).find((p) => !path.includes(p) && DIRECT.includes(kinship(here, p))
+          && (level >= 4 || kinship(here, p) !== "spouse"));
+        if (!next) break;
+        path.push(next);
+      }
+      if (path.length !== steps + 1) continue;
+      const [x, y] = [path[0], path[path.length - 1]];
+      const kind = kinship(x, y);
+      // Husband/wife answers rest on "two parents of one child are married",
+      // which students are rarely taught to assume, so leave them out.
+      if (!kind || kind === "spouse" || (level < 5 && /InLaw/.test(kind))) continue;
+
+      const statements = path.slice(0, -1).map((p, i) => `${p.name} is the ${termFor(kinship(p, path[i + 1]), p)} of ${path[i + 1].name}.`);
+      const answer = termFor(kind, x);
+      const sameGender = Object.values(TERMS).map((t) => t[x.male ? 0 : 1]);
+      const opposite = TERMS[kind][x.male ? 1 : 0];
+      return {
+        title: "Family Tree",
+        lines: statements,
+        compact: true,
+        ask: `How is ${x.name} related to ${y.name}?`,
+        answer: cap(answer),
+        reveal: `${x.name} is ${y.name}'s ${answer}`,
+        choices: withChoices(cap(answer), [opposite, ...sameGender].filter((t) => t !== answer).map(cap)),
+      };
+    }
+    throw new Error("could not build a family question");
+  });
+}
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/* ------------------------------------------------------------------ */
+/* Seating Arrangement                                                 */
+/* ------------------------------------------------------------------ */
+
+const SEAT_NAMES = ["Asha", "Bala", "Chitra", "Dinesh", "Esha", "Farid", "Gauri", "Hari"];
+const NUMBER_WORD = { 3: "Three", 4: "Four", 5: "Five" };
+
+const listNames = (names) => `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+function permutations(list) {
+  if (list.length <= 1) return [list];
+  return list.flatMap((x, i) => permutations([...list.slice(0, i), ...list.slice(i + 1)]).map((rest) => [x, ...rest]));
+}
+
+/** Every true clue about this seating, each with a test any seating can be checked against. */
+function seatingClues(seats) {
+  const n = seats.length;
+  const at = (arr, name) => arr.indexOf(name);
+  const clues = [];
+  for (const x of seats) {
+    const i = at(seats, x);
+    if (i === 0) clues.push({ key: `end:L:${x}`, text: `${x} sits at the left end.`, test: (a) => at(a, x) === 0 });
+    if (i === n - 1) clues.push({ key: `end:R:${x}`, text: `${x} sits at the right end.`, test: (a) => at(a, x) === n - 1 });
+    if (i > 0 && i < n - 1) clues.push({ key: `notEnd:${x}`, text: `${x} does not sit at either end.`, test: (a) => at(a, x) > 0 && at(a, x) < n - 1 });
+    if (n >= 4 && i === 1) clues.push({ key: `nth:L:${x}`, text: `${x} sits second from the left.`, test: (a) => at(a, x) === 1 });
+    if (n >= 4 && i === n - 2) clues.push({ key: `nth:R:${x}`, text: `${x} sits second from the right.`, test: (a) => at(a, x) === n - 2 });
+    for (const y of seats) {
+      if (x === y) continue;
+      const j = at(seats, y);
+      if (j === i + 1) clues.push({ key: `adj:${x}:${y}`, text: `${x} sits immediately to the left of ${y}.`, test: (a) => at(a, y) - at(a, x) === 1 });
+      if (x < y && Math.abs(i - j) === 1) clues.push({ key: `next:${x}:${y}`, text: `${x} sits next to ${y}.`, test: (a) => Math.abs(at(a, x) - at(a, y)) === 1 });
+      if (x < y && Math.abs(i - j) === 2) clues.push({ key: `gap:${x}:${y}`, text: `Exactly one person sits between ${x} and ${y}.`, test: (a) => Math.abs(at(a, x) - at(a, y)) === 2 });
+      if (j > i + 1) clues.push({ key: `before:${x}:${y}`, text: `${x} sits somewhere to the left of ${y}, but not next to them.`, test: (a) => at(a, y) - at(a, x) > 1 });
+    }
+  }
+  return clues;
+}
+
+function seatingQuestion(level, seen) {
+  return fresh(seen, () => {
+    const n = level < 4 ? 3 : level < 9 ? 4 : 5;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const seats = shuffle(SEAT_NAMES).slice(0, n);
+      const all = permutations(seats);
+      // Easier levels lean on direct "end" clues; later ones use relative positions.
+      const pool = shuffle(seatingClues(seats)).sort((a, b) => (level < 6 ? Number(!a.key.startsWith("end")) - Number(!b.key.startsWith("end")) : 0));
+      const used = [];
+      let left = all;
+      for (const clue of pool) {
+        if (left.length === 1) break;
+        const narrowed = left.filter(clue.test);
+        if (narrowed.length < left.length) {
+          used.push(clue);
+          left = narrowed;
+        }
+      }
+      if (left.length !== 1 || used.length > n + 1) continue;
+
+      const usedKeys = new Set(used.map((c) => c.key));
+      const asks = [];
+      asks.push({ key: `end:L:${seats[0]}`, ask: "Who sits at the left end?", answer: seats[0] });
+      asks.push({ key: `end:R:${seats[n - 1]}`, ask: "Who sits at the right end?", answer: seats[n - 1] });
+      // With three seats, "does not sit at either end" already names the middle one.
+      const mid = seats[(n - 1) / 2];
+      if (n % 2 === 1) asks.push({ key: n === 3 ? `notEnd:${mid}` : "mid", ask: "Who sits in the middle?", answer: mid });
+      for (let i = 0; i < n - 1; i++) {
+        asks.push({ key: `adj:${seats[i]}:${seats[i + 1]}`, ask: `Who sits immediately to the right of ${seats[i]}?`, answer: seats[i + 1] });
+      }
+      for (let i = 0; i < n - 2; i++) {
+        asks.push({ key: `between:${seats[i]}`, ask: `Who sits between ${seats[i]} and ${seats[i + 2]}?`, answer: seats[i + 1] });
+      }
+      // Don't ask something a clue already states outright.
+      const options = asks.filter((a) => !usedKeys.has(a.key));
+      if (options.length === 0) continue;
+      const q = pickOne(options);
+      return {
+        title: "Seating Arrangement",
+        lines: [
+          `${NUMBER_WORD[n]} friends, ${listNames(shuffle(seats))}, sit in a row facing you. Left and right are your left and right.`,
+          ...shuffle(used).map((c) => c.text),
+        ],
+        compact: true,
+        ask: q.ask,
+        answer: q.answer,
+        reveal: `${q.answer} (the order is ${seats.join(", ")})`,
+        choices: withChoices(q.answer, seats),
+      };
+    }
+    throw new Error("could not build a seating question");
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Analogies                                                           */
+/* ------------------------------------------------------------------ */
+
+// Each set pairs things one-to-one, so only one second item fits a given first.
+const ANALOGY_SETS = [
+  { min: 1, about: "is the opposite of", pairs: [["Hot", "Cold"], ["Tall", "Short"], ["Day", "Night"], ["Happy", "Sad"], ["Fast", "Slow"], ["Big", "Small"], ["Up", "Down"], ["Full", "Empty"], ["Early", "Late"], ["Hard", "Soft"]] },
+  { min: 1, about: "is the young one of a", flip: true, pairs: [["Cow", "Calf"], ["Dog", "Puppy"], ["Cat", "Kitten"], ["Hen", "Chick"], ["Sheep", "Lamb"], ["Horse", "Foal"], ["Frog", "Tadpole"], ["Lion", "Cub"], ["Duck", "Duckling"]] },
+  { min: 3, about: "is the home of a", flip: true, pairs: [["Bee", "Hive"], ["Bird", "Nest"], ["Lion", "Den"], ["Horse", "Stable"], ["Dog", "Kennel"], ["Spider", "Web"], ["Pig", "Sty"], ["Rabbit", "Burrow"]] },
+  { min: 4, about: "is used by a", flip: true, pairs: [["Carpenter", "Saw"], ["Painter", "Brush"], ["Doctor", "Stethoscope"], ["Farmer", "Plough"], ["Tailor", "Needle"], ["Writer", "Pen"], ["Photographer", "Camera"], ["Astronomer", "Telescope"]] },
+  { min: 6, about: "is the capital of", flip: true, proper: true, pairs: [["India", "New Delhi"], ["Japan", "Tokyo"], ["France", "Paris"], ["Egypt", "Cairo"], ["Russia", "Moscow"], ["Italy", "Rome"], ["China", "Beijing"], ["Kenya", "Nairobi"], ["Nepal", "Kathmandu"], ["Australia", "Canberra"], ["Germany", "Berlin"], ["Bangladesh", "Dhaka"]] },
+  { min: 8, about: "is the unit of", flip: true, pairs: [["Length", "Metre"], ["Mass", "Kilogram"], ["Time", "Second"], ["Electric current", "Ampere"], ["Force", "Newton"], ["Energy", "Joule"]] },
+];
+
+// Number rules; a question is only used when exactly one rule explains the example pair.
+const NUMBER_RULES = [
+  { min: 5, name: "squared", f: (n) => n * n },
+  { min: 5, name: "doubled, plus 1", f: (n) => 2 * n + 1 },
+  { min: 5, name: "times 3", f: (n) => 3 * n },
+  { min: 9, name: "cubed", f: (n) => n ** 3 },
+  { min: 9, name: "squared, plus 1", f: (n) => n * n + 1 },
+];
+
+const ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const letterAt = (i) => ALPHA[((i % 26) + 26) % 26];
+
+function wordAnalogy(level) {
+  const set = pickOne(ANALOGY_SETS.filter((s) => s.min <= level));
+  const [[a, b], [c, d]] = shuffle(set.pairs).slice(0, 2);
+  return {
+    lines: [`${a} : ${b}  ::  ${c} : ?`],
+    answer: d,
+    reveal: set.flip
+      ? `${d} — ${d} ${set.about} ${set.proper ? c : c.toLowerCase()}`
+      : `${d} — ${c} ${set.about} ${d.toLowerCase()}`,
+    choices: withChoices(d, [...set.pairs.map((p) => p[1]), c, b]),
+  };
+}
+
+function numberAnalogy(level) {
+  const rules = NUMBER_RULES.filter((r) => r.min <= level);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const rule = pickOne(rules);
+    const a = randInt(3, rule.name === "cubed" ? 6 : 12);
+    const c = randInt(3, rule.name === "cubed" ? 7 : 15);
+    if (a === c) continue;
+    const b = rule.f(a);
+    if (rules.filter((r) => r.f(a) === b).length !== 1) continue;
+    const answer = rule.f(c);
+    return {
+      lines: [`${a} : ${b}  ::  ${c} : ?`],
+      answer,
+      reveal: `${answer} — each number is ${rule.name}`,
+      choices: withChoices(answer, [...rules.map((r) => r.f(c)), answer + 1, answer - 1, c + (b - a)]),
+    };
+  }
+  return wordAnalogy(level);
+}
+
+function letterAnalogy() {
+  const k = randInt(1, 4);
+  const gap = randInt(1, 3);
+  const start1 = randInt(0, 20);
+  const start2 = randInt(0, 20);
+  const pair = (s) => letterAt(s) + letterAt(s + gap);
+  const answer = pair(start2 + k);
+  return {
+    lines: [`${pair(start1)} : ${pair(start1 + k)}  ::  ${pair(start2)} : ?`],
+    answer,
+    reveal: `${answer} — each letter moves ${k} forward`,
+    choices: withChoices(answer, [pair(start2 + k + 1), pair(start2 + k - 1), letterAt(start2 + k) + letterAt(start2 + k + gap + 1), pair(start2 - k)]),
+  };
+}
+
+function analogyQuestion(level, seen) {
+  return fresh(seen, () => {
+    const kinds = [wordAnalogy];
+    if (level >= 5) kinds.push(numberAnalogy);
+    if (level >= 10) kinds.push(letterAnalogy);
+    const q = pickOne(kinds)(level);
+    return { ...q, title: "Analogies", ask: "Which one completes the second pair the same way as the first?" };
+  });
+}
+
+export { codeQuestion, oddQuestion, directionQuestion, clockQuestion, familyQuestion, seatingQuestion, analogyQuestion };

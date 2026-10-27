@@ -140,6 +140,7 @@ export default function ChatWindow({
   onOpenQuizzes,
   onOpenProfile,
   onOpenDashboard,
+  onOpenReports,
   onOpenGames,
   sessionId,
   onSessionCreated,
@@ -204,6 +205,14 @@ export default function ChatWindow({
     document.addEventListener("learnmate:open-dashboard", handleOpenDashboard);
     return () => document.removeEventListener("learnmate:open-dashboard", handleOpenDashboard);
   }, [onOpenDashboard]);
+
+  useEffect(() => {
+    function handleOpenReports() {
+      onOpenReports?.();
+    }
+    document.addEventListener("learnmate:open-reports", handleOpenReports);
+    return () => document.removeEventListener("learnmate:open-reports", handleOpenReports);
+  }, [onOpenReports]);
 
   useEffect(() => {
     function handleOpenGames() {

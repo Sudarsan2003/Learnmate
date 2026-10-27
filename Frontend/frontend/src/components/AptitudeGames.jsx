@@ -1,7 +1,9 @@
-import { KeyRound, Shapes, Compass, Clock } from "lucide-react";
+import { KeyRound, Shapes, Compass, Clock, Network, Armchair, ArrowLeftRight } from "lucide-react";
 import LevelShell, { PlayHeader, RoundDots, TimerBar, VerdictSlot } from "./ArcadeShared";
 import { ChoiceGrid, useQuizRound, secondsFor } from "./ArcadeChoices";
-import { codeQuestion, oddQuestion, directionQuestion, clockQuestion } from "./aptitudeQuestions";
+import {
+  codeQuestion, oddQuestion, directionQuestion, clockQuestion, familyQuestion, seatingQuestion, analogyQuestion,
+} from "./aptitudeQuestions";
 
 /**
  * Aptitude games — the reasoning skills school aptitude tests check, beyond
@@ -11,6 +13,9 @@ import { codeQuestion, oddQuestion, directionQuestion, clockQuestion } from "./a
  *   Odd One Out       classification (words, then numbers, then close categories)
  *   Direction Sense   facing, final direction and straight-line distance after a walk
  *   Clock & Calendar  elapsed time, days of the week and clock-hand angles
+ *   Family Tree       blood relations from a chain of statements
+ *   Seating           who sits where in a row, from clues with one solution
+ *   Analogies         A : B :: C : ? with words, numbers and letters
  *
  * Each uses the shared arcade plumbing (LevelShell + useQuizRound), so levels,
  * stars, unlocking, timers, saving and leaderboards behave like the Arcade.
@@ -38,7 +43,7 @@ function makePlay(makeQuestion, timeFor) {
         <div key={q.key} className="apt-card">
           <span className="apt-tag">{q.title}</span>
           {q.lines.map((line, i) => (
-            <span key={i} className={`apt-line ${line.length > 40 ? "apt-line-long" : ""}`}>{line}</span>
+            <span key={i} className={`apt-line ${q.compact || line.length > 40 ? "apt-line-long" : ""}`}>{line}</span>
           ))}
           <span className="apt-ask">{q.ask}</span>
         </div>
@@ -64,6 +69,9 @@ const CodePlay = makePlay(codeQuestion, (level) => secondsFor(level, 30, 14));
 const OddPlay = makePlay(oddQuestion, (level) => secondsFor(level, 22, 10));
 const DirectionPlay = makePlay(directionQuestion, (level) => secondsFor(level, 34, 16));
 const ClockPlay = makePlay(clockQuestion, (level) => secondsFor(level, 28, 14));
+const FamilyPlay = makePlay(familyQuestion, (level) => secondsFor(level, 40, 20));
+const SeatingPlay = makePlay(seatingQuestion, (level) => secondsFor(level, 75, 40));
+const AnalogyPlay = makePlay(analogyQuestion, (level) => secondsFor(level, 22, 10));
 
 export function CodeCracker() {
   return (
@@ -117,6 +125,48 @@ export function ClockCalendar() {
       color="#C47A1E"
       hint="Hours first, then minutes (level 3), days of the week (5), clock angles on the hour (7) and at other times (10), and dates in a month (12)."
       Play={ClockPlay}
+    />
+  );
+}
+
+export function FamilyTree() {
+  return (
+    <LevelShell
+      gameType="FAMILY"
+      title="Family Tree"
+      blurb="Follow the family links and name the relation."
+      icon={Network}
+      color="#7A5AC8"
+      hint="Two-step relations first (sister, uncle, grandson). In-laws join at level 5, and from level 8 some questions chain three relations together."
+      Play={FamilyPlay}
+    />
+  );
+}
+
+export function SeatingArrangement() {
+  return (
+    <LevelShell
+      gameType="SEATING"
+      title="Seating Arrangement"
+      blurb="Use the clues to work out who sits where."
+      icon={Armchair}
+      color="#3B8C9E"
+      hint="Three friends to start, four from level 4 and five from level 9. Every puzzle has exactly one seating that fits all the clues, so sketch the row as you read."
+      Play={SeatingPlay}
+    />
+  );
+}
+
+export function Analogies() {
+  return (
+    <LevelShell
+      gameType="ANALOGY"
+      title="Analogies"
+      blurb="Spot how the first pair is linked, then complete the second."
+      icon={ArrowLeftRight}
+      color="#B5603A"
+      hint="Opposites and baby animals first, then homes, tools, capitals and units. Number pairs join at level 5 and letter pairs at level 10."
+      Play={AnalogyPlay}
     />
   );
 }
