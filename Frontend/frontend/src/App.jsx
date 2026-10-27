@@ -58,6 +58,19 @@ export default function App() {
     return () => document.removeEventListener("learnmate:session-expired", handleSessionExpired);
   }, []);
 
+  // Notification cards (and anything else) can ask to open a page:
+  //   learnmate:navigate { view: "quizzes" } or { view: "games", gameType: "CODE" }
+  const [gameTarget, setGameTarget] = useState(null);
+  useEffect(() => {
+    function handleNavigate(e) {
+      const { view: next, gameType } = e.detail ?? {};
+      if (next === "games") setGameTarget({ gameType: gameType ?? null, at: Date.now() });
+      if (next) setView(next);
+    }
+    document.addEventListener("learnmate:navigate", handleNavigate);
+    return () => document.removeEventListener("learnmate:navigate", handleNavigate);
+  }, []);
+
   function handleSessionCreated(newSessionId) {
     setSessionId(newSessionId);
     setSidebarRefreshKey((k) => k + 1); // makes the new session show up in the sidebar right away
@@ -103,7 +116,7 @@ export default function App() {
                 </PageFrame>
               ) : view === "games" ? (
                 <PageFrame onBack={backToChat}>
-                  <Games />
+                  <Games key={gameTarget?.at ?? "games"} initialGameType={gameTarget?.gameType} />
                 </PageFrame>
               ) : view === "upload" && canUpload ? (
                 <PageFrame onBack={backToChat}>

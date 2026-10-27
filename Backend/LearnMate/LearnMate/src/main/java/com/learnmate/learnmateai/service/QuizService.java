@@ -24,6 +24,7 @@ public class QuizService {
     private final RetrievalAgent retrievalAgent;
     private final EvaluationAgent evaluationAgent;
     private final VisionService visionService;
+    private final NotificationService notificationService;
 
     public QuizService(QuizRepository quizRepository,
                        QuizQuestionRepository questionRepository,
@@ -32,7 +33,8 @@ public class QuizService {
                        UserRepository userRepository,
                        RetrievalAgent retrievalAgent,
                        EvaluationAgent evaluationAgent,
-                       VisionService visionService) {
+                       VisionService visionService,
+                       NotificationService notificationService) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.attemptRepository = attemptRepository;
@@ -41,6 +43,7 @@ public class QuizService {
         this.retrievalAgent = retrievalAgent;
         this.evaluationAgent = evaluationAgent;
         this.visionService = visionService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -126,6 +129,9 @@ public class QuizService {
             }
         }
 
+        // Only now that every question is saved: an AI-generation failure above
+        // must not leave students notified about a quiz with no questions.
+        notificationService.quizCreated(quiz);
         return quiz;
     }
 

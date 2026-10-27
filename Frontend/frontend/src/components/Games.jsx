@@ -32,10 +32,21 @@ const TABS = [
  * directly on completion, so switching tabs here just swaps which component
  * is mounted; each resets to its level-select screen when remounted.
  */
-export default function Games() {
-  const [tab, setTab] = useState("math");
+/** Which tab (and arcade/aptitude game) a gameType lives in, for deep links. */
+function locate(gameType) {
+  if (gameType === "MATH") return { tab: "math", game: null };
+  if (gameType === "WORDS") return { tab: "words", game: null };
+  if (APTITUDE_ID_BY_TYPE[gameType]) return { tab: "aptitude", game: APTITUDE_ID_BY_TYPE[gameType] };
+  if (ARCADE_ID_BY_TYPE[gameType]) return { tab: "arcade", game: ARCADE_ID_BY_TYPE[gameType] };
+  return { tab: "math", game: null };
+}
+
+/** `initialGameType` (e.g. "CODE", from a notification) opens straight into that game. */
+export default function Games({ initialGameType = null }) {
+  const start = locate(initialGameType);
+  const [tab, setTab] = useState(start.tab);
   const [leaderboardGame, setLeaderboardGame] = useState("MATH");
-  const [arcadeGame, setArcadeGame] = useState(null); // deep-link from Progress
+  const [arcadeGame, setArcadeGame] = useState(start.game); // deep-link from Progress or a notification
 
   return (
     <div className="gm-page">
@@ -96,15 +107,9 @@ export default function Games() {
           <GamesDashboard
             key="progress"
             onPlayGame={(gameType) => {
-              if (gameType === "MATH") setTab("math");
-              else if (gameType === "WORDS") setTab("words");
-              else if (APTITUDE_ID_BY_TYPE[gameType]) {
-                setArcadeGame(APTITUDE_ID_BY_TYPE[gameType]);
-                setTab("aptitude");
-              } else {
-                setArcadeGame(ARCADE_ID_BY_TYPE[gameType] ?? null);
-                setTab("arcade");
-              }
+              const target = locate(gameType);
+              setArcadeGame(target.game);
+              setTab(target.tab);
             }}
             onViewLeaderboard={(gameType) => {
               setLeaderboardGame(gameType);

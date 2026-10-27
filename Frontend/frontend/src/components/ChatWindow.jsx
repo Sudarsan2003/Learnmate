@@ -9,6 +9,7 @@ import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
 import ThemeToggle from "./ThemeToggle";
 import ChatQuiz, { QUIZ_TOKEN } from "./ChatQuiz";
+import NotificationBell from "./NotificationBell";
 import MaterialPicker, { MATERIALS_TOKEN } from "./MaterialPicker";
 
 // Matches the key Quizzes.jsx writes to when a student clicks
@@ -445,6 +446,7 @@ export default function ChatWindow({
 
         {/* Theme + profile: stay on the first row on phones, far right on desktop */}
         <div className="order-2 flex flex-shrink-0 items-center gap-2 sm:order-3 sm:ml-1">
+          <NotificationBell />
           <ThemeToggle />
           <div
             className="profile-badge flex-shrink-0 rounded-full"

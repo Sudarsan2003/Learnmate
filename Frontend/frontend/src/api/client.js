@@ -283,6 +283,21 @@ export async function listUsers() {
   return data;
 }
 
+// The signed-in student's notifications ("New quiz: …", "New game: …"):
+// { unreadCount, items: [{ id, type: "QUIZ" | "GAME", title, message, link, createdAt, read }] }
+export async function getNotifications() {
+  const { data } = await api.get("/api/notifications");
+  return data;
+}
+
+export async function markNotificationRead(id) {
+  await api.post(`/api/notifications/${id}/read`);
+}
+
+export async function markAllNotificationsRead() {
+  await api.post("/api/notifications/read-all");
+}
+
 // Class reports (TEACHER/ADMIN; scoped server-side to the caller's school).
 // [{ standard, studentCount }]
 export async function getReportClasses() {

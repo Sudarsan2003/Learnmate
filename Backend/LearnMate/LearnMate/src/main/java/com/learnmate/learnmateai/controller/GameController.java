@@ -1,5 +1,6 @@
 package com.learnmate.learnmateai.controller;
 
+import com.learnmate.learnmateai.game.GameCatalog;
 import com.learnmate.learnmateai.dto.GameDtos.GameCompleteRequest;
 import com.learnmate.learnmateai.dto.GameDtos.GameLeaderboardEntry;
 import com.learnmate.learnmateai.dto.GameDtos.GameLeaderboardResponse;
@@ -29,17 +30,10 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "*")
 public class GameController {
 
-    // Every game the API accepts. MATH/WORDS are the original two; the rest
-    // are the Arcade games (Maths Race, Balloon Maths, Memory Match, Which Is
-    // Bigger?, Virtual Shop, Maths Puzzle, Shape Builder, Maths Detective), then
-    // the Aptitude games (Code Cracker, Odd One Out, Direction Sense, Clock &
-    // Calendar, Family Tree, Seating Arrangement, Analogies). A List (not
-    // Set.of) so /progress returns cards in this order.
+    // Every game the API accepts, in the order /progress returns cards. The
+    // list lives in GameCatalog so new games are also announced to students.
     // gameType is a plain string column, so adding a game needs no migration.
-    private static final List<String> GAME_TYPES =
-            List.of("MATH", "WORDS", "RACE", "BALLOON", "MEMORY", "BIGGER",
-                    "SHOP", "PUZZLE", "SHAPE", "DETECTIVE",
-                    "CODE", "ODDONE", "DIRECTION", "CLOCK", "FAMILY", "SEATING", "ANALOGY");
+    private static final List<String> GAME_TYPES = GameCatalog.TYPES;
     private static final int MAX_LEVEL = 9999; // ladder tops out here; tune freely
 
     private final GameProgressRepository gameProgressRepository;
