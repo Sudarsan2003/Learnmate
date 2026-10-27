@@ -20,7 +20,11 @@ export default function MaterialPicker({ preselected, active, onStart }) {
     let cancelled = false;
     getQuizMaterials()
       .then((data) => !cancelled && setMaterials(data))
-      .catch(() => !cancelled && setError("Couldn't load your study material. Refresh to try again."));
+      .catch(
+        (err) =>
+          !cancelled &&
+          setError(err.sessionExpired ? err.message : "Couldn't load your study material. Refresh to try again.")
+      );
     return () => {
       cancelled = true;
     };

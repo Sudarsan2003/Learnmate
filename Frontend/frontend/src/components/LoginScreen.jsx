@@ -75,7 +75,7 @@ function Orbit({ items, radius, duration, reverse = false }) {
 const inputCls =
   "w-full rounded-lg border border-[#4F7CFF]/15 bg-[var(--bg)]/50 px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50 transition-shadow focus:border-[#4F7CFF]/50 focus:shadow-[0_0_0_3px_rgba(79,124,255,0.18)] focus:outline-none";
 
-export default function LoginScreen({ onAuthenticated, initialMode = "login", onBack }) {
+export default function LoginScreen({ onAuthenticated, initialMode = "login", onBack, notice }) {
   const remembered = useState(loadRemembered)[0];
 
   const [mode, setMode] = useState(initialMode); // "login" | "register"
@@ -338,6 +338,12 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
               </div>
             )}
           </div>
+
+          {notice && !error && (
+            <p role="status" className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300">
+              {notice}
+            </p>
+          )}
 
           {error && (
             <p className="flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300">

@@ -3,13 +3,16 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.dto.*;
 import com.learnmate.learnmateai.model.Quiz;
 import com.learnmate.learnmateai.service.QuizService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/quizzes")
@@ -20,6 +23,22 @@ public class QuizController {
 
     public QuizController(QuizService quizService) {
         this.quizService = quizService;
+    }
+
+    // Validation problems (bad scan image, missing standard, ...) are the
+    // caller's mistake: answer 400 with { "message": ... } so the frontend can
+    // show the real reason instead of a generic 500 error.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> badRequest(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
+    // The mock LLM (the "local" profile) can't read images, so scanning only
+    // works with the anthropic profile. Say that instead of failing with a 500.
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<Map<String, String>> unsupported(UnsupportedOperationException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("message",
+                "Scanning questions isn't available on this server (AI image reading is not configured)."));
     }
 
     @PostMapping

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ChatWindow from "./components/ChatWindow";
 import LoginScreen from "./components/LoginScreen";
 import LandingPage from "./components/LandingPages";
@@ -11,6 +11,7 @@ import Dashboard from "./components/Dashboard";
 import Games from "./components/Games";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
+import { SESSION_EXPIRED_MESSAGE } from "./api/client";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -25,6 +26,7 @@ export default function App() {
   // "landing" | "login" — logged-in users skip both and go straight to the app.
   const [authScreen, setAuthScreen] = useState("landing");
   const [authMode, setAuthMode] = useState("login"); // which tab LoginScreen opens on
+  const [authNotice, setAuthNotice] = useState(""); // shown on the login screen, e.g. after a session expires
 
   // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile"
   const [view, setView] = useState("chat");
@@ -40,6 +42,20 @@ export default function App() {
     setSessionId(null);
     setAuthScreen("landing");
   }
+
+  // The API client fires this when a request fails because the login token
+  // has expired: log out and land on the login form with an explanation,
+  // instead of leaving each screen to show its own "couldn't load" error.
+  useEffect(() => {
+    function handleSessionExpired() {
+      handleLogout();
+      setAuthMode("login");
+      setAuthScreen("login");
+      setAuthNotice(SESSION_EXPIRED_MESSAGE);
+    }
+    document.addEventListener("learnmate:session-expired", handleSessionExpired);
+    return () => document.removeEventListener("learnmate:session-expired", handleSessionExpired);
+  }, []);
 
   function handleSessionCreated(newSessionId) {
     setSessionId(newSessionId);
@@ -141,8 +157,13 @@ export default function App() {
         ) : (
           <LoginScreen
             initialMode={authMode}
-            onBack={() => setAuthScreen("landing")}
+            notice={authNotice}
+            onBack={() => {
+              setAuthNotice("");
+              setAuthScreen("landing");
+            }}
             onAuthenticated={(result) => {
+              setAuthNotice("");
               localStorage.setItem("learnmate_token", result.token);
               localStorage.setItem("learnmate_username", result.username);
               localStorage.setItem("learnmate_role", result.role);

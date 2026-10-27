@@ -1,4 +1,5 @@
 package com.learnmate.learnmateai.config;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.web.cors.CorsConfiguration;
@@ -11,6 +12,7 @@ import com.learnmate.learnmateai.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -70,6 +72,26 @@ public class SecurityConfig {
                         .requestMatchers("/api/quizzes/**").authenticated()
                         .anyRequest().authenticated()
                 )
+                // Not authenticated: answer 401 with a readable message. Spring's default
+                // here is a bare 403, which the frontend can't tell apart from "you're not
+                // allowed to do this". Failed logins (wrong password, locked account) also
+                // land here, so only a request that carried a token gets "session expired".
+                .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
+                    String header = request.getHeader("Authorization");
+                    String message;
+                    if (request.getRequestURI().startsWith("/api/auth/login")) {
+                        message = authException instanceof LockedException
+                                ? "Your account has been locked by an administrator."
+                                : "Invalid username or password.";
+                    } else if (header != null && header.startsWith("Bearer ")) {
+                        message = "Your session has expired. Please log in again.";
+                    } else {
+                        message = "Please log in to continue.";
+                    }
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"" + message + "\"}");
+                }))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

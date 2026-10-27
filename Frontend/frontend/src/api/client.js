@@ -13,6 +13,44 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const SESSION_EXPIRED_MESSAGE = "Your session has expired. Please log in again.";
+
+// True when the JWT's own `exp` claim is in the past. Lets us recognise an
+// expired login even from a backend that answers 403 instead of 401.
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" && payload.exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
+// An expired login makes every request fail. Rewrite those errors to say so
+// (err.sessionExpired, and the message components already read from
+// err.response.data.message), and tell App once so it can send the user
+// back to the login screen.
+api.interceptors.response.use(undefined, (err) => {
+  const status = err.response?.status;
+  // Login/register failures are about the credentials typed, never an old session.
+  const isAuthCall = /\/api\/auth\/(login|register)$/.test(err.config?.url ?? "");
+  const sentToken = err.config?.headers?.Authorization;
+  const token = localStorage.getItem("learnmate_token");
+  const expired =
+    !isAuthCall && sentToken && (status === 401 || (status === 403 && token && isTokenExpired(token)));
+
+  if (expired) {
+    err.sessionExpired = true;
+    err.message = SESSION_EXPIRED_MESSAGE;
+    err.response.data = { ...(typeof err.response.data === "object" ? err.response.data : {}), message: SESSION_EXPIRED_MESSAGE };
+    if (token) {
+      localStorage.removeItem("learnmate_token");
+      document.dispatchEvent(new CustomEvent("learnmate:session-expired"));
+    }
+  }
+  return Promise.reject(err);
+});
+
 export async function register(username, password, profile = {}) {
   const { data } = await api.post("/api/auth/register", {
     username,
@@ -130,13 +168,42 @@ export async function createQuiz(payload) {
   return data;
 }
 
+// Phone camera photos are often 4000px+ and over the backend's 5 MB scan
+// limit. Re-encode anything large as a JPEG no wider/taller than 2000px —
+// still plenty for reading handwriting. Small images and GIFs pass through.
+const SCAN_MAX_SIDE = 2000;
+const SCAN_MAX_BYTES = 4 * 1024 * 1024;
+
+async function shrinkPhoto(file) {
+  if (file.type === "image/gif" || typeof createImageBitmap !== "function") return file;
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file; // let the server report what's wrong with it
+  }
+  const scale = Math.min(1, SCAN_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  if (scale === 1 && file.size <= SCAN_MAX_BYTES) {
+    bitmap.close?.();
+    return file;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+  if (!blob) return file;
+  return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+}
+
 // Teacher/Admin only (enforced server-side). Send a photo of handwritten or
 // printed exam questions, get back structured MCQs in the same shape the
 // Create Quiz form already uses for manualQuestions -- nothing is saved
 // server-side by this call.
 export async function scanQuizQuestions(imageFile) {
   const formData = new FormData();
-  formData.append("image", imageFile);
+  formData.append("image", await shrinkPhoto(imageFile));
   const { data } = await api.post("/api/quizzes/scan", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });

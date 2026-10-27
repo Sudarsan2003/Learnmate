@@ -77,8 +77,10 @@ export default function ChatQuiz({ attemptId }) {
         answersRef.current = data.answers ?? {};
         setAnswers(answersRef.current);
         if (data.detail) setDetail(data.detail);
-      } catch {
-        if (!cancelled) setError("Couldn't load this quiz. Refresh to try again.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.sessionExpired ? err.message : "Couldn't load this quiz. Refresh to try again.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -119,8 +121,12 @@ export default function ChatQuiz({ attemptId }) {
       await saveChatQuizAnswers(attemptId, answersRef.current);
       dirtyRef.current = false;
       setDetail(await submitChatQuiz(attemptId));
-    } catch {
-      setError("Couldn't grade your quiz just now. Your answers are saved — please try submitting again.");
+    } catch (err) {
+      setError(
+        err.sessionExpired
+          ? err.message
+          : "Couldn't grade your quiz just now. Your answers are saved — please try submitting again."
+      );
     } finally {
       setSubmitting(false);
     }
