@@ -34,7 +34,39 @@ function periodLabel(report) {
   return report.from ? `From ${fmtDate(report.from)}` : `Up to ${fmtDate(report.to)}`;
 }
 
-const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
+// Gold, silver and bronze medals for 1st, 2nd and 3rd place. Drawn as SVG
+// (not emoji, which print tiny and blurry in PDFs) so they look the same on
+// every device and print in colour.
+const MEDAL_COLOURS = {
+  1: { fill: "#F2B705", stroke: "#B8860B", name: "Gold" },
+  2: { fill: "#B9C1CA", stroke: "#7C8691", name: "Silver" },
+  3: { fill: "#CD7F32", stroke: "#8B5A2B", name: "Bronze" },
+};
+
+/** A gold/silver/bronze medal for places 1-3; nothing for any other place. */
+function PlaceMedal({ rank, size = 14 }) {
+  const c = MEDAL_COLOURS[rank];
+  if (!c) return null;
+  return (
+    <svg className="rp-medal" width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={`${c.name} medal, ${ordinal(rank)} place`}>
+      <path d="M6.5 1.5h4.2l2.3 6.3H8.8z" fill="#3B6FD8" />
+      <path d="M17.5 1.5h-4.2l-2.3 6.3h4.2z" fill="#D9534F" />
+      <circle cx="12" cy="15" r="7.2" fill={c.fill} stroke={c.stroke} strokeWidth="1.4" />
+      <text x="12" y="18.6" textAnchor="middle" fontSize="9.5" fontWeight="700" fontFamily="Arial, sans-serif" fill="#fff">
+        {rank}
+      </text>
+    </svg>
+  );
+}
+
+/** Key explaining the medals, for printed sheets and report cards. */
+function MedalLegend() {
+  return (
+    <p className="rp-legend">
+      <PlaceMedal rank={1} /> 1st in class &nbsp; <PlaceMedal rank={2} /> 2nd &nbsp; <PlaceMedal rank={3} /> 3rd
+    </p>
+  );
+}
 const ordinal = (n) => {
   const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th";
   return `${n}${s}`;
@@ -268,42 +300,7 @@ export default function Reports() {
           <div className="rp-print">
             <style>{PRINT_CSS}</style>
             {printing.kind === "class" ? (
-              <div className="rp-sheet">
-                <h1>{report.institution}: Class {report.standard} report</h1>
-                <p className="rp-sheet-meta">
-                  {periodLabel(report)} · {report.students.length} students · class average{" "}
-                  {report.classAveragePercent == null ? "–" : `${report.classAveragePercent}%`} · printed {fmtDate(report.generatedAt)}
-                </p>
-                <ClassTable report={report} rows={ranked} />
-                {[weekToppers, monthToppers].filter((t) => t?.toppers?.length).map((t) => (
-                  <div key={t.period}>
-                    <h2>{t.period === "WEEK" ? "Toppers of the week" : "Toppers of the month"}: {periodTitle(t)}</h2>
-                    <p>
-                      {t.toppers.map((x) => `${MEDAL[x.rank]} ${nameOf(x)} (${x.averagePercent}%)`).join("   ")}
-                    </p>
-                  </div>
-                ))}
-                {report.quizzes.some((q) => q.podium.length) && (
-                  <>
-                    <h2>Quiz toppers</h2>
-                    <table>
-                      <thead><tr><th>Quiz</th><th>1st</th><th>2nd</th><th>3rd</th></tr></thead>
-                      <tbody>
-                        {report.quizzes.map((q) => (
-                          <tr key={q.id}>
-                            <td>{q.title}</td>
-                            {[1, 2, 3].map((place) => (
-                              <td key={place}>
-                                {q.podium.filter((p) => p.rank === place).map((p) => `${nameOf(p)} (${p.percent}%)`).join(", ") || "–"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
+              <PrintClassSheet report={report} rows={ranked} toppers={[weekToppers, monthToppers]} />
             ) : (
               printing.students.map((s) => (
                 <ReportCard key={s.username} report={report} student={s} />
@@ -312,6 +309,120 @@ export default function Reports() {
           </div>,
           document.body
         )}
+    </div>
+  );
+}
+
+// Quizzes per score table on the printed sheet: enough to read, few enough
+// that a landscape A4 page never cuts columns off, however many quizzes a
+// term has. Each table repeats the student column.
+const PRINT_QUIZZES_PER_TABLE = 10;
+
+/**
+ * The class sheet as printed (landscape). Quizzes are numbered Q1, Q2, ...
+ * with a key, and split across several tables, so long quiz titles or many
+ * quizzes don't push columns off the page.
+ */
+function PrintClassSheet({ report, rows, toppers }) {
+  const numbered = report.quizzes.map((q, i) => ({ ...q, code: `Q${i + 1}` }));
+  const chunks = [];
+  for (let i = 0; i < numbered.length; i += PRINT_QUIZZES_PER_TABLE) {
+    chunks.push(numbered.slice(i, i + PRINT_QUIZZES_PER_TABLE));
+  }
+  return (
+    <div className="rp-sheet">
+      <h1>{report.institution}: Class {report.standard} report</h1>
+      <p className="rp-sheet-meta">
+        {periodLabel(report)} · {report.students.length} students · {report.quizzes.length} quizzes · class average{" "}
+        {report.classAveragePercent == null ? "–" : `${report.classAveragePercent}%`} · printed {fmtDate(report.generatedAt)}
+      </p>
+
+      <h2>Summary</h2>
+      <table className="rp-print-summary">
+        <thead>
+          <tr><th>#</th><th>Student</th><th>Quizzes taken</th><th>Average</th><th>Practice quizzes</th><th>Game stars</th><th>Last active</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((s, i) => (
+            <tr key={s.username}>
+              <td>{i + 1}</td>
+              <td>{nameOf(s)}</td>
+              <td>{s.quizzesTaken} of {report.quizzes.length}</td>
+              <td><strong>{s.averagePercent == null ? "–" : `${s.averagePercent}%`}</strong></td>
+              <td>{s.practiceQuizzes}{s.practiceAveragePercent != null ? ` (${s.practiceAveragePercent}%)` : ""}</td>
+              <td>{s.gameStars}</td>
+              <td>{fmtDate(s.lastActive) || "–"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {chunks.map((chunk, n) => (
+        <div key={n} className="rp-print-block">
+          <h2>
+            Quiz scores{chunks.length > 1 ? ` (${chunk[0].code}–${chunk[chunk.length - 1].code})` : ""}
+          </h2>
+          <table className="rp-print-scores">
+            <thead>
+              <tr>
+                <th>Student</th>
+                {chunk.map((q) => <th key={q.id}>{q.code}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((s) => (
+                <tr key={s.username}>
+                  <td>{nameOf(s)}</td>
+                  {chunk.map((q) => {
+                    const r = s.quizScores[q.id];
+                    return (
+                      <td key={q.id}>
+                        {r ? `${r.percent}%` : "–"}
+                        {r && r.percent > 0 && r.rank <= 3 && <> <PlaceMedal rank={r.rank} size={10} /></>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      {numbered.length > 0 && <MedalLegend />}
+
+      {numbered.length > 0 && (
+        <div className="rp-print-block">
+          <h2>Quiz key</h2>
+          <table className="rp-print-key">
+            <thead><tr><th>No.</th><th>Quiz</th><th>Subject</th><th>Set on</th><th>Took it</th><th>1st</th><th>2nd</th><th>3rd</th></tr></thead>
+            <tbody>
+              {numbered.map((q) => (
+                <tr key={q.id}>
+                  <td><strong>{q.code}</strong></td>
+                  <td>{q.title}</td>
+                  <td>{q.subject || ""}</td>
+                  <td>{fmtDate(q.createdAt)}</td>
+                  <td>{q.participants}</td>
+                  {[1, 2, 3].map((place) => (
+                    <td key={place}>{q.podium.filter((p) => p.rank === place).map((p) => `${nameOf(p)} (${p.percent}%)`).join(", ") || "–"}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {toppers.filter((t) => t?.toppers?.length).map((t) => (
+        <div key={t.period} className="rp-print-block">
+          <h2>{t.period === "WEEK" ? "Toppers of the week" : "Toppers of the month"}: {periodTitle(t)}</h2>
+          <p className="rp-print-toppers">
+            {t.toppers.map((x) => (
+              <span key={x.username}><PlaceMedal rank={x.rank} size={12} /> {nameOf(x)} ({x.averagePercent}%)</span>
+            ))}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -350,7 +461,7 @@ function ClassTable({ report, rows, onCard }) {
                   title={r ? `${r.score} of ${r.total} · ${ordinal(r.rank)} of ${r.participants}` : "Not attempted"}
                 >
                   {r ? `${r.percent}%` : "–"}
-                  {r && r.percent > 0 && MEDAL[r.rank] && <span className="rp-medal" aria-label={`${ordinal(r.rank)} place`}> {MEDAL[r.rank]}</span>}
+                  {r && r.percent > 0 && r.rank <= 3 && <> <PlaceMedal rank={r.rank} /></>}
                 </td>
               );
             })}
@@ -453,7 +564,7 @@ function TopperPanel({ standard, period, onData }) {
         <ol className="rp-topper-list">
           {data.toppers.map((t) => (
             <li key={t.username} className={`rp-topper rp-place-${t.rank}`}>
-              <span className="rp-topper-medal" aria-label={`${ordinal(t.rank)} place`}>{MEDAL[t.rank]}</span>
+              <span className="rp-topper-medal"><PlaceMedal rank={t.rank} size={20} /></span>
               <span className="rp-topper-name">{nameOf(t)}</span>
               <span className="rp-topper-score">
                 {t.averagePercent}%<small>{t.quizzesTaken} of {data.quizzesSet} {data.quizzesSet === 1 ? "quiz" : "quizzes"}</small>
@@ -485,7 +596,7 @@ function QuizPodium({ quiz }) {
         <ol className="rp-topper-list">
           {quiz.podium.map((p) => (
             <li key={p.username} className={`rp-topper rp-place-${p.rank}`}>
-              <span className="rp-topper-medal" aria-label={`${ordinal(p.rank)} place`}>{MEDAL[p.rank]}</span>
+              <span className="rp-topper-medal"><PlaceMedal rank={p.rank} size={20} /></span>
               <span className="rp-topper-name">{nameOf(p)}</span>
               <span className="rp-topper-score">
                 {p.percent}%<small>{p.score}/{p.total}{fmtTime(p.timeTakenSeconds) ? ` · ${fmtTime(p.timeTakenSeconds)}` : ""}</small>
@@ -534,20 +645,25 @@ function ReportCard({ report, student }) {
           <tbody>
             {report.quizzes.map((q) => {
               const r = student.quizScores[q.id];
+              const placed = r && r.percent > 0;
               return (
-                <tr key={q.id}>
-                  <td>{q.title}</td>
+                <tr key={q.id} className={placed && r.rank <= 3 ? `rp-row-place-${r.rank}` : undefined}>
+                  <td>
+                    {placed && r.rank <= 3 && <><PlaceMedal rank={r.rank} size={13} />{" "}</>}
+                    {q.title}
+                  </td>
                   <td>{q.subject || ""}</td>
                   <td>{fmtDate(r?.submittedAt ?? q.createdAt)}</td>
                   <td>{r ? `${r.score} / ${r.total}` : "Not attempted"}</td>
                   <td>{r ? `${r.percent}%` : ""}</td>
-                  <td>{r && r.percent > 0 ? `${MEDAL[r.rank] ? `${MEDAL[r.rank]} ` : ""}${ordinal(r.rank)} of ${r.participants}` : ""}</td>
+                  <td>{placed ? `${ordinal(r.rank)} of ${r.participants}` : ""}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       )}
+      {report.quizzes.some((q) => student.quizScores[q.id]?.rank <= 3 && student.quizScores[q.id]?.percent > 0) && <MedalLegend />}
 
       {student.practiceQuizzes > 0 && (
         <p className="rp-card-note">
@@ -613,7 +729,8 @@ const CSS = `
 .rp-link { border: none; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: #4F80F8; cursor: pointer; }
 .rp-link:hover { text-decoration: underline; }
 .rp-print { display: none; }
-.rp-medal { font-size: 13px; }
+.rp-medal { display: inline-block; vertical-align: -2px; flex-shrink: 0; }
+.rp-legend { margin: .4rem 0 0; font-size: 12px; color: var(--dim); }
 
 .rp-section { margin-top: 1.5rem; }
 .rp-h2 { display: flex; align-items: center; gap: .45rem; margin: 0 0 .75rem; font-family: 'Sora', system-ui, sans-serif; font-size: 1.05rem; font-weight: 700; }
@@ -632,7 +749,7 @@ const CSS = `
 .rp-topper-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .35rem; }
 .rp-topper { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 10px; background: var(--surface-2); }
 .rp-place-1 { background: color-mix(in srgb, #E4A93B 18%, var(--surface)); }
-.rp-topper-medal { font-size: 1.2rem; line-height: 1; }
+.rp-topper-medal { display: flex; line-height: 1; }
 .rp-topper-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-topper-score { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-size: 13.5px; }
 .rp-topper-score small { font-size: 11px; font-weight: 500; color: var(--dim); }
@@ -644,6 +761,24 @@ const PRINT_CSS = `
   body > *:not(.rp-print) { display: none !important; }
   .rp-print { display: block !important; color: #000; background: #fff; font-family: Georgia, 'Times New Roman', serif; }
   @page { size: A4; margin: 14mm; }
+  /* The class sheet prints landscape; report cards stay portrait. */
+  @page sheet { size: A4 landscape; margin: 10mm; }
+  .rp-sheet { page: sheet; }
+  .rp-print svg, .rp-print .rp-row-place-1, .rp-print .rp-row-place-2, .rp-print .rp-row-place-3 {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .rp-print thead { display: table-header-group; } /* repeat headings on each page */
+  .rp-print tr { break-inside: avoid; page-break-inside: avoid; }
+  .rp-print-block { break-inside: auto; }
+  .rp-print-block h2 { break-after: avoid; page-break-after: avoid; }
+  .rp-print-scores th, .rp-print-scores td { text-align: center; white-space: nowrap; font-size: 9pt; padding: 3pt 4pt; }
+  .rp-print-scores td:first-child, .rp-print-scores th:first-child { text-align: left; white-space: normal; width: 22%; }
+  .rp-print-summary td, .rp-print-summary th, .rp-print-key td, .rp-print-key th { font-size: 9pt; padding: 3pt 5pt; }
+  .rp-print-toppers { display: flex; flex-wrap: wrap; gap: 4pt 18pt; font-size: 10.5pt; }
+  .rp-legend { font-size: 9pt; color: #333; margin-top: 4pt; }
+  .rp-row-place-1 td { background: #FFF6D6; }
+  .rp-row-place-2 td { background: #F1F3F5; }
+  .rp-row-place-3 td { background: #F8EBDD; }
   .rp-print h1 { font-size: 20pt; margin: 0 0 4pt; }
   .rp-print h2 { font-size: 12pt; margin: 14pt 0 6pt; text-transform: uppercase; letter-spacing: .05em; }
   .rp-print table { width: 100%; border-collapse: collapse; font-size: 10pt; }
