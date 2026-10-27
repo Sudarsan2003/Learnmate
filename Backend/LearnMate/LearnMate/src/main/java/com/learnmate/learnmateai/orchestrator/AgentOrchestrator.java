@@ -13,6 +13,7 @@ import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.ChatHistoryService;
 import com.learnmate.learnmateai.service.ChatQuizAttemptService;
+import com.learnmate.learnmateai.service.TextQuality;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -221,9 +222,10 @@ public class AgentOrchestrator {
 
         if (looksGarbled(quizChunks)) {
             return new ChatResponse(
-                    "The study material I found for that chapter isn't readable. Its text was not "
-                            + "extracted correctly from the uploaded file. Please ask your teacher to "
-                            + "re-upload that chapter, then try again.",
+                    "The material you picked isn't readable. Its text was not extracted correctly "
+                            + "from the uploaded file (this happens with PDFs typed in older, non-Unicode "
+                            + "regional-language fonts). Please ask your teacher to upload a version "
+                            + "with selectable text, or pick different material.",
                     List.of(), null);
         }
 
@@ -331,20 +333,8 @@ public class AgentOrchestrator {
 
     /** True when most retrieved chunks are unreadable symbol soup (bad PDF text extraction). */
     private boolean looksGarbled(List<RetrievedChunk> chunks) {
-        long bad = chunks.stream().filter(c -> readableRatio(c.content()) < 0.7).count();
+        long bad = chunks.stream().filter(c -> !TextQuality.isReadable(c.content())).count();
         return bad * 2 > chunks.size();
-    }
-
-    private double readableRatio(String text) {
-        if (text == null || text.isBlank()) return 0;
-        int ok = 0, total = 0;
-        for (int cp : text.codePoints().toArray()) {
-            if (Character.isWhitespace(cp)) continue;
-            total++;
-            boolean readableLetter = Character.isLetterOrDigit(cp) && !(cp >= 0x80 && cp <= 0x24F);
-            if (readableLetter || ".,;:!?'\"()-%/".indexOf(cp) >= 0) ok++;
-        }
-        return total == 0 ? 0 : (double) ok / total;
     }
 
     private boolean isCancelRequest(String query) {

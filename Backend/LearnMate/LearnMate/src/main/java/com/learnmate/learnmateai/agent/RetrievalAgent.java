@@ -4,6 +4,7 @@ import com.learnmate.learnmateai.dto.RetrievedChunk;
 import com.learnmate.learnmateai.model.DocumentChunk;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.service.HybridSearchService;
+import com.learnmate.learnmateai.service.TextQuality;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -31,8 +32,11 @@ public class RetrievalAgent {
         this.chunkRepository = chunkRepository;
     }
 
+    // Unreadable chunks (see TextQuality) are dropped: as tutoring context they only add noise.
     public List<RetrievedChunk> retrieve(String query, String subject, String institution, String standard, int topK) {
-        return hybridSearchService.search(query, subject, institution, standard, topK);
+        List<RetrievedChunk> found = hybridSearchService.search(query, subject, institution, standard, topK);
+        List<RetrievedChunk> readable = found.stream().filter(c -> TextQuality.isReadable(c.content())).toList();
+        return readable.isEmpty() ? found : readable;
     }
 
     /**
@@ -67,14 +71,7 @@ public class RetrievalAgent {
         if (match == null) return List.of();
 
         List<DocumentChunk> all = chunkRepository.findByFileName(institution, standard, match);
-        List<DocumentChunk> usable = all.stream()
-                .filter(c -> c.getContent() != null
-                        && c.getContent().length() >= MIN_USABLE_CHUNK_CHARS
-                        && !BOILERPLATE.matcher(c.getContent()).find())
-                .toList();
-        if (usable.isEmpty()) usable = all;
-
-        return spread(usable, count).stream().map(this::toRetrieved).toList();
+        return spread(quizUsable(all), count).stream().map(this::toRetrieved).toList();
     }
 
     /**
@@ -95,15 +92,26 @@ public class RetrievalAgent {
         int perDoc = Math.max(2, (int) Math.ceil((double) count / byDoc.size()));
         List<RetrievedChunk> out = new ArrayList<>();
         for (List<DocumentChunk> all : byDoc.values()) {
-            List<DocumentChunk> usable = all.stream()
-                    .filter(c -> c.getContent() != null
-                            && c.getContent().length() >= MIN_USABLE_CHUNK_CHARS
-                            && !BOILERPLATE.matcher(c.getContent()).find())
-                    .toList();
-            if (usable.isEmpty()) usable = all;
-            spread(usable, perDoc).stream().map(this::toRetrieved).forEach(out::add);
+            spread(quizUsable(all), perDoc).stream().map(this::toRetrieved).forEach(out::add);
         }
         return out;
+    }
+
+    /**
+     * The chunks worth sampling for a quiz: readable, substantial and not front/back matter.
+     * Falls back to any readable chunk, then to everything (so the caller's garbled-text
+     * check can tell the student the material is unreadable).
+     */
+    private static List<DocumentChunk> quizUsable(List<DocumentChunk> all) {
+        List<DocumentChunk> readable = all.stream()
+                .filter(c -> c.getContent() != null && TextQuality.isReadable(c.getContent()))
+                .toList();
+        List<DocumentChunk> usable = readable.stream()
+                .filter(c -> c.getContent().length() >= MIN_USABLE_CHUNK_CHARS
+                        && !BOILERPLATE.matcher(c.getContent()).find())
+                .toList();
+        if (!usable.isEmpty()) return usable;
+        return readable.isEmpty() ? all : readable;
     }
 
     private static String norm(String s) {

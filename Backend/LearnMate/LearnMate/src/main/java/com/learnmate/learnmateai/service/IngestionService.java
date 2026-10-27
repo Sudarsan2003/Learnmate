@@ -293,6 +293,29 @@ public class IngestionService {
                             + fileName
             );
 
+            // Drop chunks whose text came out as symbol soup (pages typed in a
+            // legacy non-Unicode font). They can't be searched or quizzed on, and
+            // bilingual books often have them on every other page.
+            int before = pieces.size();
+            pieces.removeIf(p -> !TextQuality.isReadable(p));
+
+            if (pieces.isEmpty()) {
+                throw new IOException(
+                        "The text in " + fileName + " could not be read. It looks like "
+                                + "it was typed in an older non-Unicode font. Please upload "
+                                + "a version with selectable Unicode text."
+                );
+            }
+
+            if (pieces.size() < before) {
+                System.out.println(
+                        "[Ingestion] Skipped "
+                                + (before - pieces.size())
+                                + " unreadable chunks in "
+                                + fileName
+                );
+            }
+
             // ---------------------------------------------------------
             // 5. Generate embeddings
             // ---------------------------------------------------------
