@@ -27,13 +27,25 @@ public class AchievementService {
     /** A 1st/2nd/3rd place on one quiz (only with a score above 0). */
     public record Medal(Long quizId, String title, String subject, int rank, int percent, int participants, Instant date) {}
 
+    /**
+     * 1st/2nd/3rd on one of my class's quizzes. While a quiz is still open, its
+     * toppers stay hidden (`locked`) until I've submitted it myself, the same
+     * rule as the quiz leaderboard, so nobody sees top scores before trying it.
+     */
+    public record QuizToppers(Long quizId, String title, String subject, Instant createdAt, boolean open,
+                              boolean locked, int participants, List<ReportService.PodiumEntry> podium,
+                              Integer myRank, Integer myPercent) {}
+
     public record Achievements(
             String standard,
             int gold, int silver, int bronze,
             List<Medal> medals,                 // newest first
             ReportService.Toppers thisWeek,
             ReportService.Toppers lastWeek,
-            ReportService.Toppers thisMonth) {}
+            ReportService.Toppers thisMonth,
+            List<QuizToppers> quizToppers) {}   // my class's quizzes, newest first
+
+    private static final int QUIZ_TOPPERS_SHOWN = 30;
 
     public record InactiveStudent(String username, String fullName, String mobile, Instant lastActive,
                                   int missedQuizzes) {}
@@ -74,13 +86,44 @@ public class AchievementService {
         int bronze = (int) medals.stream().filter(m -> m.rank() == 3).count();
 
         ReportService.Toppers thisWeek = null, lastWeek = null, thisMonth = null;
+        List<QuizToppers> quizToppers = List.of();
         if (me.getInstitution() != null && me.getStandard() != null && !me.getStandard().isBlank()) {
             LocalDate today = LocalDate.now(zone);
             thisWeek = reports.toppers(me.getInstitution(), me.getStandard(), "WEEK", today);
             lastWeek = reports.toppers(me.getInstitution(), me.getStandard(), "WEEK", today.minusDays(7));
             thisMonth = reports.toppers(me.getInstitution(), me.getStandard(), "MONTH", today);
+            quizToppers = quizToppersFor(me);
         }
-        return new Achievements(me.getStandard(), gold, silver, bronze, medals, thisWeek, lastWeek, thisMonth);
+        return new Achievements(me.getStandard(), gold, silver, bronze, medals, thisWeek, lastWeek, thisMonth, quizToppers);
+    }
+
+    private List<QuizToppers> quizToppersFor(User me) {
+        ReportService.ClassReport report = reports.classReport(me.getInstitution(), me.getStandard(), null, null);
+        Map<Long, Quiz> byId = quizzes.findByInstitutionAndStandardOrderByCreatedAtAsc(me.getInstitution(), me.getStandard())
+                .stream().collect(Collectors.toMap(Quiz::getId, q -> q));
+        Map<Long, ReportService.QuizScore> mine = report.students().stream()
+                .filter(s -> s.username().equals(me.getUsername()))
+                .findFirst()
+                .map(ReportService.StudentRow::quizScores)
+                .orElse(Map.of());
+        Instant now = Instant.now();
+
+        List<QuizToppers> out = new ArrayList<>();
+        List<ReportService.QuizColumn> newestFirst = new ArrayList<>(report.quizzes());
+        Collections.reverse(newestFirst);
+        for (ReportService.QuizColumn q : newestFirst) {
+            if (out.size() >= QUIZ_TOPPERS_SHOWN) break;
+            Quiz quiz = byId.get(q.id());
+            boolean open = quiz != null && quiz.getStatus() == Quiz.QuizStatus.OPEN
+                    && (quiz.getClosesAt() == null || quiz.getClosesAt().isAfter(now));
+            ReportService.QuizScore my = mine.get(q.id());
+            boolean locked = open && my == null;
+            out.add(new QuizToppers(q.id(), q.title(), q.subject(), q.createdAt(), open, locked, q.participants(),
+                    locked ? List.of() : q.podium(),
+                    my != null && my.percent() > 0 ? my.rank() : null,
+                    my != null ? my.percent() : null));
+        }
+        return out;
     }
 
     /**
