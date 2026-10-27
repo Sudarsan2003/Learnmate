@@ -92,6 +92,14 @@ export async function getChatQuizResult(id) {
   return data;
 }
 
+// Study material the student can pick for a chat quiz, scoped server-side to
+// their own school + class: [{ id, name, subject }]. Send the chosen ids as
+// `materialIds` with sendChatMessage to build the quiz from just those.
+export async function getQuizMaterials() {
+  const { data } = await api.get("/api/chat/materials");
+  return data;
+}
+
 // --- Taking a practice quiz inside chat (powers the ChatQuiz card) ---------
 
 // Loads the quiz card: { id, topic, difficulty, status, questions: [{ number,

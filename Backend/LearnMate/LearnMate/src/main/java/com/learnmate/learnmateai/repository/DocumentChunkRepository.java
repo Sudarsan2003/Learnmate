@@ -111,6 +111,36 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
             @Param("fileName") String fileName
     );
 
+    // One row per uploaded document for this school + class:
+    // [sourceId, fileName, subject]. Powers the "pick material to be
+    // quizzed on" list in chat.
+    @Query("""
+            SELECT d.sourceId, MAX(d.fileName), MAX(d.subject) FROM DocumentChunk d
+            WHERE d.institution = :institution
+              AND d.standard = :standard
+            GROUP BY d.sourceId
+            ORDER BY MAX(d.subject), MAX(d.fileName)
+            """)
+    List<Object[]> findMaterials(
+            @Param("institution") String institution,
+            @Param("standard") String standard
+    );
+
+    // All chunks of the given documents, restricted to this school + class
+    // so a student can't quiz themselves on another class's material by id.
+    @Query("""
+            SELECT d FROM DocumentChunk d
+            WHERE d.institution = :institution
+              AND d.standard = :standard
+              AND d.sourceId IN :sourceIds
+            ORDER BY d.sourceId, d.id
+            """)
+    List<DocumentChunk> findBySourceIds(
+            @Param("institution") String institution,
+            @Param("standard") String standard,
+            @Param("sourceIds") List<String> sourceIds
+    );
+
     void deleteBySourceId(String sourceId);
 
     @Modifying

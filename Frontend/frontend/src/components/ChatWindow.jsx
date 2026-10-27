@@ -9,6 +9,7 @@ import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
 import ThemeToggle from "./ThemeToggle";
 import ChatQuiz, { QUIZ_TOKEN } from "./ChatQuiz";
+import MaterialPicker, { MATERIALS_TOKEN } from "./MaterialPicker";
 
 // Matches the key Quizzes.jsx writes to when a student clicks
 // "Ask LearnMate" after submitting a quiz.
@@ -29,6 +30,18 @@ function quizIdOf(message) {
   return match ? Number(match[1]) : null;
 }
 
+// When the backend asks which material to quiz on it appends [[LEARNMATE_MATERIALS:<ids>]].
+// Returns { text, preselected } for those tutor messages (token stripped), or null otherwise.
+function materialPromptOf(message) {
+  if (message.role !== "tutor" || typeof message.text !== "string") return null;
+  const match = message.text.match(MATERIALS_TOKEN);
+  if (!match) return null;
+  return {
+    text: message.text.replace(MATERIALS_TOKEN, "").trim(),
+    preselected: match[1].split(",").filter(Boolean),
+  };
+}
+
 // Wider than a normal tutor bubble: it holds the interactive quiz (selectable answers,
 // autosaved progress, graded result) instead of plain text.
 function QuizBubble({ attemptId }) {
@@ -39,7 +52,7 @@ function QuizBubble({ attemptId }) {
   );
 }
 
-function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegenerate, canRegenerate }) {
+function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegenerate, canRegenerate, children }) {
   const { shown, done } = useTypewriter(text, { active: isNew, speed: 12 });
   const [showSources, setShowSources] = useState(false);
 
@@ -56,6 +69,8 @@ function TutorBubble({ text, isNew, citations, isError, onCopy, copied, onRegene
         <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{shown}</ReactMarkdown>
         {!done && <span className="typing-cursor" aria-hidden="true">▍</span>}
       </div>
+
+      {done && children}
 
       {done && citations && citations.length > 0 && (
         <div className="citation-thread mt-3 pt-3">
@@ -313,12 +328,12 @@ export default function ChatWindow({
   }
 
   const performSend = useCallback(
-    async (query) => {
+    async (query, materialIds) => {
       const token = ++requestTokenRef.current;
       setIsLoading(true);
 
       try {
-        const response = await sendChatMessage({ query, sessionId });
+        const response = await sendChatMessage({ query, sessionId, materialIds });
         if (token !== requestTokenRef.current) return; // stopped or superseded
 
         if (!sessionId && response.sessionId) {
@@ -365,6 +380,15 @@ export default function ChatWindow({
     await performSend(query);
   }
 
+  // "Start quiz" in the material picker: ask for a quiz built from just those documents.
+  function handleStartMaterialQuiz(materials) {
+    if (isLoading) return;
+    const query = `Quiz me on ${materials.map((m) => m.name).join(", ")}`;
+    const materialIds = materials.map((m) => m.id);
+    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "learner", text: query, materialIds }]);
+    performSend(query, materialIds);
+  }
+
   function handleStop() {
     requestTokenRef.current++; // orphan any in-flight response
     setIsLoading(false);
@@ -374,7 +398,7 @@ export default function ChatWindow({
     const query = messages[index - 1]?.text;
     if (!query || messages[index - 1]?.role !== "learner") return;
     setMessages((prev) => prev.slice(0, index));
-    performSend(query);
+    performSend(query, messages[index - 1].materialIds);
   }
 
   function handleNewChatClick() {
@@ -524,6 +548,14 @@ export default function ChatWindow({
                 </div>
               ) : quizIdOf(m) !== null ? (
                 <QuizBubble attemptId={quizIdOf(m)} />
+              ) : materialPromptOf(m) ? (
+                <TutorBubble text={materialPromptOf(m).text} isNew={!!m.isNew}>
+                  <MaterialPicker
+                    preselected={materialPromptOf(m).preselected}
+                    active={i === messages.length - 1 && !isLoading}
+                    onStart={handleStartMaterialQuiz}
+                  />
+                </TutorBubble>
               ) : (
                 <TutorBubble
                   text={m.text}

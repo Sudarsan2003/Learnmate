@@ -15,8 +15,11 @@ import com.learnmate.learnmateai.service.ChatHistoryService;
 import com.learnmate.learnmateai.service.ChatQuizAttemptService;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -117,7 +120,10 @@ public class AgentOrchestrator {
             }
 
             if (isQuizRequest(req.query())) {
-                return handleQuiz(req, user, ownerUsername, sessionId);
+                if (req.materialIds() != null && !req.materialIds().isEmpty()) {
+                    return handleQuiz(req, user, ownerUsername, sessionId);
+                }
+                return offerMaterials(req, user);
             }
             return handleTutoring(req, ownerUsername, user);
 
@@ -130,35 +136,88 @@ public class AgentOrchestrator {
         }
     }
 
+    /** Materials the student can be quizzed on: [{id, name, subject}] for their school + class. */
+    public List<Map<String, String>> materialsFor(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (profileIncomplete(user)) return List.of();
+        return chunkRepository.findMaterials(user.getInstitution(), user.getStandard()).stream()
+                .map(row -> {
+                    String id = (String) row[0];
+                    String name = row[1] == null ? id : ((String) row[1]).replaceAll("(?i)\\.pdf$", "");
+                    String subject = row[2] == null ? "" : (String) row[2];
+                    return Map.of("id", id, "name", name, "subject", subject);
+                })
+                .toList();
+    }
+
+    // "Quiz me on ..." without a selection: reply with the material picker. The trailing
+    // token carries the ids to pre-tick (materials whose name/subject matches the topic);
+    // the chat UI swaps it for a checklist and sends the chosen ids back in materialIds.
+    private ChatResponse offerMaterials(ChatRequest req, User user) {
+        List<Map<String, String>> materials = materialsFor(user.getUsername());
+        if (materials.isEmpty()) {
+            return new ChatResponse("No study material has been uploaded for your class yet, "
+                    + "so I can't build a quiz. Ask your teacher to upload some first.", List.of(), null);
+        }
+
+        String topic = normalizeTopic(extractQuizTopic(req.query()));
+        List<String> preselected = isVagueTopic(topic) ? List.of() : matchMaterials(topic, materials);
+
+        String intro = preselected.isEmpty()
+                ? "Which study material would you like to be quizzed on? Pick one or more below."
+                : "I found material that matches \"" + topic + "\". Check the selection below, "
+                        + "add or remove anything, then start the quiz.";
+        return new ChatResponse(intro + "\n\n[[LEARNMATE_MATERIALS:" + String.join(",", preselected) + "]]",
+                List.of(), null);
+    }
+
+    private static final Set<String> MATCH_STOPWORDS = Set.of(
+            "chapter", "unit", "lesson", "the", "and", "class", "on", "of", "in", "about", "me", "quiz");
+
+    /** Ids of the materials sharing the most significant words with the topic (none if no overlap). */
+    private List<String> matchMaterials(String topic, List<Map<String, String>> materials) {
+        Set<String> wanted = matchTokens(topic);
+        if (wanted.isEmpty()) return List.of();
+
+        int best = 0;
+        List<String> ids = new ArrayList<>();
+        for (Map<String, String> m : materials) {
+            Set<String> have = matchTokens(m.get("name") + " " + m.get("subject"));
+            int score = (int) wanted.stream().filter(have::contains).count();
+            if (score > best) {
+                best = score;
+                ids.clear();
+            }
+            if (score == best && score > 0) ids.add(m.get("id"));
+        }
+        return ids;
+    }
+
+    private static Set<String> matchTokens(String s) {
+        Set<String> out = new HashSet<>();
+        for (String t : s.toLowerCase().split("[^\\p{L}\\p{N}]+")) {
+            if (MATCH_STOPWORDS.contains(t)) continue;
+            if (t.length() >= 3 || (!t.isEmpty() && t.chars().allMatch(Character::isDigit))) out.add(t);
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ quiz (shown in chat, saved so the answers can be graded)
 
     private ChatResponse handleQuiz(ChatRequest req, User user, String ownerUsername, String sessionId) {
 
-        String topic = normalizeTopic(extractQuizTopic(req.query()));
+        List<RetrievedChunk> quizChunks = retrievalAgent.retrieveFromDocuments(
+                req.materialIds(), user.getInstitution(), user.getStandard(), 10);
 
-        if (isVagueTopic(topic)) {
+        if (quizChunks.isEmpty()) {
             return new ChatResponse(
-                    "Which subject, textbook and chapter or unit would you like to be quizzed on? "
-                            + "For example: \"Quiz me on Biology Chapter 5\".",
+                    "I couldn't find the material you selected. It may have been removed. "
+                            + "Ask me to quiz you again to see what's available now.",
                     List.of(), null);
         }
 
-        // If the topic is the name of an uploaded file, sample chunks across that whole file
-        // (similarity search on a file name returns near-random chunks, often the copyright page).
-        List<RetrievedChunk> quizChunks = retrievalAgent.retrieveWholeDocument(
-                topic, user.getInstitution(), user.getStandard(), 10);
-
-        if (quizChunks.isEmpty()) {
-            quizChunks = retrievalAgent.retrieve(
-                    topic, null, user.getInstitution(), user.getStandard(), 8);
-        }
-
-        if (quizChunks.isEmpty()) {
-            return new ChatResponse(
-                    "I couldn't find that chapter or topic in your study material. "
-                            + "Could you tell me the subject, textbook, and chapter or unit?",
-                    quizChunks, null);
-        }
+        String topic = topicFor(req.materialIds(), user.getUsername());
 
         if (looksGarbled(quizChunks)) {
             return new ChatResponse(
@@ -185,10 +244,18 @@ public class AgentOrchestrator {
         } catch (RuntimeException e) {
             log.error("Quiz generation failed for topic '{}'", topic, e);
             return new ChatResponse(
-                    "I couldn't build that quiz just now. Please try again, or name the chapter "
-                            + "(for example \"Quiz me on Biology Chapter 5\").",
+                    "I couldn't build that quiz just now. Please try again, or pick different material.",
                     quizChunks, null);
         }
+    }
+
+    /** Quiz title from the selected materials' names, e.g. "Biology Ch 5, Biology Ch 6". */
+    private String topicFor(List<String> materialIds, String username) {
+        List<String> names = materialsFor(username).stream()
+                .filter(m -> materialIds.contains(m.get("id")))
+                .map(m -> m.get("name"))
+                .toList();
+        return names.isEmpty() ? "Selected material" : String.join(", ", names);
     }
 
     // ------------------------------------------------------------------ list topics (database lookup, not similarity search)

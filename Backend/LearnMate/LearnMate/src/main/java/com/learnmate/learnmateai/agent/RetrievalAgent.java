@@ -7,7 +7,9 @@ import com.learnmate.learnmateai.service.HybridSearchService;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @Component
@@ -73,6 +75,35 @@ public class RetrievalAgent {
         if (usable.isEmpty()) usable = all;
 
         return spread(usable, count).stream().map(this::toRetrieved).toList();
+    }
+
+    /**
+     * Returns about {@code count} chunks spread across the selected documents (an even
+     * share per document), skipping boilerplate. Ids outside the student's
+     * institution + standard are ignored.
+     */
+    public List<RetrievedChunk> retrieveFromDocuments(List<String> sourceIds, String institution,
+                                                      String standard, int count) {
+        if (sourceIds == null || sourceIds.isEmpty()) return List.of();
+
+        Map<String, List<DocumentChunk>> byDoc = new LinkedHashMap<>();
+        for (DocumentChunk c : chunkRepository.findBySourceIds(institution, standard, sourceIds)) {
+            byDoc.computeIfAbsent(c.getSourceId(), k -> new ArrayList<>()).add(c);
+        }
+        if (byDoc.isEmpty()) return List.of();
+
+        int perDoc = Math.max(2, (int) Math.ceil((double) count / byDoc.size()));
+        List<RetrievedChunk> out = new ArrayList<>();
+        for (List<DocumentChunk> all : byDoc.values()) {
+            List<DocumentChunk> usable = all.stream()
+                    .filter(c -> c.getContent() != null
+                            && c.getContent().length() >= MIN_USABLE_CHUNK_CHARS
+                            && !BOILERPLATE.matcher(c.getContent()).find())
+                    .toList();
+            if (usable.isEmpty()) usable = all;
+            spread(usable, perDoc).stream().map(this::toRetrieved).forEach(out::add);
+        }
+        return out;
     }
 
     private static String norm(String s) {

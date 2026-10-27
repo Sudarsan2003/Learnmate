@@ -60,6 +60,13 @@ public class ChatController {
         return response.withSessionId(sessionId);
     }
 
+    // Uploaded documents for the student's own school + class; the chat's
+    // "quiz me" picker lists these so the student chooses what to be quizzed on.
+    @GetMapping("/api/chat/materials")
+    public List<Map<String, String>> materials(Authentication auth) {
+        return orchestrator.materialsFor(auth.getName());
+    }
+
     @GetMapping("/api/chat/sessions")
     public List<Map<String, Object>> sessions(Authentication auth) {
         return chatHistoryService.getSessions(auth.getName());
