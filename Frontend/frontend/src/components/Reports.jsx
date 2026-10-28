@@ -44,6 +44,31 @@ const fmtTime = (sec) => (sec == null || sec > 864000 ? "" : sec < 60 ? `${sec}s
 // Real name when the school has given one (e.g. through bulk import), otherwise the username.
 const nameOf = (s) => s.fullName || s.username;
 
+const fileDate = (d) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+/**
+ * Name for a downloaded or printed report, e.g.
+ *   "QA School - Class 9 - Class report - 28 Oct 2026"
+ *   "Ravi Kumar - Class 9 - Report card - 1 Jun 2026 to 30 Sep 2026"
+ * When printing, browsers offer the page title as the PDF's file name, so this
+ * is what "Save as PDF" suggests. Characters not allowed in file names are dropped.
+ */
+function reportFileName(report, what, student) {
+  const cls = /^passed out/i.test(report.standard) ? report.standard : `Class ${report.standard}`;
+  const period =
+    report.from && report.to ? `${fileDate(report.from)} to ${fileDate(report.to)}`
+      : report.from ? `from ${fileDate(report.from)}`
+      : report.to ? `to ${fileDate(report.to)}`
+      : fileDate(Date.now());
+  const who = student ? nameOf(student) : report.institution;
+  return [who, cls, what, period]
+    .filter(Boolean)
+    .join(" - ")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function csvCell(v) {
   const s = v == null ? "" : String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -70,7 +95,7 @@ function downloadCsv(report) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Class-${report.standard}-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `${reportFileName(report, "Class report")}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -118,17 +143,27 @@ export default function Reports() {
     }
   }, [standard, from, to]);
 
-  // Print once the print-only content has rendered, then clear it.
+  // Print once the print-only content has rendered, then clear it. The page
+  // title is swapped for the report's name while printing, because that is
+  // the file name the browser suggests for "Save as PDF".
   useEffect(() => {
-    if (!printing) return undefined;
+    if (!printing || !report) return undefined;
+    const previousTitle = document.title;
+    document.title =
+      printing.kind === "class"
+        ? reportFileName(report, "Class report")
+        : printing.students.length === 1
+          ? reportFileName(report, "Report card", printing.students[0])
+          : reportFileName(report, "Report cards");
     const done = () => setPrinting(null);
     window.addEventListener("afterprint", done);
     const id = window.setTimeout(() => window.print(), 50);
     return () => {
       window.clearTimeout(id);
       window.removeEventListener("afterprint", done);
+      document.title = previousTitle;
     };
-  }, [printing]);
+  }, [printing, report]);
 
   const ranked = useMemo(() => {
     if (!report) return [];
