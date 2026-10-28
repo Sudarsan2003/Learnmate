@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -220,10 +219,12 @@ public class IngestionService {
                         ""
                 );
 
-                text = text.replaceAll(
-                        "\\s{2,}",
-                        " "
-                ).trim();
+                // Tidy spacing but keep line breaks: the chunker uses them to
+                // find paragraphs and chapter headings.
+                text = text.replaceAll("[ \\t\\u00A0]+", " ")
+                        .replaceAll(" ?\\R ?", "\n")
+                        .replaceAll("\\n{3,}", "\n\n")
+                        .trim();
 
                 System.out.println(
                         "[Ingestion] Cleaned length for "
@@ -242,64 +243,32 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 2. Split text into words
+            // 2. Split into pieces at sentence boundaries, each starting
+            //    with the book and chapter it came from
             // ---------------------------------------------------------
 
             List<DocumentChunk> chunks = new ArrayList<>();
 
-            String[] words = text.split("\\s+");
+            List<TextChunker.Chunk> parts =
+                    TextChunker.chunk(text, CHUNK_SIZE_WORDS, CHUNK_OVERLAP_WORDS);
 
-            if (words.length == 0
-                    || (words.length == 1 && words[0].isBlank())) {
-
-                System.out.println(
-                        "[Ingestion] WARNING: no words to chunk for "
-                                + fileName
-                );
-
+            if (parts.isEmpty()) {
                 throw new IOException("No text could be found in " + fileName + ".");
             }
 
-            // ---------------------------------------------------------
-            // 3. Create overlapping chunks
-            // ---------------------------------------------------------
+            // Drop pieces whose text came out as symbol soup (pages typed in a
+            // legacy non-Unicode font). They can't be searched or quizzed on, and
+            // bilingual books often have them on every other page.
+            int before = parts.size();
+            parts.removeIf(p -> !TextQuality.isReadable(p.text()));
 
-            List<String> pieces = new ArrayList<>();
-
-            int step =
-                    CHUNK_SIZE_WORDS
-                            - CHUNK_OVERLAP_WORDS;
-
-            for (
-                    int start = 0;
-                    start < words.length;
-                    start += step
-            ) {
-
-                int end =
-                        Math.min(
-                                start + CHUNK_SIZE_WORDS,
-                                words.length
-                        );
-
-                String piece =
-                        String.join(
-                                " ",
-                                Arrays.copyOfRange(
-                                        words,
-                                        start,
-                                        end
-                                )
-                        ).trim();
-
-                if (!piece.isEmpty()) {
-                    pieces.add(piece);
-                }
-
-                if (end == words.length) {
-                    break;
-                }
-            }
+            // The book/chapter line goes into the stored and embedded text, so a
+            // search like "chapter 3 light" finds the piece and the tutor knows
+            // where it came from.
+            String title = bookTitle(fileName);
+            List<String> pieces = parts.stream()
+                    .map(p -> (p.heading() == null ? title : title + " | " + p.heading()) + "\n" + p.text())
+                    .toList();
 
             System.out.println(
                     "[Ingestion] Created "
@@ -307,12 +276,6 @@ public class IngestionService {
                             + " text chunks for "
                             + fileName
             );
-
-            // Drop chunks whose text came out as symbol soup (pages typed in a
-            // legacy non-Unicode font). They can't be searched or quizzed on, and
-            // bilingual books often have them on every other page.
-            int before = pieces.size();
-            pieces.removeIf(p -> !TextQuality.isReadable(p));
 
             if (pieces.isEmpty()) {
                 throw new IOException(
@@ -332,7 +295,7 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 4. Generate embeddings
+            // 3. Generate embeddings
             // ---------------------------------------------------------
 
             statusService.markProgress(ownerUsername, sourceId,
@@ -352,7 +315,7 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 5. Create DocumentChunk entities
+            // 4. Create DocumentChunk entities
             // ---------------------------------------------------------
 
             for (int i = 0; i < pieces.size(); i++) {
@@ -389,7 +352,7 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 6. Replace any earlier upload of this file, only now that the
+            // 5. Replace any earlier upload of this file, only now that the
             //    new version is ready (a failed re-upload keeps the old one)
             // ---------------------------------------------------------
 
@@ -405,7 +368,7 @@ public class IngestionService {
             repository.saveAll(chunks);
 
             // ---------------------------------------------------------
-            // 7. Mark ingestion as completed
+            // 6. Mark ingestion as completed
             // ---------------------------------------------------------
 
             statusService.markDone(
@@ -434,6 +397,11 @@ public class IngestionService {
                             : "Something went wrong while preparing this file for search. Please try again in a few minutes."
             );
         }
+    }
+
+    /** "Class8_Science_Ch4.pdf" -> "Class8 Science Ch4". */
+    static String bookTitle(String fileName) {
+        return fileName.replaceAll("\\.[A-Za-z0-9]{1,5}$", "").replace('_', ' ').trim();
     }
 
     /**

@@ -337,7 +337,7 @@ public class AgentOrchestrator {
         String retrievalQuery = buildRetrievalQuery(req.query(), history);
 
         var chunks = retrievalAgent.retrieve(
-                retrievalQuery, null, user.getInstitution(), user.getStandard(), 5);
+                retrievalQuery, null, user.getInstitution(), user.getStandard(), 6);
 
         var answer = learningAgent.explain(req.query(), req.level(), user.getStandard(),
                 namedBySource(chunks, user), history);

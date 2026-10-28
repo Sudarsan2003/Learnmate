@@ -70,20 +70,30 @@ public class VoyageEmbeddingClient implements EmbeddingClient {
         return embedBatch(List.of(text)).get(0);
     }
 
+    // Voyage embeds questions and passages slightly differently when told
+    // which is which ("query" / "document"), which improves search results.
+    // Vectors made without input_type stay comparable, so books uploaded
+    // before this change keep working.
+    @Override
+    public float[] embedQuery(String text) {
+        return embedWithRetry(List.of(text), "query").get(0);
+    }
+
+    /** Embeds book passages (input_type "document"). */
     @Override
     public List<float[]> embedBatch(List<String> texts) {
         List<float[]> results = new ArrayList<>(texts.size());
 
         for (int start = 0; start < texts.size(); start += BATCH_SIZE) {
             int end = Math.min(start + BATCH_SIZE, texts.size());
-            results.addAll(embedWithRetry(texts.subList(start, end)));
+            results.addAll(embedWithRetry(texts.subList(start, end), "document"));
         }
 
         return results;
     }
 
     @SuppressWarnings("unchecked")
-    private List<float[]> embedWithRetry(List<String> batch) {
+    private List<float[]> embedWithRetry(List<String> batch, String inputType) {
         int attempt = 0;
         long backoffMs = INITIAL_BACKOFF_MS;
 
@@ -94,6 +104,7 @@ public class VoyageEmbeddingClient implements EmbeddingClient {
                         .bodyValue(Map.of(
                                 "input", batch,
                                 "model", MODEL,
+                                "input_type", inputType,
                                 "output_dimension", OUTPUT_DIMENSION
                         ))
                         .retrieve()

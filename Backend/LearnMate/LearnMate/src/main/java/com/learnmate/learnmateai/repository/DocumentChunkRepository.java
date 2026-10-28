@@ -11,33 +11,60 @@ import java.util.List;
 
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
 
+    /**
+     * Hybrid search: the best matches by meaning (vector distance) and the best
+     * by keywords (full-text rank), merged with reciprocal rank fusion, so a
+     * piece near the top of either list scores well. (Adding the raw scores
+     * together, as before, let the vector score drown out keywords, whose
+     * ts_rank values are about ten times smaller.)
+     *
+     * keywordQuery is an OR of the question's words ("newton | third | law"),
+     * built in HybridSearchService; '' means no keyword search.
+     */
     @Query(value = """
+            WITH semantic AS (
+                SELECT c.id,
+                       ROW_NUMBER() OVER (ORDER BY c.embedding <=> CAST(:queryEmbedding AS vector)) AS r
+                FROM document_chunks c
+                WHERE c.embedding IS NOT NULL
+                  AND c.institution = :institution
+                  AND c.standard = :standard
+                  AND (:subject IS NULL OR :subject = '' OR c.subject = :subject)
+                ORDER BY c.embedding <=> CAST(:queryEmbedding AS vector)
+                LIMIT :pool
+            ),
+            keyword AS (
+                SELECT c.id,
+                       ROW_NUMBER() OVER (ORDER BY ts_rank_cd(to_tsvector('english', c.content), q) DESC) AS r
+                FROM document_chunks c, to_tsquery('english', :keywordQuery) q
+                WHERE :keywordQuery <> ''
+                  AND c.embedding IS NOT NULL
+                  AND c.institution = :institution
+                  AND c.standard = :standard
+                  AND (:subject IS NULL OR :subject = '' OR c.subject = :subject)
+                  AND to_tsvector('english', c.content) @@ q
+                ORDER BY ts_rank_cd(to_tsvector('english', c.content), q) DESC
+                LIMIT :pool
+            ),
+            fused AS (
+                SELECT COALESCE(s.id, k.id) AS id,
+                       COALESCE(1.0 / (60 + s.r), 0) + COALESCE(1.0 / (60 + k.r), 0) AS score
+                FROM semantic s
+                FULL OUTER JOIN keyword k ON k.id = s.id
+            )
             SELECT c.*
-            FROM document_chunks c
-            WHERE c.embedding IS NOT NULL
-              AND c.institution = :institution
-              AND c.standard = :standard
-              AND (
-                    :subject IS NULL
-                    OR :subject = ''
-                    OR c.subject = :subject
-                  )
-            ORDER BY
-            (
-                0.7 * (1 - (c.embedding <=> CAST(:queryEmbedding AS vector)))
-              + 0.3 * ts_rank(
-                    to_tsvector('english', c.content),
-                    plainto_tsquery('english', :queryText)
-                )
-            ) DESC
+            FROM fused f
+            JOIN document_chunks c ON c.id = f.id
+            ORDER BY f.score DESC
             LIMIT :topK
             """, nativeQuery = true)
     List<DocumentChunk> hybridSearch(
             @Param("queryEmbedding") String queryEmbedding,
-            @Param("queryText") String queryText,
+            @Param("keywordQuery") String keywordQuery,
             @Param("subject") String subject,
             @Param("institution") String institution,
             @Param("standard") String standard,
+            @Param("pool") int pool,
             @Param("topK") int topK
     );
 
