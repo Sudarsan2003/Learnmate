@@ -231,7 +231,7 @@ public class AgentOrchestrator {
 
         try {
             EvaluationAgent.GeneratedQuiz quiz = evaluationAgent.generateMixedQuiz(
-                    topic, quizChunks, 5, 3, req.level());
+                    topic, namedBySource(quizChunks, user), 5, 3, req.level());
             ChatQuizAttempt attempt = quizAttemptService.start(ownerUsername, sessionId, quiz,
                     ChatQuizAttemptService.buildStudyMaterial(quizChunks));
             // The trailing token lets the chat UI swap this text for an interactive quiz card
@@ -249,6 +249,20 @@ public class AgentOrchestrator {
                     "I couldn't build that quiz just now. Please try again, or pick different material.",
                     quizChunks, null);
         }
+    }
+
+    /**
+     * Copies of the chunks labelled with their file name (e.g. "Science Ch 4 Light")
+     * instead of the internal source id, for the AI prompts: the model uses the
+     * labels to tell chapters apart and cites them in its "Sources" line.
+     */
+    private List<RetrievedChunk> namedBySource(List<RetrievedChunk> chunks, User user) {
+        Map<String, String> names = new java.util.HashMap<>();
+        for (Map<String, String> m : materialsFor(user.getUsername())) names.put(m.get("id"), m.get("name"));
+        return chunks.stream()
+                .map(c -> new RetrievedChunk(c.chunkId(), names.getOrDefault(c.sourceId(), c.sourceId()),
+                        c.content(), c.score()))
+                .toList();
     }
 
     /** Quiz title from the selected materials' names, e.g. "Biology Ch 5, Biology Ch 6". */
@@ -325,7 +339,8 @@ public class AgentOrchestrator {
         var chunks = retrievalAgent.retrieve(
                 retrievalQuery, null, user.getInstitution(), user.getStandard(), 5);
 
-        var answer = learningAgent.explain(req.query(), req.level(), chunks, history);
+        var answer = learningAgent.explain(req.query(), req.level(), user.getStandard(),
+                namedBySource(chunks, user), history);
 
         return new ChatResponse(answer, chunks, null);
     }
