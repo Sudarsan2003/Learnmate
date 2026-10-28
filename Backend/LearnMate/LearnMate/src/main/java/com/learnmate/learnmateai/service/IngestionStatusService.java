@@ -34,6 +34,12 @@ public class IngestionStatusService {
                 new IngestionStatus(State.PROCESSING, sourceId, "Parsing and embedding document...", 0, Instant.now()));
     }
 
+    /** Still processing, with a progress note for the upload screen (e.g. "Reading the file..."). */
+    public void markProgress(String ownerUsername, String sourceId, String message) {
+        statuses.put(key(ownerUsername, sourceId),
+                new IngestionStatus(State.PROCESSING, sourceId, message, 0, Instant.now()));
+    }
+
     public void markDone(String ownerUsername, String sourceId, int chunkCount) {
         statuses.put(key(ownerUsername, sourceId),
                 new IngestionStatus(State.DONE, sourceId, "Ingestion complete", chunkCount, Instant.now()));

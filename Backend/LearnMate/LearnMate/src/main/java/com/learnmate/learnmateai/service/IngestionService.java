@@ -4,21 +4,25 @@ import com.learnmate.learnmateai.llm.EmbeddingClient;
 import com.learnmate.learnmateai.model.DocumentChunk;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.pgvector.PGvector;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Service
 public class IngestionService {
@@ -29,21 +33,30 @@ public class IngestionService {
     private final DocumentChunkRepository repository;
     private final EmbeddingClient embeddingClient;
     private final IngestionStatusService statusService;
+    private final Executor ingestionExecutor;
 
     public IngestionService(
             DocumentChunkRepository repository,
             EmbeddingClient embeddingClient,
-            IngestionStatusService statusService) {
+            IngestionStatusService statusService,
+            @Qualifier("ingestionExecutor") Executor ingestionExecutor) {
 
         this.repository = repository;
         this.embeddingClient = embeddingClient;
         this.statusService = statusService;
+        this.ingestionExecutor = ingestionExecutor;
     }
 
     /**
      * Called synchronously from the controller.
-     * Reads the uploaded file into memory and starts
-     * the actual parsing/embedding process asynchronously.
+     * Copies the upload to a temp file and hands the parsing/embedding to the
+     * ingestion thread pool, so the request returns straight away and the
+     * upload screen polls /status for progress.
+     *
+     * (This used to call an @Async method on this same class, which Spring
+     * ignores, so a big textbook kept the request open until it was fully
+     * embedded and the browser or proxy could give up first. It also held
+     * the whole file in memory; a temp file keeps 150 MB books off the heap.)
      */
     public String startIngestion(
             MultipartFile file,
@@ -78,22 +91,37 @@ public class IngestionService {
                 fileName
         );
 
-        byte[] fileBytes = file.getBytes();
+        String suffix = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.')) : "";
+        Path upload = Files.createTempFile("learnmate-upload-", suffix.length() <= 10 ? suffix : "");
+        try {
+            file.transferTo(upload);
+        } catch (IOException | RuntimeException e) {
+            Files.deleteIfExists(upload);
+            throw e;
+        }
 
         statusService.markProcessing(
                 ownerUsername,
                 sourceId
         );
 
-        ingestAsync(
-                fileBytes,
-                sourceId,
-                fileName,
-                subject,
-                standard,
-                institution,
-                ownerUsername
-        );
+        try {
+            ingestionExecutor.execute(() -> {
+                try {
+                    ingest(upload, sourceId, fileName, subject, standard, institution, ownerUsername);
+                } finally {
+                    try {
+                        Files.deleteIfExists(upload);
+                    } catch (IOException ignored) {
+                        // the OS clears its temp folder eventually
+                    }
+                }
+            });
+        } catch (RejectedExecutionException e) { // includes Spring's TaskRejectedException
+            Files.deleteIfExists(upload);
+            statusService.markFailed(ownerUsername, sourceId, "Too many uploads at once. Please try again in a few minutes.");
+            throw new IllegalArgumentException("Too many uploads are being processed right now. Please try again in a few minutes.");
+        }
 
         return sourceId;
     }
@@ -127,11 +155,11 @@ public class IngestionService {
      * - Other formats supported by Apache Tika
      *
      * Scanned/image-only PDFs will not produce text because
-     * there is no OCR fallback.
+     * there is no OCR fallback. Pictures inside a PDF are skipped, so a
+     * textbook can be uploaded as it is, without stripping them first.
      */
-    @Async("ingestionExecutor")
-    void ingestAsync(
-            byte[] fileBytes,
+    void ingest(
+            Path upload,
             String sourceId,
             String fileName,
             String subject,
@@ -149,7 +177,8 @@ public class IngestionService {
 
             try {
 
-                text = extractText(fileBytes, fileName);
+                statusService.markProgress(ownerUsername, sourceId, "Reading the text from the file...");
+                text = extractText(upload, fileName);
 
                 System.out.println(
                         "[Ingestion] Raw extracted length for "
@@ -213,13 +242,7 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 2. Delete previous chunks for this source
-            // ---------------------------------------------------------
-
-            repository.deleteBySourceId(sourceId);
-
-            // ---------------------------------------------------------
-            // 3. Split text into words
+            // 2. Split text into words
             // ---------------------------------------------------------
 
             List<DocumentChunk> chunks = new ArrayList<>();
@@ -234,19 +257,11 @@ public class IngestionService {
                                 + fileName
                 );
 
-                repository.saveAll(chunks);
-
-                statusService.markDone(
-                        ownerUsername,
-                        sourceId,
-                        0
-                );
-
-                return;
+                throw new IOException("No text could be found in " + fileName + ".");
             }
 
             // ---------------------------------------------------------
-            // 4. Create overlapping chunks
+            // 3. Create overlapping chunks
             // ---------------------------------------------------------
 
             List<String> pieces = new ArrayList<>();
@@ -317,8 +332,11 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 5. Generate embeddings
+            // 4. Generate embeddings
             // ---------------------------------------------------------
+
+            statusService.markProgress(ownerUsername, sourceId,
+                    "Preparing " + pieces.size() + " sections for search...");
 
             List<float[]> vectors =
                     embeddingClient.embedBatch(pieces);
@@ -334,7 +352,7 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 6. Create DocumentChunk entities
+            // 5. Create DocumentChunk entities
             // ---------------------------------------------------------
 
             for (int i = 0; i < pieces.size(); i++) {
@@ -371,8 +389,11 @@ public class IngestionService {
             }
 
             // ---------------------------------------------------------
-            // 7. Save chunks to PostgreSQL
+            // 6. Replace any earlier upload of this file, only now that the
+            //    new version is ready (a failed re-upload keeps the old one)
             // ---------------------------------------------------------
+
+            repository.deleteBySourceId(sourceId);
 
             System.out.println(
                     "[Ingestion] Produced "
@@ -384,7 +405,7 @@ public class IngestionService {
             repository.saveAll(chunks);
 
             // ---------------------------------------------------------
-            // 8. Mark ingestion as completed
+            // 7. Mark ingestion as completed
             // ---------------------------------------------------------
 
             statusService.markDone(
@@ -402,10 +423,15 @@ public class IngestionService {
                             + e.getMessage()
             );
 
+            // Our own IOExceptions explain the problem in plain words; anything
+            // else (e.g. the embedding service being down) is a technical error
+            // the teacher can't act on except by retrying.
             statusService.markFailed(
                     ownerUsername,
                     sourceId,
-                    e.getMessage()
+                    e instanceof IOException
+                            ? e.getMessage()
+                            : "Something went wrong while preparing this file for search. Please try again in a few minutes."
             );
         }
     }
@@ -420,7 +446,7 @@ public class IngestionService {
      * read the text from the image.
      */
     private String extractText(
-            byte[] fileBytes,
+            Path upload,
             String fileName) throws Exception {
 
         AutoDetectParser parser =
@@ -435,12 +461,16 @@ public class IngestionService {
         ParseContext context =
                 new ParseContext();
 
-        parser.parse(
-                new ByteArrayInputStream(fileBytes),
-                handler,
-                metadata,
-                context
-        );
+        // Parsing from the file lets PDFBox read pages as it goes instead of
+        // loading the whole book into memory.
+        try (TikaInputStream in = TikaInputStream.get(upload)) {
+            parser.parse(
+                    in,
+                    handler,
+                    metadata,
+                    context
+            );
+        }
 
         String text =
                 handler.toString().trim();

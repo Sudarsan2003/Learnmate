@@ -12,8 +12,11 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      # Full textbooks with pictures run to 150 MB+. Uploads are streamed to a
+      # temp file on disk (not memory), so this mostly needs free disk space.
+      # A proxy in front of the app (nginx client_max_body_size) needs the same limit.
+      max-file-size: 200MB
+      max-request-size: 210MB
 
   datasource:
     url: ${SPRING_DATASOURCE_URL}

@@ -5,9 +5,29 @@ import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Load
 const STATUS = {
   QUEUED: "queued",
   UPLOADING: "uploading",
+  PROCESSING: "processing", // uploaded; the server is reading and embedding it
   DONE: "done",
   ERROR: "error",
 };
+
+// Must match spring.servlet.multipart.max-file-size on the server.
+const MAX_UPLOAD_MB = 200;
+const POLL_MS = 2500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fileSize = (bytes) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+async function readError(res) {
+  if (res.status === 413) return `This file is too big. Files can be up to ${MAX_UPLOAD_MB} MB.`;
+  const text = await res.text().catch(() => "");
+  try {
+    const body = JSON.parse(text);
+    if (body?.message || body?.error) return body.message || body.error;
+  } catch {
+    // not JSON
+  }
+  return text || `${res.status} ${res.statusText}`;
+}
 
 export default function DocumentUpload({
     token,
@@ -242,7 +262,14 @@ export default function DocumentUpload({
       return;
     }
 
-    setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: STATUS.UPLOADING } : i)));
+    const update = (patch) => setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, ...patch } : i)));
+
+    if (item.file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      update({ status: STATUS.ERROR, error: `This file is ${fileSize(item.file.size)}. Files can be up to ${MAX_UPLOAD_MB} MB.` });
+      return;
+    }
+
+    update({ status: STATUS.UPLOADING, error: null, note: null });
 
     const formData = new FormData();
     formData.append("file", item.file);
@@ -256,11 +283,33 @@ export default function DocumentUpload({
         headers: authHeaders(), // no Content-Type — browser sets multipart boundary
         body: formData,
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(await readError(res));
+      const { sourceId } = await res.json();
+
+      // The server reads and embeds the file in the background (a whole
+      // textbook can take a few minutes), so poll until it's finished.
+      update({ status: STATUS.PROCESSING, note: "Processing…" });
+      for (;;) {
+        await sleep(POLL_MS);
+        let st;
+        try {
+          const r = await fetch(`${apiBase}/status/${encodeURIComponent(sourceId)}`, { headers: authHeaders() });
+          if (!r.ok) continue; // a blip; try again
+          st = await r.json();
+        } catch {
+          continue;
+        }
+        if (st.status === "FAILED") throw new Error(st.message || "Processing failed.");
+        if (st.status === "DONE") {
+          update({ status: STATUS.DONE, note: st.chunkCount ? `${st.chunkCount} sections` : null });
+          break;
+        }
+        if (st.status === "UNKNOWN") {
+          // The server restarted mid-way and lost track of this file.
+          throw new Error("Processing was interrupted. Please upload the file again.");
+        }
+        if (st.message) update({ note: st.message });
       }
-      setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: STATUS.DONE } : i)));
       loadDocuments();
       loadStandards();
     } catch (err) {
@@ -587,7 +636,7 @@ export default function DocumentUpload({
               "Set a standard above to enable uploads"
             )}
           </div>
-          <div className="text-xs text-[var(--dim)]">PDF, DOCX or PPTX. Re-uploading a source replaces its old chunks.</div>
+          <div className="text-xs text-[var(--dim)]">PDF, DOCX or PPTX, up to {MAX_UPLOAD_MB} MB. Pictures are skipped automatically, so upload the book as it is (scanned pages can&apos;t be read). Re-uploading a file replaces the old copy.</div>
           <input
             ref={fileInputRef}
             type="file"
@@ -643,25 +692,37 @@ export default function DocumentUpload({
                   </span>
                   <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.file.name}</span>
                   <span className="hidden flex-shrink-0 text-xs text-[var(--dim)] sm:inline">
-                    {(item.file.size / 1024).toFixed(0)} KB
+                    {fileSize(item.file.size)}
                   </span>
 
                   {item.status === STATUS.QUEUED && (
                     <span className="flex-shrink-0 text-xs text-[var(--muted)]">Queued</span>
                   )}
                   {item.status === STATUS.UPLOADING && (
-                    <Loader2 size={14} className="flex-shrink-0 animate-spin text-[var(--accent-ink)]" />
+                    <span className="flex flex-shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <Loader2 size={14} className="animate-spin text-[var(--accent-ink)]" />
+                      <span className="hidden sm:inline">Uploading…</span>
+                    </span>
+                  )}
+                  {item.status === STATUS.PROCESSING && (
+                    <span title={item.note} className="flex min-w-0 max-w-[45%] flex-shrink items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <Loader2 size={14} className="flex-shrink-0 animate-spin text-[var(--accent-ink)]" />
+                      <span className="hidden truncate sm:inline">{item.note}</span>
+                    </span>
                   )}
                   {item.status === STATUS.DONE && (
-                    <CheckCircle2 size={14} className="flex-shrink-0 text-[var(--ok)]" />
+                    <span title={item.note || "Ready"} className="flex flex-shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <CheckCircle2 size={14} className="text-[var(--ok)]" />
+                      {item.note && <span className="hidden sm:inline">{item.note}</span>}
+                    </span>
                   )}
                   {item.status === STATUS.ERROR && (
-                    <span title={item.error} className="flex flex-shrink-0 items-center gap-1 text-[#E2725B]">
-                      <AlertCircle size={13} /> <span className="hidden text-xs sm:inline">Failed</span>
+                    <span title={item.error} className="flex min-w-0 max-w-[50%] flex-shrink items-center gap-1 text-[#E2725B]">
+                      <AlertCircle size={13} className="flex-shrink-0" /> <span className="hidden truncate text-xs sm:inline">{item.error || "Failed"}</span>
                     </span>
                   )}
 
-                  {item.status !== STATUS.UPLOADING && (
+                  {item.status !== STATUS.UPLOADING && item.status !== STATUS.PROCESSING && (
                     <button
                       onClick={() => removeFromQueue(item.id)}
                       className="-m-1 flex-shrink-0 rounded-full bg-transparent p-1.5 text-[var(--dim)] transition-all hover:bg-[var(--surface)] hover:text-[var(--text)] active:scale-90"
