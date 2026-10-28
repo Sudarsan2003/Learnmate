@@ -2,115 +2,77 @@ import { motion, useReducedMotion } from "motion/react";
 
 /* ------------------------------------------------------------------ */
 /*  FeatureScrollCards                                                 */
-/*  Scroll-triggered stacked cards: each card springs up from below    */
-/*  and tilts (-10deg) when ~80% of it is in view, over a coloured     */
-/*  "splash" shape. Adapted from the motion.dev example to use your    */
-/*  FEATURES data, TiltIcon and the theme CSS variables.               */
+/*  The four product features as a responsive grid: one column on      */
+/*  phones, two from tablets up. Each card springs up with a slight    */
+/*  tilt that settles flat as it scrolls into view (one after another),*/
+/*  over a soft glow in its brand colour, and lifts on hover.          */
 /*                                                                     */
 /*  Usage in LandingPage.jsx:                                          */
-/*    import FeatureScrollCards from "./FeatureScrollCards";           */
 /*    <FeatureScrollCards features={FEATURES} TiltIcon={TiltIcon} />   */
 /* ------------------------------------------------------------------ */
 
-// Hue pairs matched to your brand palette (blue / teal / violet / electric)
-const SPLASH_HUES = {
-  teal: [172, 195],
-  gold: [225, 245],
-  ember: [255, 285],
-  electric: [205, 225],
+// Glow colours matched to the brand palette (teal / blue / violet / electric)
+const GLOW = {
+  teal: ["#2DD4BF", "#0EA5E9"],
+  gold: ["#4F80F8", "#3558DE"],
+  ember: ["#8B73F5", "#6A4DE0"],
+  electric: ["#5B8DEF", "#22D3EE"],
 };
 
-const hsl = (h) => `hsl(${h}, 85%, 58%)`;
-
-const cardVariants = {
-  offscreen: { y: 300 },
-  onscreen: {
-    y: 50,
-    rotate: -10,
-    transition: { type: "spring", bounce: 0.4, duration: 0.8 },
-  },
-};
-
-// Reduced-motion users get the final state with no travel or tilt
-const staticVariants = {
-  offscreen: { y: 50, rotate: -10 },
-  onscreen: { y: 50, rotate: -10 },
-};
-
-function ScrollCard({ feature, TiltIcon, reduce }) {
-  const [hueA, hueB] = SPLASH_HUES[feature.tone] ?? SPLASH_HUES.gold;
-  const background = `linear-gradient(306deg, ${hsl(hueA)}, ${hsl(hueB)})`;
-
+function FeatureCard({ feature, TiltIcon, index, reduce }) {
+  const [a, b] = GLOW[feature.tone] ?? GLOW.gold;
   return (
-    <motion.div
-      style={cardContainer}
-      initial="offscreen"
-      whileInView="onscreen"
-      viewport={{ amount: 0.8, once: true }}
+    <motion.article
+      className="fsc-card"
+      style={{ "--a": a, "--b": b }}
+      initial={reduce ? false : { opacity: 0, y: 60, rotate: index % 2 ? 3 : -3 }}
+      whileInView={{ opacity: 1, y: 0, rotate: 0 }}
+      viewport={{ once: true, amount: 0.35 }}
+      transition={{ type: "spring", bounce: 0.3, duration: 0.9, delay: (index % 2) * 0.12 }}
     >
-      <div style={{ ...splash, background }} />
-      <motion.div
-        variants={reduce ? staticVariants : cardVariants}
-        style={card}
-        className="border border-[var(--divider)] bg-[var(--surface)] text-left"
-      >
-        <TiltIcon icon={feature.icon} tone={feature.tone} size={64} />
-        <h3 className="mt-8 text-xl font-semibold text-[var(--text)]">{feature.title}</h3>
-        <p className="mt-3 text-[14.5px] leading-relaxed text-[var(--muted)]">{feature.body}</p>
-      </motion.div>
-    </motion.div>
+      <span className="fsc-glow" aria-hidden="true" />
+      <TiltIcon icon={feature.icon} tone={feature.tone} size={56} />
+      <h3 className="fsc-title">{feature.title}</h3>
+      <p className="fsc-body">{feature.body}</p>
+    </motion.article>
   );
 }
 
 export default function FeatureScrollCards({ features, TiltIcon }) {
   const reduce = useReducedMotion();
   return (
-    <div style={container}>
-      {features.map((f) => (
-        <ScrollCard key={f.title} feature={f} TiltIcon={TiltIcon} reduce={reduce} />
+    <div className="fsc-grid">
+      <style>{CSS}</style>
+      {features.map((f, i) => (
+        <FeatureCard key={f.title} feature={f} TiltIcon={TiltIcon} index={i} reduce={reduce} />
       ))}
     </div>
   );
 }
 
-/* ==============   Styles   ================ */
-
-const container = {
-  margin: "40px auto 0",
-  maxWidth: 500,
-  paddingBottom: 100,
-  width: "100%",
-};
-
-const cardContainer = {
-  overflow: "hidden",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  position: "relative",
-  paddingTop: 20,
-  marginBottom: -120,
-};
-
-const splash = {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  clipPath: `path("M 0 303.5 C 0 292.454 8.995 285.101 20 283.5 L 460 219.5 C 470.085 218.033 480 228.454 480 239.5 L 500 430 C 500 441.046 491.046 450 480 450 L 20 450 C 8.954 450 0 441.046 0 430 Z")`,
-};
-
-const card = {
-  width: 300,
-  height: 430,
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-  alignItems: "flex-start",
-  padding: 32,
-  borderRadius: 20,
-  boxShadow:
-    "0 0 1px hsl(0deg 0% 0% / 0.075), 0 0 2px hsl(0deg 0% 0% / 0.075), 0 0 4px hsl(0deg 0% 0% / 0.075), 0 0 8px hsl(0deg 0% 0% / 0.075), 0 0 16px hsl(0deg 0% 0% / 0.075)",
-  transformOrigin: "10% 60%",
+const CSS = `
+.fsc-grid { display: grid; grid-template-columns: 1fr; gap: 1.1rem; margin-top: 2.5rem; }
+@media (min-width: 700px) { .fsc-grid { grid-template-columns: 1fr 1fr; gap: 1.4rem; } }
+.fsc-card {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 1.75rem 1.6rem 1.9rem; border-radius: 22px;
+  border: 1px solid var(--divider); background: var(--surface);
+  box-shadow: 0 1px 2px rgba(20,30,70,.06), 0 22px 44px -30px rgba(20,30,70,.45);
+  transition: transform 350ms cubic-bezier(.16,1,.3,1), box-shadow 350ms ease, border-color 350ms ease;
 }
+.fsc-card:hover {
+  transform: translateY(-6px);
+  border-color: color-mix(in srgb, var(--a) 45%, var(--divider));
+  box-shadow: 0 1px 2px rgba(20,30,70,.06), 0 30px 54px -28px color-mix(in srgb, var(--a) 60%, transparent);
+}
+.fsc-glow {
+  position: absolute; z-index: -1; top: -40%; right: -30%; width: 75%; aspect-ratio: 1; border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--a) 38%, transparent), color-mix(in srgb, var(--b) 12%, transparent) 55%, transparent 70%);
+  filter: blur(8px); transition: transform 600ms cubic-bezier(.16,1,.3,1);
+}
+.fsc-card:hover .fsc-glow { transform: scale(1.15) translate(-6%, 6%); }
+.fsc-title { margin: 1.4rem 0 0; font-size: 1.25rem; font-weight: 600; color: var(--text); }
+.fsc-body { margin: .6rem 0 0; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .fsc-card, .fsc-glow { transition: none; } }
+`;

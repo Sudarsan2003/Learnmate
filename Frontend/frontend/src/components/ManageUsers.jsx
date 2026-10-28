@@ -30,7 +30,6 @@ import {
   deleteUser,
   setUserLocked,
 } from "../api/client";
-import ThemeToggle from "./ThemeToggle";
 import SchoolsView from "./SchoolsView";
 import ImportStudents from "./ImportStudents";
 import PromoteClasses from "./PromoteClasses";
@@ -428,8 +427,7 @@ export default function ManageUsers({ currentUsername }) {
               Promote students to teachers, set their institution and class, pause access, or remove accounts.
             </p>
           </div>
-          <div className="flex flex-shrink-0 items-center gap-2">
-            <ThemeToggle />
+          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end">
             <button type="button" className="um-btn um-btn-quiet" onClick={() => setImporting(true)}>
               <FileUp size={15} />
               Import students

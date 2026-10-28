@@ -627,6 +627,7 @@ const CSS = `
 
 .mg-label { margin: 0 0 .6rem; font-size: 12.5px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
 
+.mg-hint { margin: .9rem 0 0; font-size: 12.5px; line-height: 1.6; color: var(--dim); text-align: center; }
 .mg-start-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
   padding: .8rem 1.4rem; border-radius: 12px; font-size: 14.5px; font-weight: 600; color: #FFFFFF;

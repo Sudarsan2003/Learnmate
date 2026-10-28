@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { User, Building2, GraduationCap, Mail, ShieldCheck, RefreshCw, AlertTriangle, Check, Loader2, Pencil } from "lucide-react";
 import { getMe, updateMyStandard } from "../api/client";
-import ThemeToggle from "./ThemeToggle";
 
 const ROLE_LABEL = { ADMIN: "Admin", TEACHER: "Teacher", USER: "Student" };
 
@@ -83,7 +82,6 @@ export default function ProfilePage() {
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2 self-start">
-            <ThemeToggle />
             <button
               onClick={load}
               className="flex items-center gap-1.5 rounded-md border border-[#4F7CFF]/15 bg-transparent px-3 py-2 text-[13px] text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/40 hover:text-[var(--text)]"

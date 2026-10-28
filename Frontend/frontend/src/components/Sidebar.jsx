@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, MessageSquare, Trash2, Feather, X } from "lucide-react";
 import { getChatSessions, deleteSession } from "../api/client";
-import ThemeToggle from "./ThemeToggle";
 
 // The sidebar sits beside the page only from this width up. Below it, it's a
 // slide-over drawer. It has to be wider than Tailwind's `md` (768px): with a
@@ -136,7 +135,6 @@ export default function Sidebar({ activeSessionId, onSelectSession, onNewChat, r
               </h1>
             </div>
             <div className="flex flex-shrink-0 items-center gap-1.5">
-              <ThemeToggle />
               <button
                 onClick={() => setIsOpen(false)}
                 aria-label="Close sidebar"

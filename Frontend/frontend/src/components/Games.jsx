@@ -145,11 +145,8 @@ const CSS = `
 }
 .gm-sub { margin: .15rem 0 0; font-size: 13px; color: var(--dim); }
 
-.gm-tabs { display: flex; gap: .5rem; border-bottom: 1px solid var(--divider); }
-@media (max-width: 520px) {
-  .gm-tabs { overflow-x: auto; scrollbar-width: none; }
-  .gm-tabs::-webkit-scrollbar { display: none; }
-}
+.gm-tabs { display: flex; gap: .5rem; border-bottom: 1px solid var(--divider); overflow-x: auto; scrollbar-width: none; }
+.gm-tabs::-webkit-scrollbar { display: none; }
 .gm-tab {
   --tab: #4F80F8; flex: none; white-space: nowrap;
   display: inline-flex; align-items: center; gap: .45rem;
@@ -163,8 +160,19 @@ const CSS = `
   color: var(--tab); background: color-mix(in srgb, var(--tab) 10%, var(--surface));
   border-color: var(--divider); box-shadow: inset 0 2px 0 var(--tab);
 }
+/* Phones: all six tabs as a 3 x 2 grid instead of a row that hides half of them. */
+@media (max-width: 640px) {
+  .gm-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; border-bottom: none; overflow: visible; }
+  .gm-tab {
+    justify-content: center; margin: 0; padding: .6rem .3rem; border-radius: 12px;
+    border: 1px solid var(--divider); background: var(--surface); font-size: 13px;
+  }
+  .gm-tab-active { border-color: var(--tab); box-shadow: inset 0 0 0 1px var(--tab); }
+}
 
 .gm-body { max-width: 44rem; margin: 0 auto; }
+/* Pages shown inside Games already sit in its padding; don't add their own. */
+.gm-body .gl-page { padding: 0; min-height: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .gm-page *, .gm-page *::before, .gm-page *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }

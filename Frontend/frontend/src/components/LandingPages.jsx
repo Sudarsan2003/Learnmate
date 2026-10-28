@@ -21,7 +21,7 @@ import AmbientBackground from "./AmbientBackground";
 import ThemeToggle from "./ThemeToggle";
 import FeatureScrollCards from "./FeatureScrollCards";
 import HorizontalShowcase from "./HorizontalShowcase";
-import ScrollAnimation from "./ScrollAnimation";
+import { motion, useReducedMotion } from "motion/react";
 import {
   ScrollProgress,
   WordReveal,
@@ -190,14 +190,15 @@ const LOOP = [
 const LOOP_TITLES = ["Library · Class 8 Science", "Chat · Grounded retrieval", "Answer · With citations"];
 
 /* MobileLoopCard — shown under each step on small screens (the sticky
-   side panel is desktop-only). The demo mounts when scrolled into view
+   side panel is desktop-only). On phones it reaches back under the step
+   rail so it gets the full width. The demo mounts when scrolled into view
    so its animations play when the reader actually sees it. */
 function MobileLoopCard({ step }) {
   const [ref, visible] = useReveal({ threshold: 0.2 });
   return (
     <div
       ref={ref}
-      className="relative mt-5 min-h-[300px] overflow-hidden rounded-2xl border border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-3.5 shadow-[0_18px_50px_-24px_rgba(53,88,222,0.55)] lg:hidden"
+      className="relative -ml-[68px] mt-5 min-h-[300px] overflow-hidden rounded-2xl border sm:ml-0 border-[var(--divider)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-3.5 shadow-[0_18px_50px_-24px_rgba(53,88,222,0.55)] lg:hidden"
     >
       <div className="mb-3 flex items-center justify-between border-b border-[var(--divider)] pb-2.5">
         <div className="flex items-center gap-1.5">
@@ -277,7 +278,9 @@ function LoopSection() {
           </p>
         </Reveal>
 
-        <div className="relative grid grid-cols-[56px_1fr] gap-x-8 sm:grid-cols-[64px_1fr] lg:grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-10">
+        {/* minmax(0,1fr), not 1fr: a plain 1fr column won't shrink below its widest
+            content, so on phones the demo cards pushed text off the screen. */}
+        <div className="relative grid grid-cols-[48px_minmax(0,1fr)] gap-x-5 sm:grid-cols-[64px_minmax(0,1fr)] sm:gap-x-8 lg:grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-10">
           <div className="relative">
             <svg viewBox="0 0 56 560" preserveAspectRatio="none" className="absolute left-0 top-0 h-full w-14 overflow-visible">
               <defs>
@@ -698,6 +701,70 @@ function RoleCard({ tone, tag, icon: Icon, title, items, preview, pills = [] }) 
   );
 }
 
+/* Promises: three cards that rise in one after another, each with a
+   softly pulsing icon. */
+const PROMISES = [
+  {
+    icon: Link2,
+    lead: "answer without a source.",
+    detail: "Every reply cites the exact page it came from, one tap away.",
+    color: "#4F80F8",
+  },
+  {
+    icon: ShieldCheck,
+    lead: "quiz outside your class.",
+    detail: "Quizzes reach only the school and class they were set for.",
+    color: TEAL,
+  },
+  {
+    icon: BookOpen,
+    lead: "document your school didn't upload.",
+    detail: "Answers come only from material your own teachers added.",
+    color: "#8B73F5",
+  },
+];
+
+function Promises() {
+  const reduce = useReducedMotion();
+  return (
+    <section className="lp-promises relative py-24 sm:py-28">
+      <div className="mx-auto max-w-5xl px-6 sm:px-8">
+        <Reveal className="mx-auto mb-12 max-w-xl text-center">
+          <Eyebrow center>Our promise</Eyebrow>
+          <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
+            Three things LearnMate will never do.
+          </h2>
+        </Reveal>
+
+        <div className="relative grid grid-cols-1 gap-5 md:grid-cols-3">
+          {PROMISES.map((p, i) => {
+            const Icon = p.icon;
+            return (
+              <motion.div
+                key={p.lead}
+                className="lp-promise relative flex flex-col items-center rounded-2xl border border-[var(--divider)] bg-[var(--surface)]/80 px-6 pb-7 pt-8 text-center backdrop-blur-sm"
+                style={{ "--c": p.color }}
+                initial={reduce ? false : { opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ type: "spring", bounce: 0.25, duration: 0.9, delay: i * 0.15 }}
+              >
+                <span className="lp-promise-icon relative flex h-14 w-14 items-center justify-center rounded-2xl text-white">
+                  <Icon size={24} />
+                </span>
+                <p className="lp-serif mt-6 text-2xl leading-snug text-[var(--text)]">
+                  <span className="italic" style={{ color: p.color }}>No</span> {p.lead}
+                </p>
+                <p className="mt-3 max-w-[26ch] text-[14.5px] leading-relaxed text-[var(--muted)]">{p.detail}</p>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* Main page */
 export default function LandingPage({ onEnter = () => {} }) {
   const [scrolled, setScrolled] = useState(false);
@@ -741,7 +808,17 @@ export default function LandingPage({ onEnter = () => {} }) {
         @keyframes lp-float { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-14px,14px); } }
         @keyframes lp-fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
         .lp-fade-up { animation: lp-fade-up 900ms cubic-bezier(0.16,1,0.3,1) both; }
+        .lp-promise { box-shadow: 0 18px 40px -28px rgba(20,30,70,.45); transition: transform 300ms ease, border-color 300ms ease; }
+        .lp-promise:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--c) 45%, var(--divider)); }
+        .lp-promise-icon { background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 55%, black)); box-shadow: 0 10px 22px -10px var(--c); }
+        .lp-promise-icon::before, .lp-promise-icon::after {
+          content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--c);
+          animation: lp-ring 2.8s ease-out infinite; opacity: 0;
+        }
+        .lp-promise-icon::after { animation-delay: 1.4s; }
+        @keyframes lp-ring { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.8); opacity: 0; } }
         @media (prefers-reduced-motion: reduce) {
+          .lp-promise-icon::before, .lp-promise-icon::after { animation: none; }
           .lp-cue, .lp-pop, .lp-bar, .lp-bar-loop, .lp-fade-up { animation: none; }
           html { scroll-behavior: auto; }
         }
@@ -805,16 +882,16 @@ export default function LandingPage({ onEnter = () => {} }) {
               problem sets — and answers questions from that alone, with a citation attached to
               every claim.
             </p>
-            <div className="mt-9 flex flex-wrap justify-center gap-3.5">
+            <div className="mx-auto mt-9 flex max-w-xs flex-col justify-center gap-3 sm:max-w-none sm:flex-row sm:gap-3.5">
               <button
                 onClick={() => onEnter("register")}
-                className="lp-cta flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-6 py-3 text-sm font-medium text-[#FFFFFF] transition-transform hover:-translate-y-0.5"
+                className="lp-cta flex items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] px-6 py-3 text-sm font-medium text-[#FFFFFF] transition-transform hover:-translate-y-0.5"
               >
                 Start learning <ArrowRight size={15} />
               </button>
               <a
                 href="#loop"
-                className="rounded-lg border border-[#4F7CFF]/20 px-6 py-3 text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/50"
+                className="rounded-lg border border-[#4F7CFF]/20 px-6 py-3 text-center text-sm text-[var(--text)] transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/50"
               >
                 See how it works
               </a>
@@ -860,19 +937,17 @@ export default function LandingPage({ onEnter = () => {} }) {
         </section>
 
         {/* ---------- tour (horizontal scroll) ---------- */}
-        <section id="tour" className="pt-12 sm:pt-16">
-          <div className="mx-auto max-w-5xl px-6 sm:px-8">
-            <Reveal className="max-w-xl">
-              <Eyebrow>Inside LearnMate</Eyebrow>
-              <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
-                Four things you'll do every week.
-              </h2>
-              <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--muted)]">
-                Keep scrolling — the row moves sideways as you go.
-              </p>
-            </Reveal>
-          </div>
-          <HorizontalShowcase />
+        <section id="tour">
+          <HorizontalShowcase
+            header={
+              <>
+                <Eyebrow>Inside LearnMate</Eyebrow>
+                <h2 className="lp-serif mt-4 text-3xl leading-[1.15] text-[var(--text)] sm:text-4xl">
+                  Four things you'll do every week.
+                </h2>
+              </>
+            }
+          />
         </section>
 
         {/* ---------- roles ---------- */}
@@ -922,36 +997,11 @@ export default function LandingPage({ onEnter = () => {} }) {
           </div>
         </section>
 
-        {/* ---------- principles (slide in left / right / centre) ---------- */}
-        <section className="py-20 sm:py-28">
-          <div className="mx-auto max-w-5xl px-6 sm:px-8">
-            <ScrollAnimation
-              direction="left"
-              viewport={{ amount: 0.5 }}
-              className="lp-serif max-w-lg py-14 text-left text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
-            >
-              <p><span className="italic text-[var(--accent-ink)]">No</span> answer without a source.</p>
-            </ScrollAnimation>
-
-            <ScrollAnimation
-              direction="right"
-              viewport={{ amount: 0.5 }}
-              className="lp-serif ml-auto max-w-lg py-14 text-right text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
-            >
-              <p><span className="italic text-[var(--accent-ink)]">No</span> quiz outside your class.</p>
-            </ScrollAnimation>
-
-            <ScrollAnimation
-              viewport={{ amount: 0.5 }}
-              className="lp-serif mx-auto max-w-lg py-14 text-center text-3xl leading-tight text-[var(--muted)] sm:py-24 sm:text-5xl"
-            >
-              <p><span className="italic text-[var(--accent-ink)]">No</span> document your institution didn't upload.</p>
-            </ScrollAnimation>
-          </div>
-        </section>
+        {/* ---------- promises ---------- */}
+        <Promises />
 
         {/* ---------- final CTA ---------- */}
-        <section id="cta" className="py-32 text-center sm:py-40">
+        <section id="cta" className="py-24 text-center sm:py-28">
           <Reveal className="mx-auto max-w-lg px-6">
             <Eyebrow center>Get started</Eyebrow>
             <h2 className="lp-serif mt-5 text-4xl text-[var(--text)] sm:text-5xl">

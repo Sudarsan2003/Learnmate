@@ -821,7 +821,7 @@ const CSS = `
 .rp-section { margin-top: 1.5rem; }
 .rp-section-first { margin-top: 0; }
 .rp-tabs { display: flex; gap: .4rem; margin: 1.25rem 0 1rem; padding: .3rem; border-radius: 14px; border: 1px solid var(--divider); background: var(--surface); width: fit-content; max-width: 100%; }
-.rp-tab { display: inline-flex; align-items: center; gap: .45rem; padding: .55rem 1.1rem; border: none; border-radius: 10px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.rp-tab { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; padding: .55rem 1.1rem; border: none; border-radius: 10px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .rp-tab:hover { color: var(--text); background: var(--surface-2); }
 .rp-tab-on, .rp-tab-on:hover { color: #fff; background: linear-gradient(135deg, #4F80F8, #3558DE); }
 [role="tabpanel"] > .rp-stats:first-child { margin-top: 0; }
@@ -860,6 +860,13 @@ const CSS = `
 .rp-topper-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-topper-score { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-size: 13.5px; }
 .rp-topper-score small { font-size: 11px; font-weight: 500; color: var(--dim); }
+/* Phones: one field per row and a full-width button, so nothing ends up squeezed side by side. */
+@media (max-width: 640px) {
+  .rp-filters .rp-field, .rp-filters .rp-btn { flex: 1 1 100%; }
+  .rp-actions .rp-btn { flex: 1 1 100%; }
+  .rp-tabs { width: 100%; }
+  .rp-tab { flex: 1; justify-content: center; }
+}
 `;
 
 // Only applies while printing: hide the app, show the print container.

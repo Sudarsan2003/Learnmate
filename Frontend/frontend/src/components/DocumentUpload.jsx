@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Upload, FileText, Trash2, RefreshCw, X, CheckCircle2, AlertCircle, Loader2, Feather, Check, Folder, Layers } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
 
 
 const STATUS = {
@@ -404,7 +403,6 @@ export default function DocumentUpload({
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2 self-start">
-            <ThemeToggle />
             <button
               onClick={loadDocuments}
               className="group flex items-center gap-1.5 rounded-full border border-[#4F7CFF]/20 bg-[var(--surface)]/60 px-3.5 py-2 text-[13px] font-medium text-[var(--muted)] shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#4F7CFF]/40 hover:bg-[#4F7CFF]/10 hover:text-[var(--text)] hover:shadow-md active:translate-y-0"

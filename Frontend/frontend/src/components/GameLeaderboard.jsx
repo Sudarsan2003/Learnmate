@@ -151,7 +151,7 @@ export default function GameLeaderboard({ gameType, showAllByDefault = false }) 
           {GAME_LABEL[gameType] ?? gameType} &middot; Institute leaderboard
         </h3>
         {data && (
-          <span className="text-[12px] text-[var(--dim)]">
+          <span className="flex-shrink-0 whitespace-nowrap text-[12px] text-[var(--dim)]">
             {data.totalParticipants} {data.totalParticipants === 1 ? "student" : "students"}
           </span>
         )}

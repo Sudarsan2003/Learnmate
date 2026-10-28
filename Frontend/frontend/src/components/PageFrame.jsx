@@ -1,5 +1,6 @@
 import { ArrowLeft, Menu } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import ThemeToggle from "./ThemeToggle";
 
 /**
  * Frame for the full-page views (Manage users, Profile, Quizzes, Upload).
@@ -37,6 +38,7 @@ export default function PageFrame({ onBack, backLabel = "Back to chat", children
         </button>
         <div className="pf-end">
           <NotificationBell />
+          <ThemeToggle />
         </div>
       </div>
 
@@ -53,7 +55,7 @@ const CSS = `
   background: var(--bg);
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
-.pf-end { margin-left: auto; display: flex; align-items: center; }
+.pf-end { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
 .pf-bar {
   position: relative; z-index: 20; flex: none;
   display: flex; align-items: center; gap: .5rem;

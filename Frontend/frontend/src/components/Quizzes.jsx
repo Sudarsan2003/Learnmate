@@ -42,7 +42,6 @@ import {
   getMyAttemptDetail,
   scanQuizQuestions,
 } from "../api/client";
-import ThemeToggle from "./ThemeToggle";
 import Leaderboard from "./Leaderboard";
 import Confetti, { isCelebrationScore } from "./Confetti";
 import PracticeQuizzes from "./PracticeQuizzes";
@@ -118,7 +117,6 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-2 self-start">
-            <ThemeToggle />
             {view !== "list" && (
               <button
                 onClick={() => {

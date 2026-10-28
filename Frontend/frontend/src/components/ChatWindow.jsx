@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2 } from "lucide-react";
+import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList } from "lucide-react";
 import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
@@ -429,7 +429,7 @@ export default function ChatWindow({
     <div className="relative flex h-full w-full flex-col bg-[var(--bg-canvas)] text-[var(--text)]" style={{ perspective: "1400px" }}>
       <AmbientBackground />
 
-      <header className="relative z-30 flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-3 py-2.5 shadow-[0_8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:flex-nowrap sm:gap-x-3 sm:px-6 sm:py-4">
+      <header className="relative z-30 flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-3 py-2.5 shadow-[0_8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:gap-x-3 sm:px-6 sm:py-3 xl:flex-nowrap xl:py-4">
         {/* Left: menu + title (takes remaining space so the profile sits at the far right) */}
         <div className="order-1 flex min-w-0 flex-1 items-center gap-2">
           <button
@@ -444,8 +444,8 @@ export default function ChatWindow({
           </h1>
         </div>
 
-        {/* Theme + profile: stay on the first row on phones, far right on desktop */}
-        <div className="order-2 flex flex-shrink-0 items-center gap-2 sm:order-3 sm:ml-1">
+        {/* Theme + profile: stay on the first row until there's room for one row, then far right */}
+        <div className="order-2 flex flex-shrink-0 items-center gap-2 xl:order-3 xl:ml-1">
           <NotificationBell />
           <ThemeToggle />
           <div
@@ -456,10 +456,11 @@ export default function ChatWindow({
           </div>
         </div>
 
-        {/* Actions: own scrollable row on phones, inline on desktop */}
+        {/* Actions: own row until 1280px wide (with the sidebar open, narrower screens
+            leave no room for the title too), scrolling sideways if it ever runs out of space. */}
         <nav
           aria-label="Primary actions"
-          className="no-scrollbar order-3 -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-2 overflow-x-auto px-3 pb-0.5 text-[13.5px] font-medium text-[var(--muted)] sm:order-2 sm:mx-0 sm:w-auto sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0"
+          className="no-scrollbar order-3 -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-2 overflow-x-auto px-3 pb-0.5 text-[13.5px] font-medium text-[var(--muted)] sm:-mx-6 sm:w-[calc(100%+3rem)] sm:gap-3 sm:px-6 xl:order-2 xl:mx-0 xl:w-auto xl:flex-wrap xl:overflow-visible xl:px-0 xl:pb-0"
         >
           <button onClick={handleNewChatClick} aria-label="New chat" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
             <Plus size={16} />
@@ -476,9 +477,9 @@ export default function ChatWindow({
             <span className="hidden sm:inline">Games</span>
           </button>
 
-          <button onClick={onOpenQuizzes} className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+          <button onClick={onOpenQuizzes} aria-label="Quizzes" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+            <ClipboardList size={16} />
             <span className="hidden sm:inline">Quizzes</span>
-            <span className="sm:hidden">Quiz</span>
           </button>
 
           {isAdmin && (

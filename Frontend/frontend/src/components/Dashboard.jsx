@@ -24,7 +24,6 @@ import {
   getMyAttemptDetail,
 } from "../api/client";
 import HallOfFame from "./HallOfFame";
-import ThemeToggle from "./ThemeToggle";
 import Leaderboard from "./Leaderboard";
 
 /**
@@ -209,7 +208,6 @@ function DashHeader({ role, onRefresh, busy }) {
         <p className="page-sub">{sub}</p>
       </div>
       <div className="flex flex-shrink-0 items-center gap-2">
-        <ThemeToggle />
         <button type="button" className="db-btn" onClick={onRefresh} disabled={busy}>
           <RefreshCw size={15} className={busy ? "animate-spin" : ""} />
           Refresh
