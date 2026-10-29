@@ -138,6 +138,21 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
             @Param("fileName") String fileName
     );
 
+    // The first line of each piece of this school + class's books. Books uploaded
+    // since chapter-aware chunking start every piece with "Book title | Chapter N: Title",
+    // which is how the tutor learns each book's chapter list (see AgentOrchestrator).
+    @Query(value = """
+            SELECT DISTINCT split_part(c.content, E'\\n', 1)
+            FROM document_chunks c
+            WHERE c.institution = :institution
+              AND c.standard = :standard
+              AND position(E'\\n' IN c.content) > 0
+            """, nativeQuery = true)
+    List<String> findPieceHeaders(
+            @Param("institution") String institution,
+            @Param("standard") String standard
+    );
+
     // One row per uploaded document for this school + class:
     // [sourceId, fileName, subject]. Powers the "pick material to be
     // quizzed on" list in chat.

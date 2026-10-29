@@ -13,6 +13,7 @@ import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.ChatHistoryService;
 import com.learnmate.learnmateai.service.ChatQuizAttemptService;
+import com.learnmate.learnmateai.service.IngestionService;
 import com.learnmate.learnmateai.service.TextQuality;
 import org.springframework.stereotype.Component;
 
@@ -251,6 +252,40 @@ public class AgentOrchestrator {
         }
     }
 
+    private static final Pattern CHAPTER_NUMBER = Pattern.compile("(\\d+)");
+
+    /**
+     * Every book uploaded for the student's class, one per line, with its chapters
+     * where known: "9thClass Physics SEM-1 Textbook: Chapter 1: Matter in Our
+     * Surroundings; Chapter 2: ...". Lets the tutor answer "what's in this book?"
+     * from the whole book rather than the handful of passages the search returned.
+     */
+    String booksOutline(User user) {
+        Map<String, java.util.TreeSet<String>> chapters = new java.util.LinkedHashMap<>();
+        for (Object[] row : chunkRepository.findMaterials(user.getInstitution(), user.getStandard())) {
+            if (row[1] == null) continue;
+            // Same title as the header line written at upload (IngestionService.bookTitle).
+            chapters.put(IngestionService.bookTitle((String) row[1]), new java.util.TreeSet<>(
+                    java.util.Comparator.comparingInt(AgentOrchestrator::chapterNumber)
+                            .thenComparing(java.util.Comparator.naturalOrder())));
+        }
+        for (String header : chunkRepository.findPieceHeaders(user.getInstitution(), user.getStandard())) {
+            int bar = header.indexOf(" | ");
+            if (bar < 0 || header.length() > 160) continue;   // older uploads have no header line
+            var list = chapters.get(header.substring(0, bar).trim());
+            if (list != null) list.add(header.substring(bar + 3).trim());
+        }
+        StringBuilder sb = new StringBuilder();
+        chapters.forEach((book, list) -> sb.append("- ").append(book)
+                .append(list.isEmpty() ? "" : ": " + String.join("; ", list)).append("\n"));
+        return sb.toString().trim();
+    }
+
+    private static int chapterNumber(String chapter) {
+        Matcher m = CHAPTER_NUMBER.matcher(chapter);
+        return m.find() ? Integer.parseInt(m.group(1)) : Integer.MAX_VALUE;
+    }
+
     /**
      * Copies of the chunks labelled with their file name (e.g. "Science Ch 4 Light")
      * instead of the internal source id, for the AI prompts: the model uses the
@@ -340,7 +375,7 @@ public class AgentOrchestrator {
                 retrievalQuery, null, user.getInstitution(), user.getStandard(), 6);
 
         var answer = learningAgent.explain(req.query(), req.level(), user.getStandard(),
-                namedBySource(chunks, user), history);
+                namedBySource(chunks, user), history, booksOutline(user));
 
         return new ChatResponse(answer, chunks, null);
     }

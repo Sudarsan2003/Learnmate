@@ -400,7 +400,7 @@ public class IngestionService {
     }
 
     /** "Class8_Science_Ch4.pdf" -> "Class8 Science Ch4". */
-    static String bookTitle(String fileName) {
+    public static String bookTitle(String fileName) {
         return fileName.replaceAll("\\.[A-Za-z0-9]{1,5}$", "").replace('_', ' ').trim();
     }
 

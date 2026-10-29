@@ -46,7 +46,7 @@ class TextChunkerTest {
         assertThat(chunks).hasSize(2);
         assertThat(chunks.get(0).heading()).isEqualTo("Chapter 1: Nutrition in Plants");
         assertThat(chunks.get(0).text()).contains("Leaves").doesNotContain("Mirrors");
-        assertThat(chunks.get(1).heading()).isEqualTo("CHAPTER 2 Light");
+        assertThat(chunks.get(1).heading()).isEqualTo("Chapter 2: Light");
         assertThat(chunks.get(1).text()).contains("Mirrors").doesNotContain("Leaves");
     }
 
@@ -57,7 +57,7 @@ class TextChunkerTest {
         List<TextChunker.Chunk> chunks = TextChunker.chunk(text, 250, 50);
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).heading()).isEqualTo("Chapter 1 Crop Production");
+        assertThat(chunks.get(0).heading()).isEqualTo("Chapter 1: Crop Production");
         assertThat(chunks.get(0).text()).startsWith("Science Textbook for Class 8");
     }
 
@@ -70,11 +70,11 @@ class TextChunkerTest {
 
     @Test
     void recognisesTeluguAndHindiChapterHeadings() {
-        String text = "అధ్యాయం 3 కాంతి\n" + sentences("కాంతి", 6) + "\n\nअध्याय 4 ध्वनि\n" + sentences("ध्वनि", 6);
+        String text = "అధ్యాయం 3 కాంతి\n" + sentences("కాంతి", 10) + "\n\nअध्याय 4 ध्वनि\n" + sentences("ध्वनि", 10);
 
         List<TextChunker.Chunk> chunks = TextChunker.chunk(text, 250, 50);
 
-        assertThat(chunks).extracting(TextChunker.Chunk::heading).containsExactly("అధ్యాయం 3 కాంతి", "अध्याय 4 ध्वनि");
+        assertThat(chunks).extracting(TextChunker.Chunk::heading).containsExactly("అధ్యాయం 3: కాంతి", "अध्याय 4: ध्वनि");
     }
 
     @Test
@@ -85,6 +85,30 @@ class TextChunkerTest {
 
         assertThat(chunks).hasSize(3);
         assertThat(chunks).allSatisfy(c -> assertThat(TextChunker.wordCount(c.text())).isLessThanOrEqualTo(50));
+    }
+
+    @Test
+    void learnsChapterTitlesFromTheContentsPage() {
+        // Laid out like the state-board textbooks: a contents page, then chapters that open
+        // with just their title (page number stuck on), running page headers, and sentences
+        // that mention a chapter.
+        String text = String.join("\n",
+                "C", "O", "N", "S Chapter 1", "", "MATTER IN OUR SURROUNDINGS 2", "",
+                "Chapter 4", "STRUCTURE OF THE ATOM 76", "", "Chapter 7", "MOTION 98", "",
+                "Note : Chapter 5 & 6 in Biological Science", "",
+                "MATTER IN  OUR  SURROUNDINGS2", "", sentences("Matter", 10), "",
+                "MATTER IN OUR SURROUNDINGS 5", "", sentences("Particles", 10), "",
+                "STRUCTURE OF THE ATOM76", "", sentences("Electrons", 6),
+                "Chapter 3, which suggested that the atom was", sentences("Protons", 6), "",
+                "MOTION98", "", sentences("Speed", 10));
+
+        List<TextChunker.Chunk> chunks = TextChunker.chunk(text, 250, 50);
+
+        assertThat(chunks).extracting(TextChunker.Chunk::heading).containsExactly(
+                "Chapter 1: Matter in Our Surroundings", "Chapter 4: Structure of the Atom", "Chapter 7: Motion");
+        assertThat(chunks.get(0).text()).contains("Matter", "Particles").doesNotContain("Electrons");
+        assertThat(chunks.get(1).text()).contains("Electrons", "Protons").doesNotContain("Speed");
+        assertThat(chunks.get(2).text()).contains("Speed");
     }
 
     @Test

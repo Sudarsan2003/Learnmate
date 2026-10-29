@@ -27,9 +27,12 @@ public class LearningAgent {
      * @param standard the student's class (e.g. "7"), so explanations match their age
      * @param chunks   retrieved material; each chunk's sourceId should be the readable
      *                 file name, since the model cites it in the "Sources" line
+     * @param booksOutline every book uploaded for the class with its chapters, one per
+     *                 line ("9thClass Physics SEM-1 Textbook: Chapter 1: Matter...; ..."),
+     *                 so questions about a whole book cover every chapter; may be empty
      */
     public String explain(String query, String level, String standard,
-                          List<RetrievedChunk> chunks, List<ChatMessage> history) {
+                          List<RetrievedChunk> chunks, List<ChatMessage> history, String booksOutline) {
 
         if (chunks.isEmpty()) {
             return "No relevant study material was found in the knowledge base for this question.";
@@ -73,6 +76,9 @@ public class LearningAgent {
                 - CONTEXT: passages from the class's uploaded textbooks and notes, each
                   labelled with its file name. These are text only: any figures, diagrams,
                   tables or images in the original book were not included.
+                - BOOKS FOR THIS CLASS (if given): every book uploaded for the student's class,
+                  with its chapters where known. CONTEXT holds only the few passages most
+                  related to the question, not whole books.
                 - EARLIER CONVERSATION (if any): the last few messages of this chat. Use it
                   only to understand what a short follow-up refers to ("explain the second
                   point", "give an example", "simpler please"). Never treat earlier tutor
@@ -96,6 +102,12 @@ public class LearningAgent {
                   extra sections.
                 - A follow-up asking to simplify, give an example or explain differently:
                   do just that, briefly, without repeating the whole earlier answer.
+                - A question about a whole book or subject ("important topics in Physics",
+                  "what is in this book?", "list the chapters"): use BOOKS FOR THIS CLASS to
+                  name EVERY chapter of that book, with one or two lines on each chapter the
+                  CONTEXT covers. Do not say the book is "partial" or "incomplete" just because
+                  CONTEXT has only some chapters; instead invite the student to ask about any
+                  chapter by name for details.
                 - Otherwise (explaining a concept, process or "why" question), use the full
                   structure below.
 
@@ -139,6 +151,8 @@ public class LearningAgent {
                 d) INSUFFICIENT: the context is genuinely not enough. Say so plainly in 1-2
                    sentences and name what is missing. Do not guess.
 
+                - Never guess what is in books, chapters or semesters that aren't in BOOKS FOR
+                  THIS CLASS or CONTEXT (e.g. "Force is probably in SEM-2").
                 - If the context only partially answers the question, answer the part it
                   covers in full (labelling any inferred part as above), then state plainly
                   and specifically what part is missing. Do not pad or apologize excessively.
@@ -169,12 +183,16 @@ public class LearningAgent {
 
         String conversation = recentConversation(history);
         String user = """
-                CONTEXT:
+                %sCONTEXT:
                 %s
                 %s
                 QUESTION:
                 %s
-                """.formatted(context, conversation.isEmpty() ? "" : "\nEARLIER CONVERSATION:\n" + conversation + "\n", query);
+                """.formatted(
+                booksOutline == null || booksOutline.isBlank() ? "" : "BOOKS FOR THIS CLASS:\n" + booksOutline + "\n\n",
+                context,
+                conversation.isEmpty() ? "" : "\nEARLIER CONVERSATION:\n" + conversation + "\n",
+                query);
 
         return llmClient.complete(system, user);
     }
