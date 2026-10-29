@@ -11,6 +11,8 @@ import com.learnmate.learnmateai.model.ChatQuizAttempt;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
+import com.learnmate.learnmateai.service.ChapterCatalog;
+import com.learnmate.learnmateai.service.ChapterCatalog.Chapter;
 import com.learnmate.learnmateai.service.ChatHistoryService;
 import com.learnmate.learnmateai.service.ChatQuizAttemptService;
 import com.learnmate.learnmateai.service.IngestionService;
@@ -50,6 +52,7 @@ public class AgentOrchestrator {
     private final UserRepository userRepository;
     private final ChatQuizAttemptService quizAttemptService;
     private final DocumentChunkRepository chunkRepository;
+    private final ChapterCatalog chapterCatalog;
 
     public AgentOrchestrator(
             RetrievalAgent retrievalAgent,
@@ -58,7 +61,8 @@ public class AgentOrchestrator {
             ChatHistoryService chatHistoryService,
             UserRepository userRepository,
             ChatQuizAttemptService quizAttemptService,
-            DocumentChunkRepository chunkRepository) {
+            DocumentChunkRepository chunkRepository,
+            ChapterCatalog chapterCatalog) {
 
         this.retrievalAgent = retrievalAgent;
         this.learningAgent = learningAgent;
@@ -67,6 +71,7 @@ public class AgentOrchestrator {
         this.userRepository = userRepository;
         this.quizAttemptService = quizAttemptService;
         this.chunkRepository = chunkRepository;
+        this.chapterCatalog = chapterCatalog;
     }
 
     public ChatResponse handle(ChatRequest req, String ownerUsername, String sessionId) {
@@ -125,7 +130,7 @@ public class AgentOrchestrator {
                 if (req.materialIds() != null && !req.materialIds().isEmpty()) {
                     return handleQuiz(req, user, ownerUsername, sessionId);
                 }
-                return offerMaterials(req, user);
+                return offerMaterials(req, user, ownerUsername, sessionId);
             }
             return handleTutoring(req, ownerUsername, user);
 
@@ -153,10 +158,32 @@ public class AgentOrchestrator {
                 .toList();
     }
 
-    // "Quiz me on ..." without a selection: reply with the material picker. The trailing
-    // token carries the ids to pre-tick (materials whose name/subject matches the topic);
-    // the chat UI swaps it for a checklist and sends the chosen ids back in materialIds.
-    private ChatResponse offerMaterials(ChatRequest req, User user) {
+    /**
+     * What the quiz picker lists: each book [{id, name, subject, chapters: [{id, name}]}],
+     * so a student can tick a whole book or just some of its chapters.
+     */
+    public List<Map<String, Object>> quizMaterials(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        List<Map<String, String>> books = materialsFor(username);
+        if (books.isEmpty()) return List.of();
+        Map<String, List<Map<String, String>>> chaptersByBook = new java.util.HashMap<>();
+        for (Chapter c : chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard())) {
+            chaptersByBook.computeIfAbsent(c.sourceId(), k -> new ArrayList<>())
+                    .add(Map.of("id", c.id(), "name", c.label()));
+        }
+        return books.stream()
+                .map(b -> Map.<String, Object>of("id", b.get("id"), "name", b.get("name"), "subject", b.get("subject"),
+                        "chapters", chaptersByBook.getOrDefault(b.get("id"), List.of())))
+                .toList();
+    }
+
+    // "Quiz me on ...". A chapter it names ("circles", "chapter 9") gets a quiz on that
+    // chapter straight away; several matching chapters, a book, a subject or nothing in
+    // particular get the picker, whose trailing token carries the ids (books or
+    // "sourceId::chapter") to pre-tick. Any other specific topic is quizzed on the
+    // passages that best match it.
+    private ChatResponse offerMaterials(ChatRequest req, User user, String ownerUsername, String sessionId) {
         List<Map<String, String>> materials = materialsFor(user.getUsername());
         if (materials.isEmpty()) {
             return new ChatResponse("No study material has been uploaded for your class yet, "
@@ -164,14 +191,53 @@ public class AgentOrchestrator {
         }
 
         String topic = normalizeTopic(extractQuizTopic(req.query()));
-        List<String> preselected = isVagueTopic(topic) ? List.of() : matchMaterials(topic, materials);
+        boolean vague = isVagueTopic(topic);
 
-        String intro = preselected.isEmpty()
-                ? "Which study material would you like to be quizzed on? Pick one or more below."
+        if (!vague) {
+            List<Chapter> chapters = ChapterCatalog.match(topic,
+                    chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard()));
+            if (chapters.size() == 1) {
+                Chapter c = chapters.get(0);
+                List<RetrievedChunk> chunks = retrievalAgent.retrieveFromChapters(
+                        chapters, user.getInstitution(), user.getStandard(), 10);
+                if (!chunks.isEmpty()) {
+                    return quizFrom(chunks, c.label() + " (" + c.book() + ")", req, user, ownerUsername, sessionId);
+                }
+            } else if (chapters.size() > 1) {
+                return picker("I found " + chapters.size() + " chapters that match \"" + topic + "\". Keep the "
+                        + "one you want ticked, or add more, then start the quiz.",
+                        chapters.stream().map(Chapter::id).toList());
+            }
+        }
+
+        List<String> preselected = vague ? List.of() : matchMaterials(topic, materials);
+        if (!vague && preselected.isEmpty()) {
+            // A topic inside a chapter ("Pythagoras theorem"): quiz on the passages about it.
+            // If the search can't run, fall back to the picker rather than an error.
+            try {
+                List<RetrievedChunk> chunks = retrievalAgent.retrieve(
+                        topic, null, user.getInstitution(), user.getStandard(), 10);
+                if (!chunks.isEmpty()) return quizFrom(chunks, topic, req, user, ownerUsername, sessionId);
+            } catch (RuntimeException e) {
+                log.warn("Topic search for quiz '{}' failed, showing the picker: {}", topic, e.getMessage());
+            }
+        }
+
+        return picker(preselected.isEmpty()
+                ? "Which study material would you like to be quizzed on? Pick whole books, or open a book "
+                        + "to choose chapters."
                 : "I found material that matches \"" + topic + "\". Check the selection below, "
-                        + "add or remove anything, then start the quiz.";
-        return new ChatResponse(intro + "\n\n[[LEARNMATE_MATERIALS:" + String.join(",", preselected) + "]]",
-                List.of(), null);
+                        + "add or remove anything (open a book to pick chapters), then start the quiz.",
+                preselected);
+    }
+
+    // Ids are URL-encoded in the token: chapter ids carry the chapter title, which may
+    // contain the commas and brackets the token uses as delimiters.
+    private static ChatResponse picker(String intro, List<String> preselected) {
+        String ids = preselected.stream()
+                .map(id -> java.net.URLEncoder.encode(id, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20"))
+                .collect(java.util.stream.Collectors.joining(","));
+        return new ChatResponse(intro + "\n\n[[LEARNMATE_MATERIALS:" + ids + "]]", List.of(), null);
     }
 
     private static final Set<String> MATCH_STOPWORDS = Set.of(
@@ -200,17 +266,24 @@ public class AgentOrchestrator {
         Set<String> out = new HashSet<>();
         for (String t : s.toLowerCase().split("[^\\p{L}\\p{N}]+")) {
             if (MATCH_STOPWORDS.contains(t)) continue;
-            if (t.length() >= 3 || (!t.isEmpty() && t.chars().allMatch(Character::isDigit))) out.add(t);
+            // Plurals and "Maths"/"Mathematics" compare equal (normalizeTopic writes "Mathematics").
+            if (t.length() >= 3) out.add(ChapterCatalog.fold(t));
+            else if (!t.isEmpty() && t.chars().allMatch(Character::isDigit)) out.add(t);
         }
         return out;
     }
 
     // ------------------------------------------------------------------ quiz (shown in chat, saved so the answers can be graded)
 
+    // Quiz on what the student ticked in the picker: whole books and/or single chapters.
     private ChatResponse handleQuiz(ChatRequest req, User user, String ownerUsername, String sessionId) {
 
-        List<RetrievedChunk> quizChunks = retrievalAgent.retrieveFromDocuments(
-                req.materialIds(), user.getInstitution(), user.getStandard(), 10);
+        List<String> bookIds = req.materialIds().stream().filter(id -> !id.contains(ChapterCatalog.ID_SEPARATOR)).toList();
+        List<Chapter> chapters = ChapterCatalog.byIds(req.materialIds(),
+                chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard()));
+
+        List<RetrievedChunk> quizChunks = retrievalAgent.retrieveFromSelection(
+                bookIds, chapters, user.getInstitution(), user.getStandard(), 10);
 
         if (quizChunks.isEmpty()) {
             return new ChatResponse(
@@ -219,8 +292,14 @@ public class AgentOrchestrator {
                     List.of(), null);
         }
 
-        String topic = topicFor(req.materialIds(), user.getUsername());
+        List<String> names = new ArrayList<>(topicNames(bookIds, user.getUsername()));
+        chapters.forEach(c -> names.add(c.label() + " (" + c.book() + ")"));
+        return quizFrom(quizChunks, names.isEmpty() ? "Selected material" : String.join(", ", names),
+                req, user, ownerUsername, sessionId);
+    }
 
+    private ChatResponse quizFrom(List<RetrievedChunk> quizChunks, String topic, ChatRequest req, User user,
+                                  String ownerUsername, String sessionId) {
         if (looksGarbled(quizChunks)) {
             return new ChatResponse(
                     "The material you picked isn't readable. Its text was not extracted correctly "
@@ -252,8 +331,6 @@ public class AgentOrchestrator {
         }
     }
 
-    private static final Pattern CHAPTER_NUMBER = Pattern.compile("(\\d+)");
-
     /**
      * Every book uploaded for the student's class, one per line, with its chapters
      * where known: "9thClass Physics SEM-1 Textbook: Chapter 1: Matter in Our
@@ -261,29 +338,18 @@ public class AgentOrchestrator {
      * from the whole book rather than the handful of passages the search returned.
      */
     String booksOutline(User user) {
-        Map<String, java.util.TreeSet<String>> chapters = new java.util.LinkedHashMap<>();
+        Map<String, List<String>> chapters = new java.util.LinkedHashMap<>();
         for (Object[] row : chunkRepository.findMaterials(user.getInstitution(), user.getStandard())) {
-            if (row[1] == null) continue;
-            // Same title as the header line written at upload (IngestionService.bookTitle).
-            chapters.put(IngestionService.bookTitle((String) row[1]), new java.util.TreeSet<>(
-                    java.util.Comparator.comparingInt(AgentOrchestrator::chapterNumber)
-                            .thenComparing(java.util.Comparator.naturalOrder())));
+            if (row[1] != null) chapters.put(IngestionService.bookTitle((String) row[1]), new ArrayList<>());
         }
-        for (String header : chunkRepository.findPieceHeaders(user.getInstitution(), user.getStandard())) {
-            int bar = header.indexOf(" | ");
-            if (bar < 0 || header.length() > 160) continue;   // older uploads have no header line
-            var list = chapters.get(header.substring(0, bar).trim());
-            if (list != null) list.add(header.substring(bar + 3).trim());
+        for (Chapter c : chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard())) {
+            List<String> list = chapters.get(c.book());
+            if (list != null) list.add(c.label());
         }
         StringBuilder sb = new StringBuilder();
         chapters.forEach((book, list) -> sb.append("- ").append(book)
                 .append(list.isEmpty() ? "" : ": " + String.join("; ", list)).append("\n"));
         return sb.toString().trim();
-    }
-
-    private static int chapterNumber(String chapter) {
-        Matcher m = CHAPTER_NUMBER.matcher(chapter);
-        return m.find() ? Integer.parseInt(m.group(1)) : Integer.MAX_VALUE;
     }
 
     /**
@@ -300,13 +366,12 @@ public class AgentOrchestrator {
                 .toList();
     }
 
-    /** Quiz title from the selected materials' names, e.g. "Biology Ch 5, Biology Ch 6". */
-    private String topicFor(List<String> materialIds, String username) {
-        List<String> names = materialsFor(username).stream()
+    /** The selected books' names, for the quiz title, e.g. "Biology Ch 5, Biology Ch 6". */
+    private List<String> topicNames(List<String> materialIds, String username) {
+        return materialsFor(username).stream()
                 .filter(m -> materialIds.contains(m.get("id")))
                 .map(m -> m.get("name"))
                 .toList();
-        return names.isEmpty() ? "Selected material" : String.join(", ", names);
     }
 
     // ------------------------------------------------------------------ list topics (database lookup, not similarity search)
@@ -371,8 +436,20 @@ public class AgentOrchestrator {
 
         String retrievalQuery = buildRetrievalQuery(req.query(), history);
 
-        var chunks = retrievalAgent.retrieve(
-                retrievalQuery, null, user.getInstitution(), user.getStandard(), 6);
+        // "Explain chapter 9" / "summary of circles": read that chapter itself. Searching
+        // for the words "chapter 9" finds pieces that merely contain a 9. The question on
+        // its own decides first; a short follow-up ("simpler please") falls back to the
+        // previous question's chapter.
+        List<Chapter> allChapters = chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard());
+        String chapterQuery = ChapterCatalog.match(req.query(), allChapters).isEmpty() ? retrievalQuery : req.query();
+        List<Chapter> chapters = ChapterCatalog.match(chapterQuery, allChapters);
+        boolean wholeChapter = !chapters.isEmpty() && chapters.size() <= 2
+                && chapters.stream().allMatch(c -> ChapterCatalog.asksForWholeChapter(chapterQuery, c));
+
+        var chunks = wholeChapter
+                ? retrievalAgent.retrieveFromChapters(chapters, user.getInstitution(), user.getStandard(),
+                        chapters.size() == 1 ? 8 : 4)
+                : retrievalAgent.retrieve(retrievalQuery, null, user.getInstitution(), user.getStandard(), 6);
 
         var answer = learningAgent.explain(req.query(), req.level(), user.getStandard(),
                 namedBySource(chunks, user), history, booksOutline(user));

@@ -63,8 +63,8 @@ public class ChatController {
     // Uploaded documents for the student's own school + class; the chat's
     // "quiz me" picker lists these so the student chooses what to be quizzed on.
     @GetMapping("/api/chat/materials")
-    public List<Map<String, String>> materials(Authentication auth) {
-        return orchestrator.materialsFor(auth.getName());
+    public List<Map<String, Object>> materials(Authentication auth) {
+        return orchestrator.quizMaterials(auth.getName());
     }
 
     @GetMapping("/api/chat/sessions")

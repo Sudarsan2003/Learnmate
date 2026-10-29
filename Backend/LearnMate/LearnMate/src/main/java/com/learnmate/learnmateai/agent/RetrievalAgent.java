@@ -3,6 +3,7 @@ package com.learnmate.learnmateai.agent;
 import com.learnmate.learnmateai.dto.RetrievedChunk;
 import com.learnmate.learnmateai.model.DocumentChunk;
 import com.learnmate.learnmateai.repository.DocumentChunkRepository;
+import com.learnmate.learnmateai.service.ChapterCatalog;
 import com.learnmate.learnmateai.service.HybridSearchService;
 import com.learnmate.learnmateai.service.TextQuality;
 import org.springframework.stereotype.Component;
@@ -25,11 +26,14 @@ public class RetrievalAgent {
 
     private final HybridSearchService hybridSearchService;
     private final DocumentChunkRepository chunkRepository;
+    private final ChapterCatalog chapterCatalog;
 
     public RetrievalAgent(HybridSearchService hybridSearchService,
-                          DocumentChunkRepository chunkRepository) {
+                          DocumentChunkRepository chunkRepository,
+                          ChapterCatalog chapterCatalog) {
         this.hybridSearchService = hybridSearchService;
         this.chunkRepository = chunkRepository;
+        this.chapterCatalog = chapterCatalog;
     }
 
     // Unreadable chunks (see TextQuality) are dropped: as tutoring context they only add noise.
@@ -75,24 +79,36 @@ public class RetrievalAgent {
     }
 
     /**
-     * Returns about {@code count} chunks spread across the selected documents (an even
-     * share per document), skipping boilerplate. Ids outside the student's
-     * institution + standard are ignored.
+     * About {@code count} chunks spread across whole books ({@code sourceIds}) and
+     * single chapters, an even share each, skipping boilerplate. Used when a student
+     * picks books and/or chapters to be quizzed on.
      */
-    public List<RetrievedChunk> retrieveFromDocuments(List<String> sourceIds, String institution,
-                                                      String standard, int count) {
-        if (sourceIds == null || sourceIds.isEmpty()) return List.of();
-
-        Map<String, List<DocumentChunk>> byDoc = new LinkedHashMap<>();
-        for (DocumentChunk c : chunkRepository.findBySourceIds(institution, standard, sourceIds)) {
-            byDoc.computeIfAbsent(c.getSourceId(), k -> new ArrayList<>()).add(c);
-        }
-        if (byDoc.isEmpty()) return List.of();
-
-        int perDoc = Math.max(2, (int) Math.ceil((double) count / byDoc.size()));
+    public List<RetrievedChunk> retrieveFromSelection(List<String> sourceIds, List<ChapterCatalog.Chapter> chapters,
+                                                      String institution, String standard, int count) {
+        int parts = (sourceIds == null ? 0 : sourceIds.size()) + chapters.size();
+        if (parts == 0) return List.of();
+        int perPart = Math.max(2, (int) Math.ceil((double) count / parts));
         List<RetrievedChunk> out = new ArrayList<>();
-        for (List<DocumentChunk> all : byDoc.values()) {
-            spread(quizUsable(all), perDoc).stream().map(this::toRetrieved).forEach(out::add);
+        if (sourceIds != null && !sourceIds.isEmpty()) {
+            Map<String, List<DocumentChunk>> byDoc = new LinkedHashMap<>();
+            for (DocumentChunk c : chunkRepository.findBySourceIds(institution, standard, sourceIds)) {
+                byDoc.computeIfAbsent(c.getSourceId(), k -> new ArrayList<>()).add(c);
+            }
+            for (List<DocumentChunk> all : byDoc.values()) {
+                spread(quizUsable(all), perPart).stream().map(this::toRetrieved).forEach(out::add);
+            }
+        }
+        out.addAll(retrieveFromChapters(chapters, institution, standard, perPart));
+        return out;
+    }
+
+    /** About {@code perChapter} chunks spread evenly through each chapter, skipping boilerplate. */
+    public List<RetrievedChunk> retrieveFromChapters(List<ChapterCatalog.Chapter> chapters,
+                                                     String institution, String standard, int perChapter) {
+        List<RetrievedChunk> out = new ArrayList<>();
+        for (ChapterCatalog.Chapter chapter : chapters) {
+            List<DocumentChunk> all = chapterCatalog.chunksOf(institution, standard, chapter);
+            spread(quizUsable(all), perChapter).stream().map(this::toRetrieved).forEach(out::add);
         }
         return out;
     }

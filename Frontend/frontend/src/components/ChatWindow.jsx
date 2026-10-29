@@ -39,7 +39,14 @@ function materialPromptOf(message) {
   if (!match) return null;
   return {
     text: message.text.replace(MATERIALS_TOKEN, "").trim(),
-    preselected: match[1].split(",").filter(Boolean),
+    // Each id is URL-encoded (chapter ids contain titles with commas).
+    preselected: match[1].split(",").filter(Boolean).map((id) => {
+      try {
+        return decodeURIComponent(id);
+      } catch {
+        return id;
+      }
+    }),
   };
 }
 

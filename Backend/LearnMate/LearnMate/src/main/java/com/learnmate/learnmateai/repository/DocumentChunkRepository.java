@@ -138,19 +138,37 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
             @Param("fileName") String fileName
     );
 
-    // The first line of each piece of this school + class's books. Books uploaded
-    // since chapter-aware chunking start every piece with "Book title | Chapter N: Title",
-    // which is how the tutor learns each book's chapter list (see AgentOrchestrator).
+    // [sourceId, first line] of each piece of this school + class's books. Books
+    // uploaded since chapter-aware chunking start every piece with
+    // "Book title | Chapter N: Title", which is how ChapterCatalog lists chapters.
     @Query(value = """
-            SELECT DISTINCT split_part(c.content, E'\\n', 1)
+            SELECT DISTINCT c.source_id, split_part(c.content, E'\\n', 1)
             FROM document_chunks c
             WHERE c.institution = :institution
               AND c.standard = :standard
               AND position(E'\\n' IN c.content) > 0
             """, nativeQuery = true)
-    List<String> findPieceHeaders(
+    List<Object[]> findPieceHeaders(
             @Param("institution") String institution,
             @Param("standard") String standard
+    );
+
+    // Every piece of one chapter (pieces whose first line is exactly that
+    // chapter's header), in upload order.
+    @Query(value = """
+            SELECT c.*
+            FROM document_chunks c
+            WHERE c.institution = :institution
+              AND c.standard = :standard
+              AND c.source_id = :sourceId
+              AND split_part(c.content, E'\\n', 1) = :header
+            ORDER BY c.id
+            """, nativeQuery = true)
+    List<DocumentChunk> findChapterChunks(
+            @Param("institution") String institution,
+            @Param("standard") String standard,
+            @Param("sourceId") String sourceId,
+            @Param("header") String header
     );
 
     // One row per uploaded document for this school + class:
