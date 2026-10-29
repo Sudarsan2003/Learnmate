@@ -421,8 +421,12 @@ export default function DocumentUpload({
           font-size: 12px;
         }
 
-        .lm-row { transition: background 140ms ease, transform 140ms ease; transform-style: preserve-3d; }
-        .lm-row:hover { background: rgba(79,124,255,0.07); transform: translateZ(4px); }
+        /* No 3D lift on hover: a translateZ'd row inside the scrolling table can stop
+           Chrome from registering clicks on its delete button, especially when zoomed. */
+        .lm-row { transition: background 140ms ease; }
+        .lm-row:hover { background: rgba(79,124,255,0.07); }
+        /* The delete button stays visible at the right edge when the table scrolls sideways. */
+        .lm-sticky-actions { position: sticky; right: 0; background: var(--bg); box-shadow: -8px 0 8px -8px rgba(20,30,70,.25); }
         .lm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .lm-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -806,7 +810,7 @@ export default function DocumentUpload({
                       {showScopeColumns && <th className="px-3 py-2.5 font-medium">Owner</th>}
                       <th className="px-3 py-2.5 font-medium">Uploaded</th>
                       <th className="px-3 py-2.5 font-medium">Chunks</th>
-                      <th className="px-3 py-2.5 text-right font-medium">Actions</th>
+                      <th className="lm-sticky-actions px-3 py-2.5 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -830,11 +834,12 @@ export default function DocumentUpload({
                         {showScopeColumns && (
                           <td className="px-3 py-2.5 text-[var(--muted)]">{doc.ownerUsername || "—"}</td>
                         )}
-                        <td className="px-3 py-2.5 text-[var(--muted)]">{formatDate(doc.uploadDate ?? doc.createdAt)}</td>
+                        <td className="px-3 py-2.5 text-[var(--muted)]">{formatDate(doc.uploadedAt ?? doc.uploadDate ?? doc.createdAt)}</td>
                         <td className="px-3 py-2.5 text-[var(--muted)]">{doc.chunkCount ?? "—"}</td>
-                        <td className="px-3 py-2.5">
+                        <td className="lm-sticky-actions px-3 py-2.5">
                           <div className="flex justify-end">
                             <button
+                              type="button"
                               onClick={() => handleDelete(doc.id)}
                               disabled={deletingId === doc.id}
                               title="Remove this document and its chunks"
