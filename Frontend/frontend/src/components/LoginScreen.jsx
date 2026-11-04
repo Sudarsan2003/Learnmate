@@ -314,16 +314,23 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
 
-                <input
-                  value={schoolCode}
-                  onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                  placeholder="School code (ask your teacher)"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  spellCheck={false}
-                  required
-                  className={`${inputCls} font-mono tracking-widest`}
-                />
+                <div>
+                  <input
+                    value={schoolCode}
+                    onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
+                    placeholder="School code (optional)"
+                    aria-describedby="school-code-help"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={12}
+                    className={`${inputCls} font-mono tracking-widest`}
+                  />
+                  <p id="school-code-help" className="mt-1 px-1 text-xs leading-snug text-[var(--muted)]">
+                    8 letters and numbers from your teacher, like <span className="font-mono">K7PM3QX9</span>.
+                    No code? Leave it blank and your school can add you later.
+                  </p>
+                </div>
 
                 <input
                   value={standard}

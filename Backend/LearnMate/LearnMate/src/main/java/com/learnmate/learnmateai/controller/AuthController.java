@@ -54,7 +54,13 @@ public class AuthController {
         }
         // The school comes from its join code, so a student can only join a
         // school whose code they were given -- not any school they can name.
-        School school = schoolService.forJoinCode(request.schoolCode());
+        // The code is optional: without one, the student joins this server's only
+        // school, or is left without a school for an admin to assign (Manage users).
+        // A code that is given but wrong is still an error, so typos are caught.
+        boolean hasCode = request.schoolCode() != null && !request.schoolCode().isBlank();
+        School school = hasCode
+                ? schoolService.forJoinCode(request.schoolCode())
+                : schoolService.defaultSchool().orElse(null);
 
         // Public self-registration is always a plain USER. TEACHER/ADMIN can
         // only be granted via promoteToTeacher() below, which requires an
@@ -67,7 +73,7 @@ public class AuthController {
         user.setMobile(request.mobile());
         user.setGender(request.gender());
         user.setAddress(request.address());
-        user.setInstitution(school.getName());
+        user.setInstitution(school == null ? null : school.getName());
         user.setStandard(request.standard()); // was missing — students never got their class saved
         userRepository.save(user);
 

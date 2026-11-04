@@ -26,6 +26,29 @@ class SchoolServiceTest {
         assertTrue(s.isActive());
     }
 
+    private static School school(String name, boolean active) {
+        School s = new School();
+        s.setName(name);
+        s.setActive(active);
+        return s;
+    }
+
+    @Test
+    void signUpWithoutACodeJoinsTheOnlyActiveSchool() {
+        when(repo.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(
+                school("Old Campus", false), school("Sri Vidya", true)));
+        assertEquals("Sri Vidya", service.defaultSchool().orElseThrow().getName());
+    }
+
+    @Test
+    void signUpWithoutACodeJoinsNoSchoolWhenThereAreSeveral() {
+        when(repo.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(
+                school("Sri Vidya", true), school("Green Valley", true)));
+        assertTrue(service.defaultSchool().isEmpty());
+        when(repo.findAllByOrderByNameAsc()).thenReturn(java.util.List.of());
+        assertTrue(service.defaultSchool().isEmpty());
+    }
+
     @Test
     void createRejectsDuplicateName() {
         when(repo.existsByNameIgnoreCase("Sri Vidya")).thenReturn(true);
