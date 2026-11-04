@@ -34,16 +34,6 @@ public class SchoolService {
                         "That school code isn't valid. Ask your teacher for your school's code."));
     }
 
-    /**
-     * The school a sign-up without a code joins: the only active school, since each
-     * school normally runs its own copy of LearnMate. Empty when there are none or
-     * several, in which case an admin assigns the student's school later.
-     */
-    public java.util.Optional<School> defaultSchool() {
-        List<School> active = repository.findAllByOrderByNameAsc().stream().filter(School::isActive).toList();
-        return active.size() == 1 ? java.util.Optional.of(active.get(0)) : java.util.Optional.empty();
-    }
-
     public School create(String name) {
         String trimmed = name == null ? "" : name.trim().replaceAll("\\s{2,}", " ");
         if (trimmed.isEmpty()) {

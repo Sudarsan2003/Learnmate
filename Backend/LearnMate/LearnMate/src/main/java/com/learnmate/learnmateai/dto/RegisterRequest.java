@@ -10,10 +10,9 @@ public record RegisterRequest(
         String mobile,
         String gender,
         String address,
-        // The school's join code (from the school admin), optional. The institution
-        // is taken from the matching school, never typed in by the student; without
-        // a code the student joins the server's only school, if it has just one.
-        String schoolCode,
+        // The school's join code (from the school admin). The institution is
+        // taken from the matching school, never typed in by the student.
+        @NotBlank String schoolCode,
         String standard // student's class, e.g. "5" — optional, only meaningful for USER role
 ) {
 }

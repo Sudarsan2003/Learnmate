@@ -318,17 +318,18 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                   <input
                     value={schoolCode}
                     onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                    placeholder="School code (optional)"
+                    placeholder="School code"
                     aria-describedby="school-code-help"
                     autoCapitalize="characters"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={12}
+                    required
                     className={`${inputCls} font-mono tracking-widest`}
                   />
                   <p id="school-code-help" className="mt-1 px-1 text-xs leading-snug text-[var(--muted)]">
                     8 letters and numbers from your teacher, like <span className="font-mono">K7PM3QX9</span>.
-                    No code? Leave it blank and your school can add you later.
+                    Already have an account? Just log in, no code needed.
                   </p>
                 </div>
 
