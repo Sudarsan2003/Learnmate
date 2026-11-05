@@ -6,6 +6,7 @@ import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.SchoolAccess;
 import com.learnmate.learnmateai.service.SchoolService;
 import com.learnmate.learnmateai.service.StudentImportService;
+import com.learnmate.learnmateai.service.UserDataService;
 import com.learnmate.learnmateai.service.PromotionService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,11 +36,13 @@ public class AdminController {
     private final StudentImportService studentImportService;
     private final PromotionService promotionService;
     private final SchoolAccess access;
+    private final UserDataService userData;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                            SchoolService schoolService, StudentImportService studentImportService,
-                           PromotionService promotionService, SchoolAccess access) {
+                           PromotionService promotionService, SchoolAccess access, UserDataService userData) {
         this.access = access;
+        this.userData = userData;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.schoolService = schoolService;
@@ -408,6 +411,9 @@ public class AdminController {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
         SchoolAccess.requireCanManage(access.current(), user);
 
+        // Their results, chats and messages go too, so a new account that reuses
+        // the username starts empty.
+        userData.deleteActivity(user.getUsername());
         userRepository.delete(user);
 
         return Map.of("username", username, "deleted", true);

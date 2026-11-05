@@ -281,6 +281,7 @@ public class QuizService {
      * AI can't be used as a general chat backdoor.
      */
     public String askAboutQuiz(Long quizId, String username, QuizAskRequest req) {
+        quizOfMySchool(quizId, username);
         QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
                 .filter(a -> a.getSubmittedAt() != null)
                 .orElseThrow(() -> new IllegalArgumentException("Submit the quiz before asking LearnMate about it."));
@@ -421,9 +422,10 @@ public class QuizService {
 
         boolean staff = ("ADMIN".equals(requester.getRole()) && SchoolAccess.canAccess(requester, quiz.getInstitution()))
                 || quiz.getCreatedByUsername().equals(username);
-        boolean submittedIt = attemptRepository.findByQuizIdAndUsername(quizId, username)
-                .map(a -> a.getSubmittedAt() != null)
-                .orElse(false);
+        boolean submittedIt = matchesScope(quiz.getInstitution(), requester.getInstitution())
+                && attemptRepository.findByQuizIdAndUsername(quizId, username)
+                        .map(a -> a.getSubmittedAt() != null)
+                        .orElse(false);
         if (!staff && !submittedIt) {
             throw new IllegalArgumentException("Submit this quiz to see the leaderboard.");
         }
@@ -471,8 +473,13 @@ public class QuizService {
      * they submitted — so results stay visible to the student long after
      * the "submitted successfully" screen is gone.
      */
+    // Only quizzes of the student's own school: results never cross schools, even if
+    // a username once belonged to someone at another school.
     public List<QuizMyResultDto> listMyResults(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         return attemptRepository.findByUsernameAndSubmittedAtIsNotNullOrderBySubmittedAtDesc(username).stream()
+                .filter(a -> matchesScope(a.getQuiz().getInstitution(), user.getInstitution()))
                 .map(a -> new QuizMyResultDto(
                         a.getQuiz().getId(), a.getQuiz().getTitle(), a.getQuiz().getSubject(),
                         a.getQuiz().getStandard(), a.getScore(), a.getTotalQuestions(), a.getSubmittedAt()))
@@ -484,8 +491,7 @@ public class QuizService {
      * scoped strictly to that student's own attempt, same as askAboutQuiz.
      */
     public QuizAttemptDetailDto getMyAttemptDetail(Long quizId, String username) {
-        Quiz quiz = quizRepository.findById(quizId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+        Quiz quiz = quizOfMySchool(quizId, username);
 
         QuizAttempt attempt = attemptRepository.findByQuizIdAndUsername(quizId, username)
                 .filter(a -> a.getSubmittedAt() != null)
@@ -528,6 +534,18 @@ public class QuizService {
         quizRepository.save(quiz);
         // Medal winners hear about it now rather than at the next hourly check.
         announcementJob.announceQuizResults(quiz);
+    }
+
+    /** A quiz of the student's own school; another school's quiz looks like it doesn't exist. */
+    private Quiz quizOfMySchool(Long quizId, String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+        if (!matchesScope(quiz.getInstitution(), user.getInstitution())) {
+            throw new IllegalArgumentException("Quiz not found");
+        }
+        return quiz;
     }
 
     private Quiz requireVisible(Long quizId, String username) {

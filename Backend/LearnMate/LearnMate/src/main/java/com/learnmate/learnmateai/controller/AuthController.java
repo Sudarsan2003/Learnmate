@@ -46,7 +46,8 @@ public class AuthController {
     @PostMapping("/register")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
         String username = request.username().trim();
-        if (userRepository.findByUsername(username).isPresent()) {
+        // Case-insensitive, so "sudarsan" and "Sudarsan" can't both exist.
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new IllegalArgumentException("That username is already taken. Please choose another.");
         }
         if (request.password().length() < 6) {

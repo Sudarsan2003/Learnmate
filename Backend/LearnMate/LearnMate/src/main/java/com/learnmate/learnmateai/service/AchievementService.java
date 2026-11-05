@@ -132,8 +132,14 @@ public class AchievementService {
      * after a year-end promotion, since they're tied to the quizzes, not the class.
      */
     private List<Medal> medalsOf(User me) {
-        List<QuizAttempt> mine = attempts.findByUsernameAndSubmittedAtIsNotNullOrderBySubmittedAtDesc(me.getUsername());
-        if (mine.isEmpty() || me.getInstitution() == null) return List.of();
+        if (me.getInstitution() == null) return List.of();
+        // Only this school's quizzes count, even if the username once belonged to someone elsewhere.
+        List<QuizAttempt> mine = attempts.findByUsernameAndSubmittedAtIsNotNullOrderBySubmittedAtDesc(me.getUsername())
+                .stream()
+                .filter(a -> a.getQuiz().getInstitution() != null
+                        && a.getQuiz().getInstitution().trim().equalsIgnoreCase(me.getInstitution().trim()))
+                .toList();
+        if (mine.isEmpty()) return List.of();
         Set<String> schoolStudents = users.findByInstitutionAndRole(me.getInstitution(), "USER").stream()
                 .map(User::getUsername).collect(Collectors.toSet());
         Map<Long, List<QuizAttempt>> byQuiz = attempts
