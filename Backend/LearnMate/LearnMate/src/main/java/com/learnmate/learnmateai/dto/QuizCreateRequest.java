@@ -14,7 +14,8 @@ public record QuizCreateRequest(
         String closesAt,
         Integer durationMinutes, // null/0 = untimed; e.g. 10, 15, 20, 30, 45, 60
         List<ManualQuestion> manualQuestions,
-        Integer aiGenerateCount
+        Integer aiGenerateCount,
+        String chapterId // optional "sourceId::Chapter 9: Circles" from GET /api/quizzes/chapters
 ) {
     public record ManualQuestion(
             String questionText, String optionA, String optionB,

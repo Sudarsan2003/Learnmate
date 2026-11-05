@@ -41,6 +41,7 @@ import {
   getMyResults,
   getMyAttemptDetail,
   scanQuizQuestions,
+  getQuizChapters,
 } from "../api/client";
 import Leaderboard from "./Leaderboard";
 import Confetti, { isCelebrationScore } from "./Confetti";
@@ -492,6 +493,25 @@ function CreateQuizForm({ role, onCreated }) {
   const [durationMinutes, setDurationMinutes] = useState("");
   const [manualQuestions, setManualQuestions] = useState([]);
   const [aiGenerateCount, setAiGenerateCount] = useState("");
+  // Optional textbook chapter: shown in weak-chapter reports, and AI questions come from it.
+  const [chapterId, setChapterId] = useState("");
+  const [chapterOptions, setChapterOptions] = useState({ key: "", list: [] });
+  const chapterKey = standard && (!isAdmin || institution.trim()) ? `${institution.trim()}|${standard}` : "";
+  const chapters = chapterOptions.key === chapterKey ? chapterOptions.list : [];
+  useEffect(() => {
+    if (!chapterKey) return undefined;
+    let cancelled = false;
+    getQuizChapters(standard, isAdmin ? institution.trim() : undefined)
+      .then((list) => !cancelled && setChapterOptions({ key: chapterKey, list }))
+      .catch(() => !cancelled && setChapterOptions({ key: chapterKey, list: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterKey, standard, institution, isAdmin]);
+  const chaptersByBook = chapters.reduce((acc, c) => {
+    (acc[c.book] ??= []).push(c);
+    return acc;
+  }, {});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   // "Scan Questions" — photograph handwritten/printed questions, get back
@@ -625,6 +645,7 @@ function CreateQuizForm({ role, onCreated }) {
           correctOption: q.correctOption,
         })),
         aiGenerateCount: aiCount > 0 ? aiCount : null,
+        chapterId: chapters.some((c) => c.id === chapterId) ? chapterId : null,
       };
       const quiz = await createQuiz(payload);
       onCreated(quiz);
@@ -656,7 +677,10 @@ function CreateQuizForm({ role, onCreated }) {
         <Field label="Standard" hint="The class this quiz targets">
           <select
             value={standard}
-            onChange={(e) => setStandard(e.target.value)}
+            onChange={(e) => {
+              setStandard(e.target.value);
+              setChapterId("");
+            }}
             className="lm-input"
           >
             <option value="">Select standard</option>
@@ -674,6 +698,33 @@ function CreateQuizForm({ role, onCreated }) {
             placeholder="e.g. data-structures"
             className="lm-input"
           />
+        </Field>
+        <Field label="Chapter" hint="Optional. Used for weak-chapter reports; AI questions come from it">
+          <select
+            value={chapterId}
+            onChange={(e) => setChapterId(e.target.value)}
+            disabled={!chapterKey || chapters.length === 0}
+            className="lm-input"
+          >
+            <option value="">
+              {!chapterKey
+                ? isAdmin
+                  ? "Pick the institution and standard first"
+                  : "Pick the standard first"
+                : chapters.length === 0
+                  ? "No chapters found in this class's books"
+                  : "No particular chapter"}
+            </option>
+            {Object.entries(chaptersByBook).map(([book, list]) => (
+              <optgroup key={book} label={book}>
+                {list.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.chapter}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </Field>
         {isAdmin && (
           <Field label="Institution" hint="Which school this quiz is for">

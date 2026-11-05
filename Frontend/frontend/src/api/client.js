@@ -518,3 +518,29 @@ export async function getSchoolThread(a, b, institution) {
   });
   return data;
 }
+
+// ---------------------------------------------------------------- weak chapters
+// level: "WEAK" (under 50%), "PRACTISE" (50-69%) or "STRONG".
+
+// My chapters, weakest first: [{ chapter, book, quizzes, averagePercent, latestPercent, lastAt, level }]
+export async function getMyWeakChapters() {
+  const { data } = await api.get("/api/me/weak-chapters");
+  return data;
+}
+
+// TEACHER/ADMIN: { standard, chapters: [{ chapter, book, students, averagePercent, weakStudents: [...] }],
+//                  students: [{ username, fullName, chapters: [...] }] }
+export async function getClassWeakChapters(standard, institution) {
+  const { data } = await api.get("/api/reports/weak-chapters", {
+    params: institution ? { standard, institution } : { standard },
+  });
+  return data;
+}
+
+// TEACHER/ADMIN: chapters of a class's books for the create-quiz form: [{ id, chapter, book, subject }]
+export async function getQuizChapters(standard, institution) {
+  const { data } = await api.get("/api/quizzes/chapters", {
+    params: institution ? { standard, institution } : { standard },
+  });
+  return data;
+}

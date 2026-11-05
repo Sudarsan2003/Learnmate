@@ -41,6 +41,9 @@ public class ChatQuizAttempt {
     private Integer totalQuestions;
     private Instant createdAt = Instant.now();
     private Instant completedAt;
+    // Set when the practice quiz covered exactly one chapter (for weak chapters).
+    private String chapter;
+    private String chapterBook;
 
     public Long getId() { return id; }
     public String getUsername() { return username; }
@@ -61,6 +64,10 @@ public class ChatQuizAttempt {
     public void setAnswersJson(String v) { this.answersJson = v; }
     public String getResultsJson() { return resultsJson; }
     public void setResultsJson(String v) { this.resultsJson = v; }
+    public String getChapter() { return chapter; }
+    public void setChapter(String v) { this.chapter = v; }
+    public String getChapterBook() { return chapterBook; }
+    public void setChapterBook(String v) { this.chapterBook = v; }
     public Integer getScorePercent() { return scorePercent; }
     public void setScorePercent(Integer v) { this.scorePercent = v; }
     public Integer getCorrectCount() { return correctCount; }

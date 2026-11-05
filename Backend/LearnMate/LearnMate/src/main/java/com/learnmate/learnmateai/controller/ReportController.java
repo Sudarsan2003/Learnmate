@@ -5,6 +5,7 @@ import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.AchievementService;
 import com.learnmate.learnmateai.service.ReportService;
 import com.learnmate.learnmateai.service.SchoolAccess;
+import com.learnmate.learnmateai.service.WeaknessService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,12 +29,23 @@ public class ReportController {
     private final ReportService reportService;
     private final UserRepository userRepository;
     private final AchievementService achievementService;
+    private final WeaknessService weaknessService;
 
     public ReportController(ReportService reportService, UserRepository userRepository,
-                            AchievementService achievementService) {
+                            AchievementService achievementService, WeaknessService weaknessService) {
         this.reportService = reportService;
         this.userRepository = userRepository;
         this.achievementService = achievementService;
+        this.weaknessService = weaknessService;
+    }
+
+    // A class's weak chapters and each student's weak chapters.
+    @GetMapping("/weak-chapters")
+    public WeaknessService.ClassWeakness weakChapters(
+            @RequestParam String standard,
+            @RequestParam(value = "institution", required = false) String institution,
+            Authentication auth) {
+        return weaknessService.forClass(schoolFor(auth, institution), standard.trim());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

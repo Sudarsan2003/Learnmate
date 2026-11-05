@@ -152,6 +152,8 @@ export default function ChatWindow({
   onOpenReports,
   onOpenGames,
   onOpenMessages,
+  initialAsk,
+  onAskHandled,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -389,6 +391,18 @@ export default function ChatWindow({
     },
     [sessionId, onSessionCreated]
   );
+
+  // A question sent from elsewhere (e.g. "Practise" on a weak chapter): ask it once
+  // the new chat is ready.
+  useEffect(() => {
+    if (!initialAsk || historyLoading || isLoading) return;
+    onAskHandled?.();
+    // Deferred a tick so this effect doesn't set state while React is rendering.
+    Promise.resolve().then(() => {
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "learner", text: initialAsk }]);
+      performSend(initialAsk);
+    });
+  }, [initialAsk, historyLoading, isLoading, onAskHandled, performSend]);
 
   async function handleSend() {
     const query = input.trim();

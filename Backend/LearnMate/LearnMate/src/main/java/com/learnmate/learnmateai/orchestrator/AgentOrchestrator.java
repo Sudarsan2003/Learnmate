@@ -201,7 +201,7 @@ public class AgentOrchestrator {
                 List<RetrievedChunk> chunks = retrievalAgent.retrieveFromChapters(
                         chapters, user.getInstitution(), user.getStandard(), 10);
                 if (!chunks.isEmpty()) {
-                    return quizFrom(chunks, c.label() + " (" + c.book() + ")", req, user, ownerUsername, sessionId);
+                    return quizFrom(chunks, c.label() + " (" + c.book() + ")", c, req, user, ownerUsername, sessionId);
                 }
             } else if (chapters.size() > 1) {
                 return picker("I found " + chapters.size() + " chapters that match \"" + topic + "\". Keep the "
@@ -217,7 +217,7 @@ public class AgentOrchestrator {
             try {
                 List<RetrievedChunk> chunks = retrievalAgent.retrieve(
                         topic, null, user.getInstitution(), user.getStandard(), 10);
-                if (!chunks.isEmpty()) return quizFrom(chunks, topic, req, user, ownerUsername, sessionId);
+                if (!chunks.isEmpty()) return quizFrom(chunks, topic, null, req, user, ownerUsername, sessionId);
             } catch (RuntimeException e) {
                 log.warn("Topic search for quiz '{}' failed, showing the picker: {}", topic, e.getMessage());
             }
@@ -294,12 +294,14 @@ public class AgentOrchestrator {
 
         List<String> names = new ArrayList<>(topicNames(bookIds, user.getUsername()));
         chapters.forEach(c -> names.add(c.label() + " (" + c.book() + ")"));
-        return quizFrom(quizChunks, names.isEmpty() ? "Selected material" : String.join(", ", names),
+        Chapter only = bookIds.isEmpty() && chapters.size() == 1 ? chapters.get(0) : null;
+        return quizFrom(quizChunks, names.isEmpty() ? "Selected material" : String.join(", ", names), only,
                 req, user, ownerUsername, sessionId);
     }
 
-    private ChatResponse quizFrom(List<RetrievedChunk> quizChunks, String topic, ChatRequest req, User user,
-                                  String ownerUsername, String sessionId) {
+    // chapter: set when the quiz covers exactly one chapter, so its score counts towards weak chapters.
+    private ChatResponse quizFrom(List<RetrievedChunk> quizChunks, String topic, Chapter chapter, ChatRequest req,
+                                  User user, String ownerUsername, String sessionId) {
         if (looksGarbled(quizChunks)) {
             return new ChatResponse(
                     "The material you picked isn't readable. Its text was not extracted correctly "
@@ -314,6 +316,7 @@ public class AgentOrchestrator {
                     topic, namedBySource(quizChunks, user), 5, 3, req.level());
             ChatQuizAttempt attempt = quizAttemptService.start(ownerUsername, sessionId, quiz,
                     ChatQuizAttemptService.buildStudyMaterial(quizChunks));
+            if (chapter != null) attempt = quizAttemptService.tagChapter(attempt, chapter.label(), chapter.book());
             // The trailing token lets the chat UI swap this text for an interactive quiz card
             // (it's stored in chat history too, so the card comes back after a reload).
             return new ChatResponse(

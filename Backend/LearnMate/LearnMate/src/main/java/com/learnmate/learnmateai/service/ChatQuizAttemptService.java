@@ -66,6 +66,13 @@ public class ChatQuizAttemptService {
 
     // ------------------------------------------------------------ lifecycle
 
+    /** Records which single chapter a practice quiz covered (for weak chapters). */
+    public ChatQuizAttempt tagChapter(ChatQuizAttempt attempt, String chapter, String book) {
+        attempt.setChapter(chapter);
+        attempt.setChapterBook(book);
+        return repo.save(attempt);
+    }
+
     public ChatQuizAttempt start(String username, String sessionId,
                                  EvaluationAgent.GeneratedQuiz quiz, String studyMaterial) {
         findActive(username, sessionId).ifPresent(this::abandon);

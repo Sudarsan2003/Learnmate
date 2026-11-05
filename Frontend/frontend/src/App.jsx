@@ -64,11 +64,17 @@ export default function App() {
   const [gameTarget, setGameTarget] = useState(null);
   // "messages:ravi" from a message notification opens the chat with ravi.
   const [messageTarget, setMessageTarget] = useState(null);
+  // { view: "chat", ask: "Quiz me on Chapter 9: Circles" } opens a new chat and sends that.
+  const [pendingAsk, setPendingAsk] = useState(null);
   useEffect(() => {
     function handleNavigate(e) {
       const { view: next, gameType } = e.detail ?? {};
       if (next === "games") setGameTarget({ gameType: gameType ?? null, at: Date.now() });
       if (next === "messages") setMessageTarget(gameType ?? null);
+      if (next === "chat" && e.detail?.ask) {
+        setSessionId(null);
+        setPendingAsk(e.detail.ask);
+      }
       if (next) setView(next);
     }
     document.addEventListener("learnmate:navigate", handleNavigate);
@@ -167,6 +173,8 @@ export default function App() {
                   onOpenDashboard={() => setView("dashboard")}
                   onOpenReports={() => setView("reports")}
                   onOpenGames={() => setView("games")}
+                  initialAsk={pendingAsk}
+                  onAskHandled={() => setPendingAsk(null)}
                   onOpenMessages={() => {
                     setMessageTarget(null);
                     setView("messages");

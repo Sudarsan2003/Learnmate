@@ -24,6 +24,7 @@ import {
   getMyAttemptDetail,
 } from "../api/client";
 import HallOfFame from "./HallOfFame";
+import WeakChapters from "./WeakChapters";
 import Leaderboard from "./Leaderboard";
 
 /**
@@ -1137,6 +1138,8 @@ function StudentDashboard({ onOpenQuizzes, currentUsername }) {
               { label: "Open for you", value: available.length, sub: available.length === 1 ? "quiz waiting" : "quizzes waiting" },
             ]}
           />
+
+          <WeakChapters />
 
           <HallOfFame username={currentUsername} />
 

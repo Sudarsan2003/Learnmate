@@ -55,4 +55,9 @@ public class Quiz {
     public enum QuizMode { SCHEDULED, OPEN }
     public enum QuizStatus { DRAFT, OPEN, CLOSED }
     private Integer durationMinutes;
+
+    // The textbook chapter this quiz covers ("Chapter 9: Circles") and its book,
+    // so results can show each student's weak chapters. Null when unknown.
+    private String chapter;
+    private String chapterBook;
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight, UserX, Phone } from "lucide-react";
+import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight, UserX, Phone, Target } from "lucide-react";
 import { getReportClasses, getClassReport, getToppers, getInactiveStudents } from "../api/client";
+import ClassWeakChapters from "./ClassWeakChapters";
 import { PlaceMedal, MedalLegend } from "./Medal";
 
 /**
@@ -111,7 +112,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [printing, setPrinting] = useState(null); // { kind: "class" } | { kind: "cards", students }
-  const [tab, setTab] = useState("report"); // "report" | "toppers"
+  const [tab, setTab] = useState("report"); // "report" | "toppers" | "weak"
   const [weekToppers, setWeekToppers] = useState(null);
   const [monthToppers, setMonthToppers] = useState(null);
 
@@ -254,7 +255,24 @@ export default function Reports() {
             >
               <Trophy size={15} aria-hidden="true" /> Toppers
             </button>
+            <button
+              type="button"
+              role="tab"
+              id="rp-tab-weak"
+              aria-selected={tab === "weak"}
+              aria-controls="rp-panel-weak"
+              className={`rp-tab ${tab === "weak" ? "rp-tab-on" : ""}`}
+              onClick={() => setTab("weak")}
+            >
+              <Target size={15} aria-hidden="true" /> Weak chapters
+            </button>
           </div>
+
+          {tab === "weak" && (
+            <div role="tabpanel" id="rp-panel-weak" aria-labelledby="rp-tab-weak" className="rp-section rp-section-first">
+              <ClassWeakChapters standard={report.standard} />
+            </div>
+          )}
 
           {/* Both panels stay mounted (the hidden one just isn't shown) so the
               printed class sheet always has the week's and month's toppers. */}

@@ -26,6 +26,7 @@ public class QuizService {
     private final VisionService visionService;
     private final NotificationService notificationService;
     private final AnnouncementJob announcementJob;
+    private final ChapterCatalog chapterCatalog;
 
     public QuizService(QuizRepository quizRepository,
                        QuizQuestionRepository questionRepository,
@@ -36,7 +37,9 @@ public class QuizService {
                        EvaluationAgent evaluationAgent,
                        VisionService visionService,
                        NotificationService notificationService,
-                       AnnouncementJob announcementJob) {
+                       AnnouncementJob announcementJob,
+                       ChapterCatalog chapterCatalog) {
+        this.chapterCatalog = chapterCatalog;
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.attemptRepository = attemptRepository;
@@ -96,6 +99,18 @@ public class QuizService {
         quiz.setMode(req.mode());
         quiz.setDurationMinutes(req.durationMinutes());
 
+        // The chapter the teacher picked (optional): recorded for weak-chapter
+        // reports, and AI questions then come from that chapter only.
+        ChapterCatalog.Chapter chapter = null;
+        if (req.chapterId() != null && !req.chapterId().isBlank()) {
+            chapter = ChapterCatalog.byIds(List.of(req.chapterId()),
+                            chapterCatalog.chaptersFor(institution.trim(), req.standard().trim()))
+                    .stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("That chapter isn't in this class's books."));
+            quiz.setChapter(chapter.label());
+            quiz.setChapterBook(chapter.book());
+        }
+
         if (req.mode() == Quiz.QuizMode.SCHEDULED) {
             quiz.setOpensAt(req.opensAt() != null ? Instant.parse(req.opensAt()) : Instant.now());
             quiz.setClosesAt(req.closesAt() != null ? Instant.parse(req.closesAt()) : null);
@@ -116,9 +131,11 @@ public class QuizService {
         }
 
         if (req.aiGenerateCount() != null && req.aiGenerateCount() > 0) {
-            var chunks = retrievalAgent.retrieve(
-                    req.subject() == null ? req.title() : req.subject(),
-                    req.subject(), institution, req.standard(), 10);
+            var chunks = chapter != null
+                    ? retrievalAgent.retrieveFromChapters(List.of(chapter), institution.trim(), req.standard().trim(), 10)
+                    : retrievalAgent.retrieve(
+                            req.subject() == null ? req.title() : req.subject(),
+                            req.subject(), institution, req.standard(), 10);
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException(
                         "No study material found for subject '" + req.subject() + "' and standard '"
@@ -128,12 +145,41 @@ public class QuizService {
             for (var q : generated) {
                 saveQuestion(quiz, q, "AI_GENERATED", orderIndex++);
             }
+            // No chapter picked: if most of the pages used come from one chapter, that's the quiz's chapter.
+            if (chapter == null) {
+                String[] found = mainChapter(chunks);
+                if (found != null) {
+                    quiz.setChapterBook(found[0]);
+                    quiz.setChapter(found[1]);
+                    quiz = quizRepository.save(quiz);
+                }
+            }
         }
 
         // Only now that every question is saved: an AI-generation failure above
         // must not leave students notified about a quiz with no questions.
         notificationService.quizCreated(quiz);
         return quiz;
+    }
+
+    /**
+     * {book, chapter} when at least 60% of the pieces start with the same
+     * "Book | Chapter N: Title" header line (see IngestionService), else null.
+     */
+    static String[] mainChapter(List<com.learnmate.learnmateai.dto.RetrievedChunk> chunks) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (var c : chunks) {
+            String first = c.content() == null ? "" : c.content().split("\n", 2)[0];
+            if (first.contains(" | ") && first.length() <= 160) counts.merge(first, 1, Integer::sum);
+        }
+        return counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .filter(e -> e.getValue() * 10 >= chunks.size() * 6)
+                .map(e -> {
+                    int bar = e.getKey().indexOf(" | ");
+                    return new String[]{e.getKey().substring(0, bar).trim(), e.getKey().substring(bar + 3).trim()};
+                })
+                .orElse(null);
     }
 
     private void saveQuestion(Quiz quiz, QuizCreateRequest.ManualQuestion q, String source, int orderIndex) {

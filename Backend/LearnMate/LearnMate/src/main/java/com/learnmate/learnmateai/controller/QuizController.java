@@ -20,8 +20,13 @@ import java.util.Map;
 public class QuizController {
 
     private final QuizService quizService;
+    private final com.learnmate.learnmateai.service.ChapterCatalog chapterCatalog;
+    private final com.learnmate.learnmateai.service.SchoolAccess access;
 
-    public QuizController(QuizService quizService) {
+    public QuizController(QuizService quizService, com.learnmate.learnmateai.service.ChapterCatalog chapterCatalog,
+                          com.learnmate.learnmateai.service.SchoolAccess access) {
+        this.chapterCatalog = chapterCatalog;
+        this.access = access;
         this.quizService = quizService;
     }
 
@@ -65,6 +70,24 @@ public class QuizController {
 
     // Every quiz the calling admin/teacher created, persisted server-side so
     // it's visible from any browser/device instead of relying on localStorage.
+    // Chapters of a class's books, for the "Chapter" picker on the create-quiz form:
+    // [{id, chapter, book, subject}]. A teacher gets their own school's; the owner names one.
+    @GetMapping("/chapters")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public java.util.List<java.util.Map<String, String>> chapters(
+            @RequestParam String standard,
+            @RequestParam(value = "institution", required = false) String institution) {
+        var user = access.current();
+        String school = "ADMIN".equals(user.getRole())
+                ? com.learnmate.learnmateai.service.SchoolAccess.requiredSchool(user, institution)
+                : user.getInstitution();
+        if (school == null || school.isBlank()) return java.util.List.of();
+        return chapterCatalog.chaptersFor(school, standard.trim()).stream()
+                .map(c -> java.util.Map.of("id", c.id(), "chapter", c.label(), "book", c.book(),
+                        "subject", c.subject() == null ? "" : c.subject()))
+                .toList();
+    }
+
     @GetMapping("/mine")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public List<QuizSummaryDto> mine(Authentication auth) {
