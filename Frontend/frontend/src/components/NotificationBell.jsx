@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, ClipboardList, Gamepad2, X, CheckCheck, Trophy, UserX } from "lucide-react";
+import { Bell, ClipboardList, Gamepad2, X, CheckCheck, Trophy, UserX, MessageCircle } from "lucide-react";
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../api/client";
 
 /**
@@ -51,12 +51,18 @@ function openLink(link) {
   document.dispatchEvent(new CustomEvent("learnmate:navigate", { detail: { view, gameType } }));
 }
 
-const ICONS = { GAME: Gamepad2, ACHIEVEMENT: Trophy, ALERT: UserX, QUIZ: ClipboardList };
+const ICONS = { GAME: Gamepad2, ACHIEVEMENT: Trophy, ALERT: UserX, QUIZ: ClipboardList, MESSAGE: MessageCircle };
 const Icon = ({ type, size = 16 }) => {
   const C = ICONS[type] ?? ClipboardList;
   return <C size={size} />;
 };
-const ACTION = { GAME: "Play now", ACHIEVEMENT: "See my medals", ALERT: "Open reports", QUIZ: "Open quizzes" };
+const ACTION = {
+  GAME: "Play now",
+  ACHIEVEMENT: "See my medals",
+  ALERT: "Open reports",
+  QUIZ: "Open quizzes",
+  MESSAGE: "Open chat",
+};
 
 export default function NotificationBell() {
   const signedIn = (() => {

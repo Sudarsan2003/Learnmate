@@ -7,6 +7,7 @@ import Sidebar from "./components/Sidebar";
 import ManageUsers from "./components/ManageUsers";
 import Quizzes from "./components/Quizzes";
 import ProfilePage from "./components/Profilepage";
+import Messages from "./components/Messages";
 import Dashboard from "./components/Dashboard";
 import Games from "./components/Games";
 import Reports from "./components/Reports";
@@ -61,10 +62,13 @@ export default function App() {
   // Notification cards (and anything else) can ask to open a page:
   //   learnmate:navigate { view: "quizzes" } or { view: "games", gameType: "CODE" }
   const [gameTarget, setGameTarget] = useState(null);
+  // "messages:ravi" from a message notification opens the chat with ravi.
+  const [messageTarget, setMessageTarget] = useState(null);
   useEffect(() => {
     function handleNavigate(e) {
       const { view: next, gameType } = e.detail ?? {};
       if (next === "games") setGameTarget({ gameType: gameType ?? null, at: Date.now() });
+      if (next === "messages") setMessageTarget(gameType ?? null);
       if (next) setView(next);
     }
     document.addEventListener("learnmate:navigate", handleNavigate);
@@ -142,6 +146,10 @@ export default function App() {
                     onAskLearnMate={backToChat}
                   />
                 </PageFrame>
+              ) : view === "messages" ? (
+                <PageFrame onBack={backToChat}>
+                  <Messages currentUsername={user.username} role={user.role} initialWith={messageTarget} />
+                </PageFrame>
               ) : view === "profile" ? (
                 <PageFrame onBack={backToChat}>
                   <ProfilePage />
@@ -159,6 +167,10 @@ export default function App() {
                   onOpenDashboard={() => setView("dashboard")}
                   onOpenReports={() => setView("reports")}
                   onOpenGames={() => setView("games")}
+                  onOpenMessages={() => {
+                    setMessageTarget(null);
+                    setView("messages");
+                  }}
                   sessionId={sessionId}
                   onSessionCreated={handleSessionCreated}
                   onNewChat={handleNewChat}

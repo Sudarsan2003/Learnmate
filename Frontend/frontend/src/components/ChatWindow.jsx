@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList } from "lucide-react";
+import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList, MessageCircle } from "lucide-react";
 import { sendChatMessage, getSessionHistory } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
@@ -10,6 +10,7 @@ import { useTypewriter } from "./Usetypewriter";
 import ThemeToggle from "./ThemeToggle";
 import ChatQuiz, { QUIZ_TOKEN } from "./ChatQuiz";
 import NotificationBell from "./NotificationBell";
+import { getUnreadMessageCount } from "../api/client";
 import MaterialPicker, { MATERIALS_TOKEN } from "./MaterialPicker";
 
 // Matches the key Quizzes.jsx writes to when a student clicks
@@ -150,6 +151,7 @@ export default function ChatWindow({
   onOpenDashboard,
   onOpenReports,
   onOpenGames,
+  onOpenMessages,
   sessionId,
   onSessionCreated,
   onNewChat,
@@ -484,6 +486,8 @@ export default function ChatWindow({
             <span className="hidden sm:inline">Games</span>
           </button>
 
+          <MessagesButton onClick={onOpenMessages} />
+
           <button onClick={onOpenQuizzes} aria-label="Quizzes" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
             <ClipboardList size={16} />
             <span className="hidden sm:inline">Quizzes</span>
@@ -787,5 +791,42 @@ export default function ChatWindow({
         }
       `}</style>
     </div>
+  );
+}
+
+// Header button for the Messages page, with the number of unread messages
+// (checked every 30 seconds while the tab is visible).
+function MessagesButton({ onClick }) {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      if (document.visibilityState !== "visible") return;
+      getUnreadMessageCount()
+        .then((n) => !cancelled && setUnread(n))
+        .catch(() => {});
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  return (
+    <button
+      onClick={onClick}
+      aria-label={unread ? `Messages, ${unread} unread` : "Messages"}
+      className="relative flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5"
+    >
+      <MessageCircle size={16} />
+      <span className="hidden sm:inline">Messages</span>
+      {unread > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#E2725B] px-1 text-[10.5px] font-semibold text-white">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </button>
   );
 }
