@@ -120,6 +120,35 @@ public class NotificationService implements ApplicationRunner {
         });
     }
 
+    /**
+     * A new chat message: one bell entry per sender, kept up to date while it's
+     * unread ("3 new messages from Ravi", the latest message, moved to the top),
+     * so a burst of messages doesn't flood the bell.
+     */
+    @Transactional
+    public void messageReceived(String to, String senderName, long unreadFromSender, String preview, String link) {
+        String title = unreadFromSender > 1
+                ? unreadFromSender + " new messages from " + senderName
+                : "New message from " + senderName;
+        Notification n = notifications.findFirstByUsernameAndLinkAndReadAtIsNullOrderByCreatedAtDesc(to, link)
+                .orElseGet(() -> {
+                    Notification fresh = new Notification();
+                    fresh.setUsername(to);
+                    fresh.setType("MESSAGE");
+                    fresh.setLink(link);
+                    return fresh;
+                });
+        n.setTitle(title);
+        n.setMessage(preview);
+        n.setCreatedAt(Instant.now());
+        notifications.save(n);
+    }
+
+    /** The chat with that sender was opened: its message notifications are read. */
+    public void markMessagesRead(String username, String link) {
+        notifications.markReadByLink(username, link, Instant.now());
+    }
+
     public void markAllRead(String username) {
         notifications.markAllRead(username, Instant.now());
     }

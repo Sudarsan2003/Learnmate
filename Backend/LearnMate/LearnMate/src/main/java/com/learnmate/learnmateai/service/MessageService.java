@@ -112,7 +112,9 @@ public class MessageService {
         if (!canMessage(user, them) && messages.findThread(me, other, 0).isEmpty()) {
             throw new IllegalArgumentException("You can't message this person.");
         }
-        messages.markRead(me, other, Instant.now());
+        if (messages.markRead(me, other, Instant.now()) > 0) {
+            notifications.markMessagesRead(me, "messages:" + other);
+        }
         return messages.findThread(me, other, afterId).stream().map(Item::of).toList();
     }
 
@@ -128,9 +130,6 @@ public class MessageService {
         if (sender.isLocked()) throw new IllegalArgumentException("Your account is locked.");
         if (!canMessage(sender, recipient)) throw new IllegalArgumentException("You can't message this person.");
 
-        // One bell notification per burst: only when this is their first unread message from me.
-        boolean firstUnread = messages.countByToUsernameAndFromUsernameAndReadAtIsNull(to, me) == 0;
-
         Message m = new Message();
         m.setInstitution(sender.getInstitution().trim());
         m.setFromUsername(me);
@@ -139,10 +138,9 @@ public class MessageService {
         m.setCreatedAt(Instant.now());
         messages.save(m);
 
-        if (firstUnread) {
-            notifications.sendTo(List.of(to), "MESSAGE", "New message from " + displayName(sender),
-                    preview(text), "messages:" + me);
-        }
+        // Every message updates the recipient's bell (one entry per sender).
+        long unread = messages.countByToUsernameAndFromUsernameAndReadAtIsNull(to, me);
+        notifications.messageReceived(to, displayName(sender), unread, preview(text), "messages:" + me);
         return Item.of(m);
     }
 

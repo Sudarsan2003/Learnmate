@@ -363,13 +363,17 @@ function Thread({ person, currentUsername, onBack, onSent }) {
     getThread(person.username, lastId.current)
       .then((fresh) => {
         if (fresh.length) lastId.current = Math.max(lastId.current, fresh[fresh.length - 1].id);
+        // Opening the chat reads their messages, which also clears their bell entry.
+        if (fresh.some((m) => m.from !== currentUsername)) {
+          document.dispatchEvent(new CustomEvent("learnmate:notifications-changed"));
+        }
         setItems((prev) => mergeById(prev, fresh));
       })
       .catch((err) => setError(err.response?.data?.message ?? "Couldn't load this chat."))
       .finally(() => {
         inFlight.current = false;
       });
-  }, [person.username]);
+  }, [person.username, currentUsername]);
   usePolling(poll, THREAD_POLL_MS, true);
 
   useEffect(() => {

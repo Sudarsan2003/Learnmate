@@ -24,6 +24,13 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("UPDATE Notification n SET n.readAt = :now WHERE n.username = :username AND n.readAt IS NULL")
     int markAllRead(@Param("username") String username, @Param("now") Instant now);
 
+    Optional<Notification> findFirstByUsernameAndLinkAndReadAtIsNullOrderByCreatedAtDesc(String username, String link);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Notification n SET n.readAt = :now WHERE n.username = :username AND n.link = :link AND n.readAt IS NULL")
+    int markReadByLink(@Param("username") String username, @Param("link") String link, @Param("now") Instant now);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM Notification n WHERE n.createdAt < :before")

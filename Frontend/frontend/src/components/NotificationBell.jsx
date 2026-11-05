@@ -9,10 +9,10 @@ import { getNotifications, markNotificationRead, markAllNotificationsRead } from
  * weekly inactive-students alert. Shows an unread badge, a dropdown of cards,
  * and a pop-up card for anything that arrived since it was last seen.
  * Clicking a card marks it read and opens the page it's about.
- * It checks for new ones every minute while the tab is visible.
+ * It checks for new ones every 20 seconds while the tab is visible.
  */
 
-const POLL_MS = 60_000;
+const POLL_MS = 20_000;
 // Fired once a read is saved, so a bell on the page being opened (which may
 // have loaded before the save landed) shows the right count.
 const CHANGED = "learnmate:notifications-changed";
@@ -86,10 +86,13 @@ export default function NotificationBell() {
       setUnread(data.unreadCount);
       // Pop up the newest unread one the student hasn't been shown yet this session.
       const toasted = readToasted();
-      const fresh = data.items.filter((n) => !n.read && !toasted.has(n.id));
+      // Keyed by time too: a message notification is updated in place when
+      // another message from the same person arrives, and pops up again.
+      const key = (n) => `${n.id}@${n.createdAt}`;
+      const fresh = data.items.filter((n) => !n.read && !toasted.has(key(n)));
       if (fresh.length) {
         setToast(fresh.length > 1 ? { ...fresh[0], more: fresh.length - 1 } : fresh[0]);
-        fresh.forEach((n) => toasted.add(n.id));
+        fresh.forEach((n) => toasted.add(key(n)));
         saveToasted(toasted);
       }
     } catch {
@@ -180,7 +183,7 @@ export default function NotificationBell() {
             )}
           </div>
           {items.length === 0 ? (
-            <p className="nb-empty">You&apos;re all caught up. New quizzes and games will show up here.</p>
+            <p className="nb-empty">You&apos;re all caught up. New messages, quizzes and games will show up here.</p>
           ) : (
             <ul className="nb-list">
               {items.map((n) => (
