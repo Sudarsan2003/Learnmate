@@ -20,4 +20,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // Bulk import: catches the same class list being imported twice.
     Optional<User> findFirstByInstitutionAndStandardAndFullNameIgnoreCase(String institution, String standard, String fullName);
+
+    /** Accounts using this 10-digit mobile number, however it was typed (+91, spaces, a leading 0). */
+    @org.springframework.data.jpa.repository.Query(value =
+            "SELECT count(*) FROM users WHERE right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10) = :mobile",
+            nativeQuery = true)
+    long countByMobileDigits(@org.springframework.data.repository.query.Param("mobile") String mobile);
 }

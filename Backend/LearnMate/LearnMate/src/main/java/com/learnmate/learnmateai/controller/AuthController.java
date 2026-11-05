@@ -43,6 +43,19 @@ public class AuthController {
         return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
     }
 
+    static final int MAX_ACCOUNTS_PER_MOBILE = 2;
+
+    /** "+91 98765 43210", "098765-43210" -> "9876543210"; anything else is refused. */
+    static String indianMobile(String raw) {
+        String digits = raw == null ? "" : raw.replaceAll("[^0-9]", "");
+        if (digits.length() == 12 && digits.startsWith("91")) digits = digits.substring(2);
+        else if (digits.length() == 11 && digits.startsWith("0")) digits = digits.substring(1);
+        if (!digits.matches("[6-9][0-9]{9}")) {
+            throw new IllegalArgumentException("Enter a valid 10-digit mobile number, like 98765 43210.");
+        }
+        return digits;
+    }
+
     @PostMapping("/register")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
         String username = request.username().trim();
@@ -52,6 +65,14 @@ public class AuthController {
         }
         if (request.password().length() < 6) {
             throw new IllegalArgumentException("Password must be at least 6 characters.");
+        }
+        // A parent's number may be shared by brothers and sisters, so up to
+        // MAX_ACCOUNTS_PER_MOBILE accounts can use it.
+        String mobile = indianMobile(request.mobile());
+        if (userRepository.countByMobileDigits(mobile) >= MAX_ACCOUNTS_PER_MOBILE) {
+            throw new IllegalArgumentException("This mobile number is already used by " + MAX_ACCOUNTS_PER_MOBILE
+                    + " accounts. A number can be shared by at most " + MAX_ACCOUNTS_PER_MOBILE
+                    + " children; please use another parent's number.");
         }
         // The school comes from its join code, so a student can only join a
         // school whose code they were given -- not any school they can name.
@@ -65,7 +86,7 @@ public class AuthController {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole("USER");
         user.setEmail(request.email());
-        user.setMobile(request.mobile());
+        user.setMobile(mobile);
         user.setGender(request.gender());
         user.setAddress(request.address());
         user.setInstitution(school.getName());

@@ -7,7 +7,7 @@ public record RegisterRequest(
         @NotBlank String username,
         @NotBlank String password,
         @Email String email,
-        String mobile,
+        String mobile, // required: checked in AuthController.register so the message is readable
         String gender,
         String address,
         // The school's join code (from the school admin). The institution is

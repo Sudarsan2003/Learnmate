@@ -295,12 +295,23 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                   className={inputCls}
                 />
 
-                <input
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  placeholder="Mobile number"
-                  className={inputCls}
-                />
+                <div>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value.replace(/[^0-9+\s-]/g, ""))}
+                    placeholder="Parent's mobile number"
+                    aria-describedby="mobile-help"
+                    maxLength={16}
+                    required
+                    className={inputCls}
+                  />
+                  <p id="mobile-help" className="mt-1 px-1 text-xs leading-snug text-[var(--muted)]">
+                    Required. One number can be used for up to 2 children.
+                  </p>
+                </div>
 
                 <select
                   value={gender}
