@@ -30,6 +30,7 @@ import {
   deleteUser,
   setUserLocked,
   getMe,
+  listSchools,
   setUserOwner,
 } from "../api/client";
 import SchoolsView from "./SchoolsView";
@@ -230,10 +231,17 @@ export default function ManageUsers({ currentUsername }) {
   // The LearnMate owner sees every school and can make other admins owners;
   // a school's own admin only sees their school.
   const [viewerOwner, setViewerOwner] = useState(false);
+  const [schoolNames, setSchoolNames] = useState([]);
   useEffect(() => {
     let cancelled = false;
     getMe()
-      .then((me) => !cancelled && setViewerOwner(!!me.owner))
+      .then((me) => {
+        if (cancelled || !me.owner) return;
+        setViewerOwner(true);
+        listSchools()
+          .then((list) => !cancelled && setSchoolNames(list.map((s) => s.name)))
+          .catch(() => {});
+      })
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -643,6 +651,11 @@ export default function ManageUsers({ currentUsername }) {
       )}
 
       {error && <Toast message={error} onDismiss={() => setError(null)} />}
+      <datalist id="um-school-names">
+        {schoolNames.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
     </div>
   );
 }
@@ -796,23 +809,44 @@ function UserRow({
               {u.role === "ADMIN" && u.owner ? (
                 <div className="space-y-3">
                   <p className="text-[13.5px] leading-relaxed text-[var(--muted)]">
-                    Owner: sees and manages every school, so they don&apos;t need an institution or class of their own.
+                    Owner: sees and manages every school. To limit them to one school, save that school here, then make
+                    them a school admin.
                   </p>
-                  {hasScope && (
+                  {viewerOwner && !isSelf && (
+                    <>
+                      <Field label="School">
+                        <input
+                          className="um-input"
+                          list="um-school-names"
+                          value={draft.institution}
+                          onChange={(e) => onDraft("institution", e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && dirty && !saving && onSave()}
+                          placeholder="Pick a school"
+                        />
+                      </Field>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {dirty && (
+                          <button type="button" className="um-btn um-btn-primary um-btn-sm" onClick={onSave} disabled={saving}>
+                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            Save school
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="um-btn um-btn-ghost um-btn-sm"
+                          onClick={() => onSetOwner(false)}
+                          disabled={saving || dirty || !u.institution}
+                          title={u.institution ? `They'll only see ${u.institution}` : "Save their school first"}
+                        >
+                          Make a school admin (only {u.institution || "their school"})
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {hasScope && !viewerOwner && (
                     <button type="button" className="um-btn um-btn-quiet um-btn-sm" onClick={onClearScope} disabled={saving}>
                       {saving ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
                       Clear leftover institution and class
-                    </button>
-                  )}
-                  {viewerOwner && !isSelf && (
-                    <button
-                      type="button"
-                      className="um-btn um-btn-ghost um-btn-sm"
-                      onClick={() => onSetOwner(false)}
-                      disabled={saving}
-                      title="They'll only see the school set below, which must be filled in first"
-                    >
-                      Make a school admin (one school only)
                     </button>
                   )}
                 </div>
