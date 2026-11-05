@@ -3,6 +3,7 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
+import com.learnmate.learnmateai.service.SchoolAccess;
 import com.learnmate.learnmateai.service.SchoolService;
 import com.learnmate.learnmateai.service.StudentImportService;
 import com.learnmate.learnmateai.service.PromotionService;
@@ -33,10 +34,12 @@ public class AdminController {
     private final SchoolService schoolService;
     private final StudentImportService studentImportService;
     private final PromotionService promotionService;
+    private final SchoolAccess access;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                            SchoolService schoolService, StudentImportService studentImportService,
-                           PromotionService promotionService) {
+                           PromotionService promotionService, SchoolAccess access) {
+        this.access = access;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.schoolService = schoolService;
@@ -48,34 +51,30 @@ public class AdminController {
 
     // Classes with their students and a suggested next class, plus the last promotion (for undo).
     @GetMapping("/promotion")
-    public PromotionService.Plan promotionPlan() {
-        return promotionService.plan(adminSchool());
+    public PromotionService.Plan promotionPlan(@RequestParam(value = "institution", required = false) String institution) {
+        return promotionService.plan(adminSchool(institution));
     }
 
     // Body: { "targets": { "9": "10", "10": "Passed out 2027" }, "holdBack": ["ravi.kumar"] }
     @PostMapping("/promotion")
-    public PromotionService.Result promote(@RequestBody Map<String, Object> body) {
+    public PromotionService.Result promote(@RequestBody Map<String, Object> body,
+                                           @RequestParam(value = "institution", required = false) String institution) {
         @SuppressWarnings("unchecked")
         Map<String, String> targets = (Map<String, String>) body.getOrDefault("targets", Map.of());
         @SuppressWarnings("unchecked")
         List<String> holdBack = (List<String>) body.getOrDefault("holdBack", List.of());
         String admin = SecurityContextHolder.getContext().getAuthentication().getName();
-        return promotionService.promote(adminSchool(), targets, Set.copyOf(holdBack), admin);
+        return promotionService.promote(adminSchool(institution), targets, Set.copyOf(holdBack), admin);
     }
 
     @PostMapping("/promotion/undo")
-    public Map<String, Object> undoPromotion() {
-        return Map.of("restored", promotionService.undoLast(adminSchool()));
+    public Map<String, Object> undoPromotion(@RequestParam(value = "institution", required = false) String institution) {
+        return Map.of("restored", promotionService.undoLast(adminSchool(institution)));
     }
 
-    // Promotion acts on the admin's own school (each school runs its own copy).
-    private String adminSchool() {
-        String admin = SecurityContextHolder.getContext().getAuthentication().getName();
-        String school = userRepository.findByUsername(admin).map(User::getInstitution).orElse(null);
-        if (school == null || school.isBlank()) {
-            throw new IllegalArgumentException("Set a school on your admin account first (Manage users → edit your account).");
-        }
-        return school;
+    // Promotion acts on the admin's own school; the owner names which school.
+    private String adminSchool(String requested) {
+        return SchoolAccess.requiredSchool(access.current(), requested);
     }
 
     // ------------------------------------------------------------------ bulk import
@@ -89,14 +88,12 @@ public class AdminController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "dryRun", defaultValue = "true") boolean dryRun,
             @RequestParam(value = "institution", required = false) String institution) {
-        String admin = SecurityContextHolder.getContext().getAuthentication().getName();
-        String school = institution == null || institution.isBlank()
-                ? userRepository.findByUsername(admin).map(User::getInstitution).orElse(null)
-                : schoolService.list().stream()
-                        .map(School::getName)
-                        .filter(n -> n.equalsIgnoreCase(institution.trim()))
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("Unknown school: " + institution));
+        String requested = SchoolAccess.requiredSchool(access.current(), institution);
+        String school = schoolService.list().stream()
+                .map(School::getName)
+                .filter(n -> n.equalsIgnoreCase(requested.trim()))
+                .findFirst()
+                .orElse(requested);
         return studentImportService.importStudents(file, school, dryRun);
     }
 
@@ -110,12 +107,15 @@ public class AdminController {
     // ------------------------------------------------------------------ schools (customers)
 
     // Every customer school with its sign-up code and how many people have joined.
+    // A school admin only sees their own school here (to share its code).
     @GetMapping("/schools")
     public List<Map<String, Object>> listSchools() {
+        User actor = access.current();
         Map<String, Long> members = userRepository.findAll().stream()
                 .filter(u -> u.getInstitution() != null)
                 .collect(Collectors.groupingBy(u -> u.getInstitution().toLowerCase(), Collectors.counting()));
         return schoolService.list().stream()
+                .filter(s -> SchoolAccess.canAccess(actor, s.getName()))
                 .map(s -> schoolRow(s, members.getOrDefault(s.getName().toLowerCase(), 0L)))
                 .toList();
     }
@@ -125,6 +125,7 @@ public class AdminController {
     // sign-ups would land in a separate, empty pool of material and quizzes.
     @PostMapping("/schools")
     public Map<String, Object> createSchool(@RequestBody Map<String, String> body) {
+        SchoolAccess.requireOwner(access.current());
         String requested = body.get("name") == null ? "" : body.get("name").trim().replaceAll("\\s{2,}", " ");
         String name = userRepository.findAll().stream()
                 .map(User::getInstitution)
@@ -139,12 +140,31 @@ public class AdminController {
 
     @PostMapping("/schools/{id}/regenerate-code")
     public Map<String, Object> regenerateSchoolCode(@PathVariable Long id) {
+        if (!SchoolAccess.canAccess(access.current(), schoolService.get(id).getName())) {
+            throw new IllegalArgumentException("You can only manage your own school.");
+        }
         return schoolRow(schoolService.regenerateCode(id), null);
     }
 
     @PutMapping("/schools/{id}/active")
     public Map<String, Object> setSchoolActive(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+        SchoolAccess.requireOwner(access.current());
         return schoolRow(schoolService.setActive(id, Boolean.TRUE.equals(body.get("active"))), null);
+    }
+
+    // Owner only: the last day a trial school can use LearnMate. Body: { "date": "2026-11-19" },
+    // or { "date": null } to remove the limit (e.g. once the school buys).
+    @PutMapping("/schools/{id}/access-ends")
+    public Map<String, Object> setSchoolAccessEnds(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        SchoolAccess.requireOwner(access.current());
+        String date = body.get("date");
+        java.time.LocalDate ends;
+        try {
+            ends = date == null || date.isBlank() ? null : java.time.LocalDate.parse(date.trim());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("Use a date like 2026-11-19.");
+        }
+        return schoolRow(schoolService.setAccessEndsOn(id, ends), null);
     }
 
     private static Map<String, Object> schoolRow(School s, Long memberCount) {
@@ -154,6 +174,7 @@ public class AdminController {
         row.put("joinCode", s.getJoinCode());
         row.put("active", s.isActive());
         row.put("createdAt", s.getCreatedAt());
+        row.put("accessEndsOn", s.getAccessEndsOn() == null ? "" : s.getAccessEndsOn().toString());
         if (memberCount != null) row.put("memberCount", memberCount);
         return row;
     }
@@ -161,7 +182,10 @@ public class AdminController {
     // Password hashes never leave this method — only safe fields go out.
     @GetMapping("/users")
     public List<Map<String, Object>> listUsers() {
+        User actor = access.current();
         return userRepository.findAll().stream()
+                .filter(u -> SchoolAccess.isOwner(actor)
+                        || (!SchoolAccess.isOwner(u) && SchoolAccess.canAccess(actor, u.getInstitution())))
                 .map(u -> {
                     Map<String, Object> row = new java.util.HashMap<>();
                     row.put("id", u.getId());
@@ -175,6 +199,7 @@ public class AdminController {
                     row.put("institution", u.getInstitution() == null ? "" : u.getInstitution());
                     row.put("standard", u.getStandard() == null ? "" : u.getStandard());
                     row.put("locked", u.isLocked());
+                    row.put("owner", u.isOwner());
                     return row;
                 })
                 .collect(Collectors.toList());
@@ -184,8 +209,10 @@ public class AdminController {
     // this is how they see who's grouped under each institution.
     @GetMapping("/institutions")
     public List<Map<String, Object>> listInstitutions() {
+        User actor = access.current();
         return userRepository.findAll().stream()
                 .filter(u -> u.getInstitution() != null && !u.getInstitution().isBlank())
+                .filter(u -> SchoolAccess.canAccess(actor, u.getInstitution()))
                 .collect(Collectors.groupingBy(User::getInstitution))
                 .entrySet().stream()
                 .map(entry -> {
@@ -217,6 +244,7 @@ public class AdminController {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        SchoolAccess.requireCanManage(access.current(), user);
 
         user.setRole(newRole.toUpperCase());
         userRepository.save(user);
@@ -224,10 +252,34 @@ public class AdminController {
         return Map.of("username", user.getUsername(), "role", user.getRole());
     }
 
+    // Owner only: makes an admin an owner (sees every school) or a school's own admin
+    // (sees only their school, which must then be set). Body: { "owner": true }.
+    @PutMapping("/users/{username}/owner")
+    public Map<String, Object> setOwner(@PathVariable String username, @RequestBody Map<String, Boolean> body) {
+        User actor = access.current();
+        SchoolAccess.requireOwner(actor);
+        boolean owner = Boolean.TRUE.equals(body.get("owner"));
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        if (owner && !"ADMIN".equals(user.getRole())) {
+            throw new IllegalArgumentException("Make them an admin first.");
+        }
+        if (!owner && user.getUsername().equals(actor.getUsername())) {
+            throw new IllegalArgumentException("You can't remove your own owner access.");
+        }
+        if (!owner && (user.getInstitution() == null || user.getInstitution().isBlank())) {
+            throw new IllegalArgumentException("Set their school first, so they know which school to manage.");
+        }
+        user.setOwner(owner);
+        userRepository.save(user);
+        return Map.of("username", user.getUsername(), "owner", user.isOwner());
+    }
+
     // One-time bulk fix: sets institution for every user currently missing one.
     // Safe to call multiple times — only touches null/blank institution rows.
     @PostMapping("/users/backfill-institution")
     public Map<String, Object> backfillInstitution(@RequestBody Map<String, String> body) {
+        SchoolAccess.requireOwner(access.current());
         String defaultInstitution = body.get("institution");
         if (defaultInstitution == null || defaultInstitution.isBlank()) {
             throw new IllegalArgumentException("institution is required");
@@ -251,14 +303,18 @@ public class AdminController {
     public Map<String, Object> updateProfile(@PathVariable String username, @RequestBody Map<String, String> body) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        User actor = access.current();
+        SchoolAccess.requireCanManage(actor, user);
 
         if (body.containsKey("institution")) {
             String institution = body.get("institution");
-            boolean isAdmin = "ADMIN".equals(user.getRole());
-            if (!isAdmin && (institution == null || institution.isBlank())) {
+            // Only the owner has no school; everyone else, school admins included, belongs to one.
+            if (!user.isOwner() && (institution == null || institution.isBlank())) {
                 throw new IllegalArgumentException("institution cannot be blank");
             }
-            user.setInstitution(isAdmin && (institution == null || institution.isBlank()) ? null : institution);
+            // A school admin can't move anyone into another school.
+            String school = institution == null || institution.isBlank() ? null : SchoolAccess.school(actor, institution);
+            user.setInstitution(school);
         }
         if (body.containsKey("standard")) {
             user.setStandard(body.get("standard"));
@@ -307,6 +363,7 @@ public class AdminController {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        SchoolAccess.requireCanManage(access.current(), user);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
@@ -331,6 +388,7 @@ public class AdminController {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        SchoolAccess.requireCanManage(access.current(), user);
 
         user.setLocked(locked);
         userRepository.save(user);
@@ -348,6 +406,7 @@ public class AdminController {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        SchoolAccess.requireCanManage(access.current(), user);
 
         userRepository.delete(user);
 

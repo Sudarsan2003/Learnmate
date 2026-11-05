@@ -29,6 +29,8 @@ import {
   listInstitutions,
   deleteUser,
   setUserLocked,
+  getMe,
+  setUserOwner,
 } from "../api/client";
 import SchoolsView from "./SchoolsView";
 import ImportStudents from "./ImportStudents";
@@ -225,6 +227,18 @@ export default function ManageUsers({ currentUsername }) {
   const [expanded, setExpanded] = useState(null); // username of the open row
   const [refreshTick, setRefreshTick] = useState(0);
   const searchRef = useRef(null);
+  // The LearnMate owner sees every school and can make other admins owners;
+  // a school's own admin only sees their school.
+  const [viewerOwner, setViewerOwner] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((me) => !cancelled && setViewerOwner(!!me.owner))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const draftFor = (u) => ({ institution: u.institution || "", standard: u.standard || "" });
 
@@ -296,7 +310,7 @@ export default function ManageUsers({ currentUsername }) {
 
   const handleProfileSave = async (u) => {
     const draft = profileDrafts[u.username] || {};
-    if (u.role !== "ADMIN" && (!draft.institution || !draft.institution.trim())) {
+    if (!(u.role === "ADMIN" && u.owner) && (!draft.institution || !draft.institution.trim())) {
       setError("Institution can't be blank.");
       return;
     }
@@ -322,6 +336,19 @@ export default function ManageUsers({ currentUsername }) {
 
   // Admins aren't scoped to an institution, so this clears anything left over
   // from before they were promoted.
+  const handleSetOwner = async (u, owner) => {
+    setSavingProfileUsername(u.username);
+    setError(null);
+    try {
+      const updated = await setUserOwner(u.username, owner);
+      setUsers((prev) => prev.map((row) => (row.username === u.username ? { ...row, owner: updated.owner } : row)));
+    } catch (err) {
+      setError(err.response?.data?.message ?? `Could not update ${u.username}.`);
+    } finally {
+      setSavingProfileUsername(null);
+    }
+  };
+
   const handleClearAdminScope = async (u) => {
     setSavingProfileUsername(u.username);
     setError(null);
@@ -581,6 +608,8 @@ export default function ManageUsers({ currentUsername }) {
                     onSave={() => handleProfileSave(u)}
                     onDiscard={() => discardDraft(u)}
                     onClearScope={() => handleClearAdminScope(u)}
+                    viewerOwner={viewerOwner}
+                    onSetOwner={(owner) => handleSetOwner(u, owner)}
                     onToggleLock={() => handleToggleLock(u)}
                     onEdit={() => setEditingUser(u)}
                     onDelete={() => setDeleteTarget(u)}
@@ -623,8 +652,8 @@ export default function ManageUsers({ currentUsername }) {
 /* -------------------------------------------------------------------------- */
 
 function ScopeCell({ u, tokens }) {
-  if (u.role === "ADMIN" && !u.institution && !u.standard) {
-    return <p className="um-scope um-scope-quiet">Not tied to an institution</p>;
+  if (u.role === "ADMIN" && u.owner) {
+    return <p className="um-scope um-scope-quiet">Owner · every school</p>;
   }
   const showClass = u.role === "USER" || !!u.standard;
   return (
@@ -690,6 +719,8 @@ function UserRow({
   onSave,
   onDiscard,
   onClearScope,
+  viewerOwner,
+  onSetOwner,
   onToggleLock,
   onEdit,
   onDelete,
@@ -762,15 +793,26 @@ function UserRow({
           <div className="grid gap-7 px-4 py-5 sm:grid-cols-2 sm:px-5">
             <section>
               <h3 className="um-h3">Institution and class</h3>
-              {u.role === "ADMIN" ? (
+              {u.role === "ADMIN" && u.owner ? (
                 <div className="space-y-3">
                   <p className="text-[13.5px] leading-relaxed text-[var(--muted)]">
-                    Admins can see every institution, so they don't have an institution or class of their own.
+                    Owner: sees and manages every school, so they don&apos;t need an institution or class of their own.
                   </p>
                   {hasScope && (
                     <button type="button" className="um-btn um-btn-quiet um-btn-sm" onClick={onClearScope} disabled={saving}>
                       {saving ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
                       Clear leftover institution and class
+                    </button>
+                  )}
+                  {viewerOwner && !isSelf && (
+                    <button
+                      type="button"
+                      className="um-btn um-btn-ghost um-btn-sm"
+                      onClick={() => onSetOwner(false)}
+                      disabled={saving}
+                      title="They'll only see the school set below, which must be filled in first"
+                    >
+                      Make a school admin (one school only)
                     </button>
                   )}
                 </div>
@@ -804,6 +846,19 @@ function UserRow({
                       </button>
                     )}
                   </div>
+                  {viewerOwner && u.role === "ADMIN" && (
+                    <div className="space-y-1.5 pt-2">
+                      <p className="text-[13px] text-[var(--muted)]">School admin: manages only this school.</p>
+                      <button
+                        type="button"
+                        className="um-btn um-btn-ghost um-btn-sm"
+                        onClick={() => onSetOwner(true)}
+                        disabled={saving}
+                      >
+                        Make owner (every school)
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -912,8 +967,8 @@ function EditUserDrawer({ user, onClose, onSaved }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (user.role !== "ADMIN" && !form.institution.trim()) {
-      setError("Institution can't be blank for a non-admin user.");
+    if (!(user.role === "ADMIN" && user.owner) && !form.institution.trim()) {
+      setError("Institution can't be blank.");
       return;
     }
     setSaving(true);
@@ -1028,10 +1083,9 @@ function EditUserDrawer({ user, onClose, onSaved }) {
 
             <section className="space-y-3.5">
               <h3 className="um-h3">Institution and class</h3>
-              {user.role === "ADMIN" ? (
+              {user.role === "ADMIN" && user.owner ? (
                 <p className="m-0 text-[13.5px] leading-relaxed text-[var(--muted)]">
-                  Admins aren't tied to an institution or class. If old values are still showing, clear them from the
-                  user's row.
+                  Owners see every school, so they aren&apos;t tied to an institution or class.
                 </p>
               ) : (
                 <div className="grid gap-3.5 sm:grid-cols-[1fr_7rem]">

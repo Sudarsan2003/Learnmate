@@ -16,6 +16,9 @@ import java.io.IOException;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    public static final String SCHOOL_ACCESS_ENDED =
+            "Your school's LearnMate access has ended. Please ask your school to contact LearnMate.";
+
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 
@@ -47,6 +50,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                         response.setContentType("application/json");
                         response.getWriter().write("{\"message\":\"Your account has been locked by an administrator.\"}");
+                        return;
+                    }
+
+                    if (!userDetails.isAccountNonExpired()) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"message\":\"" + SCHOOL_ACCESS_ENDED + "\"}");
                         return;
                     }
 

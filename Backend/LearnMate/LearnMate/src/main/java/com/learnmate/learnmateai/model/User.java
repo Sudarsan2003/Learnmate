@@ -53,4 +53,9 @@ public class User {
 
     // Set on every successful login; feeds the "inactive students" list.
     private java.time.Instant lastLoginAt;
+
+    // The LearnMate owner: an ADMIN who sees and manages every school. Other
+    // admins only manage their own school (see SchoolAccess).
+    @Column(name = "is_owner", nullable = false, columnDefinition = "boolean default false")
+    private boolean owner = false;
 }

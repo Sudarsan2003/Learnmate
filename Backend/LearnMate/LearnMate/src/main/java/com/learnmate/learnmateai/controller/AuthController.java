@@ -86,6 +86,7 @@ public class AuthController {
                 "username", user.getUsername(),
                 "email", user.getEmail() == null ? "" : user.getEmail(),
                 "role", user.getRole(),
+                "owner", user.isOwner(),
                 "institution", user.getInstitution() == null ? "" : user.getInstitution(),
                 "standard", user.getStandard() == null ? "" : user.getStandard()
         );
@@ -119,6 +120,10 @@ public class AuthController {
     public AuthResponse promoteToTeacher(@RequestParam String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
+        User admin = userRepository.findByUsername(
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        com.learnmate.learnmateai.service.SchoolAccess.requireCanManage(admin, user);
 
         user.setRole("TEACHER");
         userRepository.save(user);
@@ -173,6 +178,6 @@ public class AuthController {
         userRepository.save(user);
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
-        return new AuthResponse(token, user.getUsername(), user.getRole());
+        return new AuthResponse(token, user.getUsername(), user.getRole(), user.isOwner());
     }
 }

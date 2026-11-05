@@ -61,7 +61,13 @@ public class SchoolService {
         return repository.save(school);
     }
 
-    private School get(Long id) {
+    public School setAccessEndsOn(Long id, java.time.LocalDate date) {
+        School school = get(id);
+        school.setAccessEndsOn(date);
+        return repository.save(school);
+    }
+
+    public School get(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown school."));
     }

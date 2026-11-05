@@ -9,6 +9,8 @@ import java.util.Optional;
 public interface SchoolRepository extends JpaRepository<School, Long> {
     Optional<School> findByJoinCodeIgnoreCase(String joinCode);
 
+    Optional<School> findByNameIgnoreCase(String name);
+
     boolean existsByNameIgnoreCase(String name);
 
     boolean existsByJoinCode(String joinCode);

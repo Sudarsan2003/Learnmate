@@ -381,6 +381,18 @@ export async function setSchoolActive(id, active) {
   return data;
 }
 
+// Owner only: make an admin an owner (every school) or a school's own admin.
+export async function setUserOwner(username, owner) {
+  const { data } = await api.put(`/api/admin/users/${encodeURIComponent(username)}/owner`, { owner });
+  return data;
+}
+
+// Owner only: last day a trial school can use LearnMate ("2026-11-19"), or null to remove the limit.
+export async function setSchoolAccessEnds(id, date) {
+  const { data } = await api.put(`/api/admin/schools/${id}/access-ends`, { date: date || null });
+  return data;
+}
+
 // ADMIN only: create student accounts from an Excel (.xlsx/.xls) or CSV
 // class list. With dryRun (the default) nothing is saved: the result lists
 // each row and any problems. Pass dryRun=false to create them; nothing is
@@ -459,5 +471,50 @@ export async function completeGameLevel(payload) {
 // students who share the caller's institution.
 export async function getGameLeaderboard(gameType) {
   const { data } = await api.get(`/api/games/${gameType}/leaderboard`);
+  return data;
+}
+// ---------------------------------------------------------------- messages
+// Students and staff of a school messaging each other (rules on the server).
+
+// People I can start a conversation with: [{ username, fullName, role, standard }]
+export async function getMessageContacts() {
+  const { data } = await api.get("/api/messages/contacts");
+  return data;
+}
+
+// [{ username, fullName, role, standard, lastMessage, lastFrom, lastAt, unread }], most recent first.
+export async function getConversations() {
+  const { data } = await api.get("/api/messages/conversations");
+  return data;
+}
+
+export async function getUnreadMessageCount() {
+  const { data } = await api.get("/api/messages/unread-count");
+  return data.count;
+}
+
+// Messages with someone after message id `after` (0 = all); marks theirs as read.
+// [{ id, from, to, body, createdAt, readAt }]
+export async function getThread(username, after = 0) {
+  const { data } = await api.get(`/api/messages/with/${encodeURIComponent(username)}`, { params: { after } });
+  return data;
+}
+
+export async function sendMessage(username, body) {
+  const { data } = await api.post(`/api/messages/with/${encodeURIComponent(username)}`, { body });
+  return data;
+}
+
+// ADMIN: a school's conversations ([{ a, b, lastMessage, lastFrom, lastAt, messageCount }]) and one of them.
+// The owner passes `institution`; a school admin always gets their own school.
+export async function getSchoolConversations(institution) {
+  const { data } = await api.get("/api/messages/school", { params: institution ? { institution } : {} });
+  return data;
+}
+
+export async function getSchoolThread(a, b, institution) {
+  const { data } = await api.get("/api/messages/school/thread", {
+    params: institution ? { a, b, institution } : { a, b },
+  });
   return data;
 }

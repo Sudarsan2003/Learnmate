@@ -82,6 +82,8 @@ public class SecurityConfig {
                     if (request.getRequestURI().startsWith("/api/auth/login")) {
                         message = authException instanceof LockedException
                                 ? "Your account has been locked by an administrator."
+                                : authException instanceof org.springframework.security.authentication.AccountExpiredException
+                                ? JwtAuthFilter.SCHOOL_ACCESS_ENDED
                                 : "Invalid username or password.";
                     } else if (header != null && header.startsWith("Bearer ")) {
                         message = "Your session has expired. Please log in again.";

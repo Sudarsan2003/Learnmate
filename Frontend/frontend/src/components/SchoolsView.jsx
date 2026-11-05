@@ -1,10 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { Building2, Check, Copy, Plus, RefreshCw } from "lucide-react";
-import { createSchool, listSchools, regenerateSchoolCode, setSchoolActive } from "../api/client";
+import {
+  createSchool,
+  getMe,
+  listSchools,
+  regenerateSchoolCode,
+  setSchoolAccessEnds,
+  setSchoolActive,
+} from "../api/client";
 
 // "Schools" tab of Manage users (ADMIN only). Each customer school gets a
 // join code; students enter it at sign-up and are placed in that school.
+// The LearnMate owner sees every school and can add schools, pause sign-ups
+// and set a trial end date; a school's own admin only sees their school's code.
 // Rendered inside ManageUsers, so it uses that page's um-* styles.
+
+const todayIso = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+const prettyDate = (iso) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 export default function SchoolsView() {
   const [schools, setSchools] = useState([]);
@@ -15,6 +32,18 @@ export default function SchoolsView() {
   const [formError, setFormError] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [owner, setOwner] = useState(false);
+  const [trialDraft, setTrialDraft] = useState({}); // school id -> date being edited
+
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((me) => !cancelled && setOwner(!!me.owner))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,7 +92,7 @@ export default function SchoolsView() {
 
   async function handleRegenerate(school) {
     const ok = window.confirm(
-      `Issue a new code for ${school.name}? The current code (${school.joinCode}) will stop working for new sign-ups.`
+      `Issue a new code for ${school.name}? The current code (${school.joinCode}) will stop working for new sign-ups.`,
     );
     if (!ok) return;
     setBusyId(school.id);
@@ -87,6 +116,22 @@ export default function SchoolsView() {
     }
   }
 
+  async function saveTrialEnd(school, date) {
+    setBusyId(school.id);
+    try {
+      replace(await setSchoolAccessEnds(school.id, date));
+      setTrialDraft((d) => {
+        const next = { ...d };
+        delete next[school.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err.response?.data?.message ?? "Could not set the trial end date.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function handleCopy(school) {
     navigator.clipboard?.writeText(school.joinCode).then(() => {
       setCopiedId(school.id);
@@ -96,29 +141,31 @@ export default function SchoolsView() {
 
   return (
     <div className="mt-6 space-y-4">
-      <form onSubmit={handleCreate} className="um-card px-5 py-4">
-        <label htmlFor="new-school" className="um-label">
-          Add a school
-        </label>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input
-            id="new-school"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="School name, e.g. Sri Vidya High School"
-            className="um-input min-w-0 flex-1"
-            disabled={creating}
-          />
-          <button type="submit" className="um-btn um-btn-primary" disabled={creating || !name.trim()}>
-            <Plus size={15} /> {creating ? "Adding…" : "Add school"}
-          </button>
-        </div>
-        {formError && <p className="um-inline-error mt-2">{formError}</p>}
-        <p className="um-dim mt-2 text-[13px]">
-          Each school gets a sign-up code. Share it with that school&apos;s students and teachers; they enter it when
-          creating an account.
-        </p>
-      </form>
+      {owner && (
+        <form onSubmit={handleCreate} className="um-card px-5 py-4">
+          <label htmlFor="new-school" className="um-label">
+            Add a school
+          </label>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              id="new-school"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="School name, e.g. Sri Vidya High School"
+              className="um-input min-w-0 flex-1"
+              disabled={creating}
+            />
+            <button type="submit" className="um-btn um-btn-primary" disabled={creating || !name.trim()}>
+              <Plus size={15} /> {creating ? "Adding…" : "Add school"}
+            </button>
+          </div>
+          {formError && <p className="um-inline-error mt-2">{formError}</p>}
+          <p className="um-dim mt-2 text-[13px]">
+            Each school gets a sign-up code. Share it with that school&apos;s students and teachers; they enter it when
+            creating an account.
+          </p>
+        </form>
+      )}
 
       {error && (
         <div className="um-empty" role="alert">
@@ -149,7 +196,49 @@ export default function SchoolsView() {
                 <p className="um-dim mt-0.5 text-[13px]">
                   {s.memberCount ?? 0} {s.memberCount === 1 ? "person" : "people"}
                   {!s.active && <span className="um-pill um-pill-danger ml-2">Sign-ups paused</span>}
+                  {s.accessEndsOn &&
+                    (s.accessEndsOn < todayIso() ? (
+                      <span className="um-pill um-pill-danger ml-2">Trial ended {prettyDate(s.accessEndsOn)}</span>
+                    ) : (
+                      <span className="um-pill ml-2">Trial ends {prettyDate(s.accessEndsOn)}</span>
+                    ))}
                 </p>
+                {owner && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px]">
+                    <label className="um-dim" htmlFor={`trial-${s.id}`}>
+                      Trial ends on
+                    </label>
+                    <input
+                      id={`trial-${s.id}`}
+                      type="date"
+                      className="um-input um-btn-sm w-auto py-1"
+                      value={trialDraft[s.id] ?? s.accessEndsOn ?? ""}
+                      onChange={(e) => setTrialDraft((d) => ({ ...d, [s.id]: e.target.value }))}
+                      disabled={busyId === s.id}
+                    />
+                    {trialDraft[s.id] !== undefined && trialDraft[s.id] !== (s.accessEndsOn ?? "") && (
+                      <button
+                        type="button"
+                        className="um-btn um-btn-primary um-btn-sm"
+                        onClick={() => saveTrialEnd(s, trialDraft[s.id])}
+                        disabled={busyId === s.id}
+                      >
+                        Save
+                      </button>
+                    )}
+                    {s.accessEndsOn && (
+                      <button
+                        type="button"
+                        className="um-btn um-btn-ghost um-btn-sm"
+                        onClick={() => saveTrialEnd(s, null)}
+                        disabled={busyId === s.id}
+                        title="Remove the end date, e.g. once the school buys"
+                      >
+                        No end date
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -176,14 +265,16 @@ export default function SchoolsView() {
                 >
                   New code
                 </button>
-                <button
-                  type="button"
-                  className="um-btn um-btn-ghost um-btn-sm"
-                  onClick={() => handleToggle(s)}
-                  disabled={busyId === s.id}
-                >
-                  {s.active ? "Pause sign-ups" : "Resume sign-ups"}
-                </button>
+                {owner && (
+                  <button
+                    type="button"
+                    className="um-btn um-btn-ghost um-btn-sm"
+                    onClick={() => handleToggle(s)}
+                    disabled={busyId === s.id}
+                  >
+                    {s.active ? "Pause sign-ups" : "Resume sign-ups"}
+                  </button>
+                )}
               </div>
             </li>
           ))}

@@ -4,6 +4,7 @@ import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.AchievementService;
 import com.learnmate.learnmateai.service.ReportService;
+import com.learnmate.learnmateai.service.SchoolAccess;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -82,7 +83,10 @@ public class ReportController {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        String school = isAdmin && requested != null && !requested.isBlank() ? requested.trim() : user.getInstitution();
+        // The owner may name any school; a school admin only their own (SchoolAccess refuses others).
+        String school = isAdmin && requested != null && !requested.isBlank()
+                ? SchoolAccess.school(user, requested)
+                : user.getInstitution();
         if (school == null || school.isBlank()) {
             throw new IllegalArgumentException("Your account has no school set, so there is no class to report on.");
         }

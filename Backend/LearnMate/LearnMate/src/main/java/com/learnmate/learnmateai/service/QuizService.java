@@ -72,10 +72,8 @@ public class QuizService {
         boolean isAdmin = "ADMIN".equals(creator.getRole());
         String institution;
         if (isAdmin) {
-            institution = req.institution();
-            if (institution == null || institution.isBlank()) {
-                throw new IllegalArgumentException("institution is required when creating a quiz as an admin.");
-            }
+            // The owner names any school; a school admin only creates quizzes for their own.
+            institution = SchoolAccess.requiredSchool(creator, req.institution());
         } else {
             if (creator.getInstitution() == null || creator.getInstitution().isBlank()) {
                 throw new IllegalArgumentException("Set an institution on your profile before creating a quiz.");
@@ -334,7 +332,7 @@ public class QuizService {
         User requester = userRepository.findByUsername(requestingAdminUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         boolean isCreator = quiz.getCreatedByUsername().equals(requestingAdminUsername);
-        boolean isAdmin = "ADMIN".equals(requester.getRole());
+        boolean isAdmin = "ADMIN".equals(requester.getRole()) && SchoolAccess.canAccess(requester, quiz.getInstitution());
         if (!isCreator && !isAdmin) {
             throw new IllegalArgumentException("Not authorized to view results for this quiz.");
         }
@@ -379,7 +377,10 @@ public class QuizService {
             throw new IllegalArgumentException("Only admins can view all quizzes.");
         }
 
-        List<Quiz> quizzes = new ArrayList<>(quizRepository.findAll());
+        // School admins see their own school's quizzes; the owner sees every school's.
+        List<Quiz> quizzes = new ArrayList<>(quizRepository.findAll().stream()
+                .filter(q -> SchoolAccess.canAccess(requester, q.getInstitution()))
+                .toList());
         quizzes.sort(Comparator.comparing(Quiz::getCreatedAt).reversed());
 
         Map<String, String> roleByCreator = new HashMap<>(); // look each creator up once
@@ -418,7 +419,7 @@ public class QuizService {
         User requester = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
 
-        boolean staff = "ADMIN".equals(requester.getRole())
+        boolean staff = ("ADMIN".equals(requester.getRole()) && SchoolAccess.canAccess(requester, quiz.getInstitution()))
                 || quiz.getCreatedByUsername().equals(username);
         boolean submittedIt = attemptRepository.findByQuizIdAndUsername(quizId, username)
                 .map(a -> a.getSubmittedAt() != null)
@@ -518,7 +519,7 @@ public class QuizService {
         User requester = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         boolean isCreator = quiz.getCreatedByUsername().equals(username);
-        boolean isAdmin = "ADMIN".equals(requester.getRole());
+        boolean isAdmin = "ADMIN".equals(requester.getRole()) && SchoolAccess.canAccess(requester, quiz.getInstitution());
         if (!isCreator && !isAdmin) {
             throw new IllegalArgumentException("Not authorized to close this quiz.");
         }

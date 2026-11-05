@@ -203,6 +203,8 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
 
     void deleteBySourceId(String sourceId);
 
+    boolean existsBySourceIdAndInstitution(String sourceId, String institution);
+
     @Modifying
     @Transactional
     @Query("""

@@ -34,4 +34,12 @@ public class School {
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    // Last day a trial school can use LearnMate. After it, its users can't log in
+    // until the owner extends or clears it. Null = no end date (a paying school).
+    private java.time.LocalDate accessEndsOn;
+
+    public boolean accessEnded(java.time.LocalDate today) {
+        return accessEndsOn != null && today.isAfter(accessEndsOn);
+    }
 }

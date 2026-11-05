@@ -6,6 +6,7 @@ import com.learnmate.learnmateai.repository.DocumentChunkRepository;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.service.IngestionService;
 import com.learnmate.learnmateai.service.IngestionStatusService;
+import com.learnmate.learnmateai.service.SchoolAccess;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,11 +30,14 @@ public class DocumentController {
     private final DocumentChunkRepository repository;
     private final IngestionStatusService statusService;
     private final UserRepository userRepository;
+    private final SchoolAccess access;
 
     public DocumentController(IngestionService ingestionService,
                               DocumentChunkRepository repository,
                               IngestionStatusService statusService,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              SchoolAccess access) {
+        this.access = access;
         this.ingestionService = ingestionService;
         this.repository = repository;
         this.statusService = statusService;
@@ -74,10 +78,8 @@ public class DocumentController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         if (isAdmin) {
-            if (institutionParam == null || institutionParam.isBlank()) {
-                throw new IllegalArgumentException("institution is required for admin uploads");
-            }
-            return institutionParam.trim();
+            // The owner names any school; a school admin only ever uploads to their own.
+            return SchoolAccess.requiredSchool(user, institutionParam);
         }
 
         return user.getInstitution();
@@ -132,7 +134,7 @@ public class DocumentController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         if (isAdmin && institutionParam != null && !institutionParam.isBlank()) {
-            return institutionParam.trim();
+            return SchoolAccess.school(user, institutionParam);
         }
 
         return user.getInstitution();
@@ -175,9 +177,11 @@ public class DocumentController {
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/all")
     public List<Map<String, Object>> listAll() {
+        User actor = access.current();
         List<DocumentChunk> docs = repository.findAll();
 
         return docs.stream()
+                .filter(c -> SchoolAccess.canAccess(actor, c.getInstitution()))
                 .collect(Collectors.groupingBy(DocumentChunk::getSourceId))
                 .entrySet().stream()
                 .map(e -> Map.<String, Object>of(
@@ -197,15 +201,17 @@ public class DocumentController {
         return (a != null && !a.isBlank()) ? a : b;
     }
 
-    // Admins can delete any document regardless of who uploaded it or which
-    // school it belongs to; teachers can still only delete their own uploads.
+    // Admins can delete any document of their school whoever uploaded it (the
+    // owner, any school's); teachers can still only delete their own uploads.
     @DeleteMapping("/{sourceId}")
     @Transactional
     public void delete(@PathVariable String sourceId, Authentication auth) {
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        if (isAdmin) {
+        User actor = isAdmin ? access.current() : null;
+        if (isAdmin && (SchoolAccess.isOwner(actor)
+                || repository.existsBySourceIdAndInstitution(sourceId, actor.getInstitution()))) {
             repository.deleteBySourceId(sourceId);
         } else {
             repository.deleteBySourceIdAndOwnerUsername(sourceId, auth.getName());
