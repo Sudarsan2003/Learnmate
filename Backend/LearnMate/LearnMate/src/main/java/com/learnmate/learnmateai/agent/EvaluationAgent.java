@@ -920,7 +920,7 @@ public class EvaluationAgent {
 
                 FAIRNESS:
                 - Grade meaning, not wording. A student who explains the right idea in
-                  their own words, in Telugu, Hindi or mixed language, or with spelling and
+                  their own words, in Telugu, Hindi, Kannada or mixed language, or with spelling and
                   grammar mistakes, should get the same score as one who copies the book.
                 - Do not reward length: a short answer that covers the key points beats a
                   long one that wanders. Do not penalise extra correct detail either.
@@ -1153,30 +1153,7 @@ public class EvaluationAgent {
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.joining(" "));
 
-        boolean hasTeluguScript = combined.codePoints().anyMatch(cp -> cp >= 0x0C00 && cp <= 0x0C7F);
-        boolean hasHindiScript = combined.codePoints().anyMatch(cp -> cp >= 0x0900 && cp <= 0x097F);
-
-        String lower = combined.toLowerCase();
-        boolean requestsTelugu = hasTeluguScript || lower.contains("telugu");
-        boolean requestsHindi = hasHindiScript || lower.contains("hindi");
-
-        if (requestsTelugu && requestsHindi) {
-            return "Write in BOTH Telugu and Hindi: the full content in Telugu first, then the "
-                    + "same content in Hindi below it, clearly separated with a heading for each. "
-                    + "Keep technical/scientific terms and formulas in English where that's how "
-                    + "Indian students actually learn them.";
-        }
-        if (requestsTelugu) {
-            return "Write primarily in Telugu, the way a Telugu-medium teacher would address a "
-                    + "student. Keep technical/scientific terms and formulas in English where "
-                    + "that's how Indian students actually learn them.";
-        }
-        if (requestsHindi) {
-            return "Write primarily in Hindi, the way a Hindi-medium teacher would address a "
-                    + "student. Keep technical/scientific terms and formulas in English where "
-                    + "that's standard in Indian classrooms.";
-        }
-        return "Write in clear, simple English suitable for an exam-prep student.";
+        return Languages.guidance(combined, "Write", "content");
     }
 
 

@@ -81,14 +81,14 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   return (
     <div className="quiz-view min-h-full bg-[var(--bg)] px-4 py-6 text-[var(--text)] sm:px-8 sm:py-8">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
-        .quiz-view { font-family: 'Plus Jakarta Sans', 'Noto Sans Telugu', 'Noto Sans Devanagari', system-ui, sans-serif; font-size: 14px; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap');
+        .quiz-view { font-family: 'Plus Jakarta Sans', 'Noto Sans Telugu', 'Noto Sans Devanagari', 'Noto Sans Kannada', system-ui, sans-serif; font-size: 14px; }
         /* Question/option text needs to render Telugu and Hindi cleanly, so it
            gets its own stack (script fonts first) plus extra line-height —
            Telugu and Devanagari vowel signs/matras get clipped at the tight
            line-height that works fine for Latin monospace text. */
         .lm-script-input {
-          font-family: 'Noto Sans Telugu', 'Noto Sans Devanagari', 'Plus Jakarta Sans', system-ui, sans-serif;
+          font-family: 'Noto Sans Telugu', 'Noto Sans Devanagari', 'Noto Sans Kannada', 'Plus Jakarta Sans', system-ui, sans-serif;
           line-height: 1.6;
         }
         .lm-row { transition: background 140ms ease; }

@@ -78,6 +78,14 @@ class TextChunkerTest {
     }
 
     @Test
+    void recognisesKannadaChapterHeadings() {
+        String text = "ಅಧ್ಯಾಯ 5 ಬೆಳಕು\n" + sentences("ಬೆಳಕು", 10) + "\n\nಅಧ್ಯಾಯ 6 ಶಬ್ದ\n" + sentences("ಶಬ್ದ", 10);
+
+        assertThat(TextChunker.chunk(text, 250, 50)).extracting(TextChunker.Chunk::heading)
+                .containsExactly("ಅಧ್ಯಾಯ 5: ಬೆಳಕು", "ಅಧ್ಯಾಯ 6: ಶಬ್ದ");
+    }
+
+    @Test
     void splitsASentenceLongerThanTheLimit() {
         String longSentence = "word ".repeat(120).trim() + ".";
 

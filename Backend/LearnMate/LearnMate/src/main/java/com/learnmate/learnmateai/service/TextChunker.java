@@ -28,7 +28,7 @@ final class TextChunker {
     // word CONTENTS printed down the side). Group 1 is the word, 2 the number, 3 the title.
     // Roman numerals must be capitals, so "Part civil rights" isn't taken for "Part CIVIL".
     private static final Pattern CHAPTER_LINE = Pattern.compile(
-            "(?iu)^(?:\\S\\s)?(chapter|unit|lesson|part|అధ్యాయం|పాఠం|అధ్యాయము|पाठ|अध्याय)\\s*[-–:.]?\\s*"
+            "(?iu)^(?:\\S\\s)?(chapter|unit|lesson|part|అధ్యాయం|పాఠం|అధ్యాయము|पाठ|अध्याय|ಅಧ್ಯಾಯ|ಪಾಠ)\\s*[-–:.]?\\s*"
                     + "(\\d{1,3}|(?-i:[IVXLC]{1,6}))\\b\\s*(?:[-–:.]\\s*)?(.*)$");
     private static final Pattern TRAILING_PAGE_NUMBER = Pattern.compile("[\\s.]*\\d{1,4}\\s*$");
     private static final int MAX_HEADING_WORDS = 12;

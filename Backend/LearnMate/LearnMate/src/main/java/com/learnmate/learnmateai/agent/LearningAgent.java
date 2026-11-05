@@ -213,9 +213,9 @@ public class LearningAgent {
 
     /**
      * Two ways a student signals a language preference:
-     *  1. Script detection — they typed in Telugu/Hindi script directly.
-     *  2. Explicit request — they asked in English for a Telugu/Hindi answer
-     *     ("give in telugu and hindi", "explain in hindi"). Also checks the
+     *  1. Script detection — they typed in Telugu/Hindi/Kannada script directly.
+     *  2. Explicit request — they asked in English for one of them
+     *     ("give in telugu and hindi", "explain in kannada"). Also checks the
      *     last learner message in history, so a language switch requested on
      *     one turn can carry forward if the very next query is another short
      *     follow-up without repeating the request.
@@ -231,30 +231,6 @@ public class LearningAgent {
             combined = last + " " + query;
         }
 
-        boolean hasTeluguScript = combined.codePoints().anyMatch(cp -> cp >= 0x0C00 && cp <= 0x0C7F);
-        boolean hasHindiScript = combined.codePoints().anyMatch(cp -> cp >= 0x0900 && cp <= 0x097F);
-
-        String lower = combined.toLowerCase();
-        boolean requestsTelugu = hasTeluguScript || lower.contains("telugu");
-        boolean requestsHindi = hasHindiScript || lower.contains("hindi");
-
-        if (requestsTelugu && requestsHindi) {
-            return "Answer in BOTH Telugu and Hindi: give the full explanation in Telugu first, "
-                    + "then the same explanation in Hindi below it, clearly separated with a heading for each. "
-                    + "Keep technical/scientific terms and formulas in English where that's how Indian students "
-                    + "actually learn them, but explain the concept itself in the respective language each time.";
-        }
-        if (requestsTelugu) {
-            return "Answer primarily in Telugu, the way a Telugu-medium teacher would explain to a student. "
-                    + "Keep technical/scientific terms and formulas in English where that's how Indian students "
-                    + "actually learn them (e.g. 'Newton's Second Law', 'photosynthesis', chemical formulas) but "
-                    + "explain the concept itself in Telugu.";
-        }
-        if (requestsHindi) {
-            return "Answer primarily in Hindi, the way a Hindi-medium teacher would explain to a student. "
-                    + "Keep technical/scientific terms and formulas in English where that's standard in Indian "
-                    + "classrooms, but explain the concept itself in Hindi.";
-        }
-        return "Answer in clear, simple English suitable for an exam-prep student.";
+        return Languages.guidance(combined, "Answer", "explanation");
     }
 }
