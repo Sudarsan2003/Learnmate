@@ -3,6 +3,7 @@ package com.learnmate.learnmateai.security;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +15,22 @@ public class JwtService {
 
     private final SecretKey key;
     private final long expirationMs;
+    // Teachers and admins can see a whole school's data, so their sessions are shorter.
+    private final long staffExpirationMs;
 
     // Matches the fallback in application.yaml. It's public (it's in the repo), so
     // anyone could sign their own ADMIN token with it.
     private static final String DEV_SECRET_PREFIX = "dev-only-secret";
 
+    public JwtService(String secret, long expirationMs, String activeProfiles) {
+        this(secret, expirationMs, expirationMs, activeProfiles);
+    }
+
+    @Autowired
     public JwtService(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration-ms}") long expirationMs,
+            @Value("${jwt.staff-expiration-ms:43200000}") long staffExpirationMs,
             @Value("${spring.profiles.active:local}") String activeProfiles
     ) {
         // HS256 needs a key >= 256 bits (32 bytes). Outside the local profile,
@@ -34,19 +43,33 @@ public class JwtService {
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.expirationMs = expirationMs;
+        this.staffExpirationMs = Math.min(staffExpirationMs, expirationMs);
     }
 
     public String generateToken(String username, String role) {
+        return generateToken(username, role, 0);
+    }
+
+    /** tokenVersion: the user's {@code User#getTokenVersion()}; see {@link #extractVersion}. */
+    public String generateToken(String username, String role, int tokenVersion) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMs);
+        long life = PasswordPolicy.isStaff(role) ? staffExpirationMs : expirationMs;
+        Date expiry = new Date(now.getTime() + life);
 
         return Jwts.builder()
                 .subject(username)
                 .claim("role", role)
+                .claim("ver", tokenVersion)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
                 .compact();
+    }
+
+    /** The account's token version when this token was issued (0 for tokens from before versions existed). */
+    public int extractVersion(String token) {
+        Integer ver = parseClaims(token).get("ver", Integer.class);
+        return ver == null ? 0 : ver;
     }
 
     public String extractUsername(String token) {

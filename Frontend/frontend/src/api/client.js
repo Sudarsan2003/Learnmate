@@ -90,10 +90,13 @@ export async function sendChatMessage(request) {
 // Use getSessionHistory(sessionId) and deleteSession(sessionId) below.
 
 export async function changePassword(currentPassword, newPassword) {
-  await api.put("/api/auth/change-password", {
+  const { data } = await api.put("/api/auth/change-password", {
     currentPassword,
     newPassword,
   });
+  // Changing the password logs out every old session, including this one's
+  // token, so keep the fresh token the server sends back.
+  if (data?.token) localStorage.setItem("learnmate_token", data.token);
 }
 
 export async function getChatSessions() {

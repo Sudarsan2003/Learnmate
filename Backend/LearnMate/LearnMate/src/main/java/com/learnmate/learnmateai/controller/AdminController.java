@@ -3,6 +3,8 @@ package com.learnmate.learnmateai.controller;
 import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
+import com.learnmate.learnmateai.security.LoginAttemptService;
+import com.learnmate.learnmateai.security.PasswordPolicy;
 import com.learnmate.learnmateai.service.SchoolAccess;
 import com.learnmate.learnmateai.service.SchoolService;
 import com.learnmate.learnmateai.service.StudentImportService;
@@ -24,7 +26,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "*")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
@@ -37,10 +38,13 @@ public class AdminController {
     private final PromotionService promotionService;
     private final SchoolAccess access;
     private final UserDataService userData;
+    private final LoginAttemptService loginAttempts;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                            SchoolService schoolService, StudentImportService studentImportService,
-                           PromotionService promotionService, SchoolAccess access, UserDataService userData) {
+                           PromotionService promotionService, SchoolAccess access, UserDataService userData,
+                           LoginAttemptService loginAttempts) {
+        this.loginAttempts = loginAttempts;
         this.access = access;
         this.userData = userData;
         this.userRepository = userRepository;
@@ -250,6 +254,7 @@ public class AdminController {
         SchoolAccess.requireCanManage(access.current(), user);
 
         user.setRole(newRole.toUpperCase());
+        user.setTokenVersion(user.getTokenVersion() + 1); // sign in again with the new role
         userRepository.save(user);
 
         return Map.of("username", user.getUsername(), "role", user.getRole());
@@ -360,16 +365,17 @@ public class AdminController {
     @PutMapping("/users/{username}/reset-password")
     public Map<String, Object> resetPassword(@PathVariable String username, @RequestBody Map<String, String> body) {
         String newPassword = body.get("newPassword");
-        if (newPassword == null || newPassword.length() < 6) {
-            throw new IllegalArgumentException("newPassword must be at least 6 characters.");
-        }
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user: " + username));
         SchoolAccess.requireCanManage(access.current(), user);
+        PasswordPolicy.check(newPassword, user.getRole(), user.getUsername());
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        // Logs out every session on the old password, and lifts any pause from wrong guesses.
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
+        loginAttempts.clearAccount(user.getUsername());
 
         return Map.of("username", user.getUsername(), "reset", true);
     }
@@ -394,6 +400,8 @@ public class AdminController {
         SchoolAccess.requireCanManage(access.current(), user);
 
         user.setLocked(locked);
+        // Locking ends every open session for good, even after an unlock.
+        if (locked) user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
 
         return Map.of("username", user.getUsername(), "locked", user.isLocked());

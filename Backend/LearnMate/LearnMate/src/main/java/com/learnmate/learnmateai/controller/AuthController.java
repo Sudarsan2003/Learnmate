@@ -7,6 +7,8 @@ import com.learnmate.learnmateai.model.School;
 import com.learnmate.learnmateai.model.User;
 import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.security.JwtService;
+import com.learnmate.learnmateai.security.LoginAttemptService;
+import com.learnmate.learnmateai.security.PasswordPolicy;
 import com.learnmate.learnmateai.service.SchoolService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
 public class AuthController {
 
     private final UserRepository userRepository;
@@ -25,15 +26,17 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final SchoolService schoolService;
+    private final LoginAttemptService loginAttempts;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                           AuthenticationManager authenticationManager, JwtService jwtService,
-                          SchoolService schoolService) {
+                          SchoolService schoolService, LoginAttemptService loginAttempts) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.schoolService = schoolService;
+        this.loginAttempts = loginAttempts;
     }
 
     // "Username already taken", "school code isn't valid", ... are the caller's
@@ -63,9 +66,7 @@ public class AuthController {
         if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new IllegalArgumentException("That username is already taken. Please choose another.");
         }
-        if (request.password().length() < 6) {
-            throw new IllegalArgumentException("Password must be at least 6 characters.");
-        }
+        PasswordPolicy.check(request.password(), "USER", username);
         // A parent's number may be shared by brothers and sisters, so up to
         // MAX_ACCOUNTS_PER_MOBILE accounts can use it.
         String mobile = indianMobile(request.mobile());
@@ -93,7 +94,7 @@ public class AuthController {
         user.setStandard(request.standard()); // was missing — students never got their class saved
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getUsername(), user.getRole());
+        String token = jwtService.generateToken(user.getUsername(), user.getRole(), user.getTokenVersion());
         return new AuthResponse(token, user.getUsername(), user.getRole());
     }
 
@@ -148,6 +149,7 @@ public class AuthController {
         com.learnmate.learnmateai.service.SchoolAccess.requireCanManage(admin, user);
 
         user.setRole("TEACHER");
+        user.setTokenVersion(user.getTokenVersion() + 1); // sign in again with the new role
         userRepository.save(user);
 
         return new AuthResponse(null, user.getUsername(), user.getRole());
@@ -172,34 +174,54 @@ public class AuthController {
             throw new IllegalArgumentException("New password is required");
         }
 
-        if (newPassword.length() < 6) {
-            throw new IllegalArgumentException("New password must be at least 6 characters");
-        }
+        PasswordPolicy.check(newPassword, user.getRole(), user.getUsername());
 
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new IllegalArgumentException("Current password incorrect");
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        // Logs out every other session; this one gets a fresh token below.
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
 
         return java.util.Map.of(
                 "success", true,
-                "message", "Password updated successfully"
+                "message", "Password updated successfully",
+                "token", jwtService.generateToken(user.getUsername(), user.getRole(), user.getTokenVersion())
         );
     }
+
+    @ExceptionHandler(LoginAttemptService.TooManyLoginAttemptsException.class)
+    public ResponseEntity<java.util.Map<String, String>> tooManyAttempts(LoginAttemptService.TooManyLoginAttemptsException e) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                .body(java.util.Map.of("message", e.getMessage()));
+    }
+
+    // One sign-in for every role: the role always comes from the database,
+    // never from the request, so a student can't sign in "as" an admin.
+    // Repeated wrong passwords pause sign-in (see LoginAttemptService).
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password())
-        );
+    public AuthResponse login(@Valid @RequestBody LoginRequest request, jakarta.servlet.http.HttpServletRequest http) {
+        String ip = LoginAttemptService.clientIp(http);
+        loginAttempts.checkAllowed(request.username(), ip);
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password())
+            );
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            // Wrong password or no such user (Spring reports both the same way).
+            loginAttempts.recordFailure(request.username(), ip);
+            throw e;
+        }
+        loginAttempts.recordSuccess(request.username());
 
         User user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         user.setLastLoginAt(java.time.Instant.now());
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getUsername(), user.getRole());
+        String token = jwtService.generateToken(user.getUsername(), user.getRole(), user.getTokenVersion());
         return new AuthResponse(token, user.getUsername(), user.getRole(), user.isOwner());
     }
 }

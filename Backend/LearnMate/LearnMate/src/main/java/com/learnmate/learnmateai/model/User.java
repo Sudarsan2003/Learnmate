@@ -51,6 +51,12 @@ public class User {
     @Column(nullable = false)
     private boolean locked = false;
 
+    // Written into every login token. Raising it (password change or reset,
+    // role change, lock) makes all tokens issued before that stop working, so
+    // a stolen or old session is logged out everywhere.
+    @Column(name = "token_version", nullable = false, columnDefinition = "integer default 0")
+    private int tokenVersion = 0;
+
     // Set on every successful login; feeds the "inactive students" list.
     private java.time.Instant lastLoginAt;
 
