@@ -10,6 +10,7 @@ import { useTypewriter } from "./Usetypewriter";
 import ThemeToggle from "./ThemeToggle";
 import ChatQuiz, { QUIZ_TOKEN } from "./ChatQuiz";
 import NotificationBell from "./NotificationBell";
+import SessionTimer from "./SessionTimer";
 import { getUnreadMessageCount } from "../api/client";
 import MaterialPicker, { MATERIALS_TOKEN } from "./MaterialPicker";
 
@@ -469,6 +470,7 @@ export default function ChatWindow({
 
         {/* Theme + profile: stay on the first row until there's room for one row, then far right */}
         <div className="order-2 flex flex-shrink-0 items-center gap-2 xl:order-3 xl:ml-1">
+          <SessionTimer />
           <NotificationBell />
           <ThemeToggle />
           <div

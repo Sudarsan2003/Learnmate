@@ -14,6 +14,8 @@ import Reports from "./components/Reports";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 import { SESSION_EXPIRED_MESSAGE } from "./api/client";
+import { SessionWarning } from "./components/SessionTimer";
+import { useSessionExpiry } from "./api/sessionClock";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -74,6 +76,10 @@ export default function App() {
     return () => document.removeEventListener("learnmate:session-expired", handleSessionExpired);
   }, []);
 
+  // Sign out the moment the login token runs out (24 h for students, 12 h for
+  // staff), instead of waiting for the next request to fail.
+  useSessionExpiry(Boolean(user));
+
   // Notification cards (and anything else) can ask to open a page:
   //   learnmate:navigate { view: "quizzes" } or { view: "games", gameType: "CODE" }
   const [gameTarget, setGameTarget] = useState(null);
@@ -116,6 +122,7 @@ export default function App() {
           viewport in index.css, so this doesn't get cut off by the mobile
           browser toolbar or add a sideways scrollbar. */}
       <div className="h-full w-full bg-[var(--bg)] text-[var(--text)]">
+        {user && <SessionWarning />}
         {user ? (
           <div className="flex h-full w-full">
             <Sidebar
