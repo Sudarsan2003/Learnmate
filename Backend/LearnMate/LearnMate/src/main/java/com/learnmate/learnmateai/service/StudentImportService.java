@@ -273,12 +273,14 @@ public class StudentImportService {
         return s == null ? "" : s.replace(' ', ' ').trim().replaceAll("\\s{2,}", " ");
     }
 
-    /** "Class 9", "9th", "IX" and "Grade 9" all mean class "9", matching how sign-up stores it. */
+    /** "Class 9", "9th", "IX" and "Grade 9" all mean class "9" (up to "XII" = "12"), matching how sign-up stores it. */
     static String normaliseClass(String raw) {
         String s = raw.toLowerCase(Locale.ROOT).replaceAll("^(class|std|standard|grade)\\s*", "").trim();
         s = s.replaceAll("^(\\d{1,2})(st|nd|rd|th)$", "$1");
-        Map<String, String> roman = Map.of("i", "1", "ii", "2", "iii", "3", "iv", "4", "v", "5",
-                "vi", "6", "vii", "7", "viii", "8", "ix", "9", "x", "10");
+        Map<String, String> roman = Map.ofEntries(
+                Map.entry("i", "1"), Map.entry("ii", "2"), Map.entry("iii", "3"), Map.entry("iv", "4"),
+                Map.entry("v", "5"), Map.entry("vi", "6"), Map.entry("vii", "7"), Map.entry("viii", "8"),
+                Map.entry("ix", "9"), Map.entry("x", "10"), Map.entry("xi", "11"), Map.entry("xii", "12"));
         if (roman.containsKey(s)) return roman.get(s);
         return s.matches("\\d{1,2}") ? String.valueOf(Integer.parseInt(s)) : raw.trim();
     }

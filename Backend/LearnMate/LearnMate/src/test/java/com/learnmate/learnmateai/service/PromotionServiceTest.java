@@ -38,6 +38,10 @@ class PromotionServiceTest {
         assertEquals("UKG", service.suggest("LKG", 10));
         assertEquals("1", service.suggest("UKG", 10));
         assertEquals("Special", service.suggest("Special", 10));
+        // Schools that teach up to Grade 12.
+        assertEquals("11", service.suggest("10", 12));
+        assertEquals("12", service.suggest("11", 12));
+        assertEquals(passed, service.suggest("12", 12));
     }
 
     @Test
