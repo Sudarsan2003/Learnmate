@@ -17,6 +17,9 @@ class StudentImportServiceTest {
         assertEquals("1", StudentImportService.normaliseClass("1st"));
         assertEquals("10", StudentImportService.normaliseClass("Grade 10"));
         assertEquals("10", StudentImportService.normaliseClass("Std X"));
+        assertEquals("11", StudentImportService.normaliseClass("XI"));
+        assertEquals("12", StudentImportService.normaliseClass("Class XII"));
+        assertEquals("12", StudentImportService.normaliseClass("12th"));
         // Anything else is kept as written rather than guessed at.
         assertEquals("LKG", StudentImportService.normaliseClass("LKG"));
     }

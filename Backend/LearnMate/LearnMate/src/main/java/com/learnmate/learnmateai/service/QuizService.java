@@ -84,7 +84,7 @@ public class QuizService {
             institution = creator.getInstitution();
         }
         if (req.standard() == null || req.standard().isBlank()) {
-            throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"10\")");
+            throw new IllegalArgumentException("standard is required (e.g. \"1\" through \"12\")");
         }
         if (req.durationMinutes() != null && (req.durationMinutes() < 1 || req.durationMinutes() > 180)) {
             throw new IllegalArgumentException("durationMinutes must be between 1 and 180.");

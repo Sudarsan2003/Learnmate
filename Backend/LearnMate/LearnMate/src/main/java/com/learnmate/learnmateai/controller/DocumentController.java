@@ -50,7 +50,7 @@ public class DocumentController {
     public ResponseEntity<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "subject", required = false, defaultValue = "general") String subject,
-            @RequestParam("standard") String standard, // "1".."10" — which class folder this belongs to
+            @RequestParam("standard") String standard, // "1".."12" — which class folder this belongs to
             @RequestParam(value = "institution", required = false) String institutionParam,
             Authentication auth
     ) throws IOException {

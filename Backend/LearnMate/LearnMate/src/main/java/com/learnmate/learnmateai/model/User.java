@@ -44,7 +44,7 @@ public class User {
     // see AdminController for the role-aware validation.
     private String institution;
 
-    // A student's class (1–10). Null/blank for ADMIN/TEACHER accounts —
+    // A student's class (1–12). Null/blank for ADMIN/TEACHER accounts —
 // teachers aren't tied to a single class, they choose per upload instead.
     private String standard;
 
