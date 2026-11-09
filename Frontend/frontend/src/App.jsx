@@ -31,7 +31,22 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState(""); // shown on the login screen, e.g. after a session expires
 
   // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile" | "reports"
-  const [view, setView] = useState("chat");
+  // Kept for this tab only, so a reload (for example after the phone camera
+  // opens for "Scan questions") comes back to the same page instead of chat.
+  const [view, setView] = useState(() => {
+    try {
+      return sessionStorage.getItem("learnmate_view") || "chat";
+    } catch {
+      return "chat";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("learnmate_view", view);
+    } catch {
+      // ignore
+    }
+  }, [view]);
   const [sessionId, setSessionId] = useState(null);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
 
