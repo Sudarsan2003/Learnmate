@@ -70,10 +70,65 @@ const EMPTY_MANUAL_QUESTION = () => ({
   correctOption: "A",
 });
 
+// The quiz being written is saved in the browser as the teacher types, so a
+// page reload doesn't wipe it. On phones, opening the camera for "Scan
+// questions" can make the browser reload the tab, which used to lose every
+// question scanned so far. One draft per user; cleared once the quiz is created.
+const quizDraftKey = (username) => `learnmate_quiz_draft:${username ?? ""}`;
+const QUIZ_VIEW_KEY = "learnmate_quiz_view";
+
+function loadQuizDraft(username) {
+  try {
+    const draft = JSON.parse(localStorage.getItem(quizDraftKey(username)) ?? "null");
+    return draft && typeof draft === "object" ? draft : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveQuizDraft(username, draft) {
+  try {
+    localStorage.setItem(quizDraftKey(username), JSON.stringify(draft));
+  } catch {
+    // Storage full or blocked: keep working, the draft just isn't saved.
+  }
+}
+
+function clearQuizDraft(username) {
+  try {
+    localStorage.removeItem(quizDraftKey(username));
+  } catch {
+    // ignore
+  }
+}
+
+function readSessionValue(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    if (value == null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
 export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
   const canManage = role === "ADMIN" || role === "TEACHER";
   // "list" (default) | "create" | "take" | "results"
-  const [view, setView] = useState("list");
+  // Reopen the create form after a reload if that's where the teacher was.
+  const [view, setView] = useState(() =>
+    canManage && readSessionValue(QUIZ_VIEW_KEY) === "create" ? "create" : "list"
+  );
+  useEffect(() => {
+    writeSessionValue(QUIZ_VIEW_KEY, view === "create" ? "create" : null);
+  }, [view]);
   const [activeQuizId, setActiveQuizId] = useState(null);
   // Students switch between quizzes they can still take and quizzes
   // they've already submitted (with marks + date).
@@ -199,6 +254,7 @@ export default function Quizzes({ currentUsername, role, onAskLearnMate }) {
         {view === "create" && canManage && (
           <CreateQuizForm
             role={role}
+            currentUsername={currentUsername}
             onCreated={() => setView("list")}
           />
         )}
@@ -472,29 +528,73 @@ function AdminDashboard({ currentUsername, onCreate, onViewResults }) {
 
 /* ---------------------------------- create quiz ---------------------------------- */
 
-function CreateQuizForm({ role, onCreated }) {
+function CreateQuizForm({ role, currentUsername, onCreated }) {
   const isAdmin = role === "ADMIN";
-  const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("");
-  const [standard, setStandard] = useState("");
+  // Read the saved draft once, before the first render, so every field below
+  // starts from it.
+  const [draft] = useState(() => loadQuizDraft(currentUsername));
+  const fromDraft = (field, fallback) => (typeof draft?.[field] === typeof fallback ? draft[field] : fallback);
+  const [title, setTitle] = useState(() => fromDraft("title", ""));
+  const [subject, setSubject] = useState(() => fromDraft("subject", ""));
+  const [standard, setStandard] = useState(() => fromDraft("standard", ""));
   // Only relevant for ADMIN — a TEACHER's quiz is scoped to their own
   // institution automatically on the backend (QuizService.createQuiz), but
   // an ADMIN isn't tied to one institution, so they must pick which one
   // this quiz belongs to. Without this, the quiz was previously created
   // with no institution at all and never matched any student.
-  const [institution, setInstitution] = useState("");
+  const [institution, setInstitution] = useState(() => fromDraft("institution", ""));
   const [knownInstitutions, setKnownInstitutions] = useState([]);
   const [loadingInstitutions, setLoadingInstitutions] = useState(isAdmin);
-  const [mode, setMode] = useState("OPEN"); // OPEN | SCHEDULED
-  const [opensAt, setOpensAt] = useState("");
-  const [closesAt, setClosesAt] = useState("");
+  const [mode, setMode] = useState(() => fromDraft("mode", "OPEN")); // OPEN | SCHEDULED
+  const [opensAt, setOpensAt] = useState(() => fromDraft("opensAt", ""));
+  const [closesAt, setClosesAt] = useState(() => fromDraft("closesAt", ""));
   // Optional per-attempt timer, in minutes. Backend enforces 1-180 and
   // treats blank/null as "no timer" (student can take as long as they like).
-  const [durationMinutes, setDurationMinutes] = useState("");
-  const [manualQuestions, setManualQuestions] = useState([]);
-  const [aiGenerateCount, setAiGenerateCount] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(() => fromDraft("durationMinutes", ""));
+  const [manualQuestions, setManualQuestions] = useState(() =>
+    Array.isArray(draft?.manualQuestions)
+      ? draft.manualQuestions.map((q) => ({ ...EMPTY_MANUAL_QUESTION(), ...q }))
+      : []
+  );
+  const [aiGenerateCount, setAiGenerateCount] = useState(() => fromDraft("aiGenerateCount", ""));
   // Optional textbook chapter: shown in weak-chapter reports, and AI questions come from it.
-  const [chapterId, setChapterId] = useState("");
+  const [chapterId, setChapterId] = useState(() => fromDraft("chapterId", ""));
+
+  // Save everything typed or scanned so far on every change.
+  const hasContent = Boolean(
+    title || subject || standard || institution || opensAt || closesAt || durationMinutes ||
+      aiGenerateCount || chapterId || mode !== "OPEN" || manualQuestions.length
+  );
+  const [restoredDraft, setRestoredDraft] = useState(() => Boolean(draft));
+  useEffect(() => {
+    if (!hasContent) {
+      clearQuizDraft(currentUsername);
+      return;
+    }
+    saveQuizDraft(currentUsername, {
+      title, subject, standard, institution, mode, opensAt, closesAt,
+      durationMinutes, manualQuestions, aiGenerateCount, chapterId,
+    });
+  }, [currentUsername, hasContent, title, subject, standard, institution, mode, opensAt, closesAt,
+    durationMinutes, manualQuestions, aiGenerateCount, chapterId]);
+
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const discardDraft = () => {
+    setTitle("");
+    setSubject("");
+    setStandard("");
+    setInstitution("");
+    setMode("OPEN");
+    setOpensAt("");
+    setClosesAt("");
+    setDurationMinutes("");
+    setManualQuestions([]);
+    setAiGenerateCount("");
+    setChapterId("");
+    setConfirmingDiscard(false);
+    setRestoredDraft(false);
+    clearQuizDraft(currentUsername);
+  };
   const [chapterOptions, setChapterOptions] = useState({ key: "", list: [] });
   const chapterKey = standard && (!isAdmin || institution.trim()) ? `${institution.trim()}|${standard}` : "";
   const chapters = chapterOptions.key === chapterKey ? chapterOptions.list : [];
@@ -539,7 +639,22 @@ function CreateQuizForm({ role, onCreated }) {
     };
   }, [isAdmin]);
 
-  const addManualQuestion = () => setManualQuestions((qs) => [...qs, EMPTY_MANUAL_QUESTION()]);
+  // A new question goes at the end of the list, which after a scan is often
+  // far below the button, so scroll to it and put the cursor in its text box.
+  const [justAddedId, setJustAddedId] = useState(null);
+  const addManualQuestion = () => {
+    const q = EMPTY_MANUAL_QUESTION();
+    setManualQuestions((qs) => [...qs, q]);
+    setJustAddedId(q.clientId);
+  };
+  useEffect(() => {
+    if (!justAddedId) return;
+    const el = document.getElementById(`manual-q-${justAddedId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus({ preventScroll: true });
+    }
+  }, [justAddedId]);
   const removeManualQuestion = (clientId) =>
     setManualQuestions((qs) => qs.filter((q) => q.clientId !== clientId));
   const updateManualQuestion = (clientId, field, value) =>
@@ -648,6 +763,7 @@ function CreateQuizForm({ role, onCreated }) {
         chapterId: chapters.some((c) => c.id === chapterId) ? chapterId : null,
       };
       const quiz = await createQuiz(payload);
+      clearQuizDraft(currentUsername);
       onCreated(quiz);
     } catch (err) {
       setError(err.response?.data?.message ?? "Could not create the quiz.");
@@ -661,6 +777,30 @@ function CreateQuizForm({ role, onCreated }) {
       {error && (
         <div className="rounded-lg border border-[#E2725B]/30 bg-[var(--error-bg)]/60 px-3 py-2.5 text-[13px] text-[var(--error-text)]">
           {error}
+        </div>
+      )}
+
+      {hasContent && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--divider)] bg-[var(--surface)]/60 px-3 py-2 text-[12.5px] text-[var(--muted)]">
+          <span>
+            {restoredDraft ? "Continuing your saved draft. " : ""}
+            Your quiz is saved as you work, so a page refresh won't lose it.
+          </span>
+          {confirmingDiscard ? (
+            <span className="flex items-center gap-2">
+              <span>Clear all fields and questions?</span>
+              <button type="button" onClick={discardDraft} className="font-semibold text-[var(--error-text)] hover:underline">
+                Yes, clear
+              </button>
+              <button type="button" onClick={() => setConfirmingDiscard(false)} className="hover:text-[var(--text)] hover:underline">
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setConfirmingDiscard(true)} className="hover:text-[var(--text)] hover:underline">
+              Start over
+            </button>
+          )}
         </div>
       )}
 
@@ -779,10 +919,13 @@ function CreateQuizForm({ role, onCreated }) {
       )}
 
       <div>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="section-title">
             <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#2DD4BF] shadow-[0_0_6px_1px_rgba(45,212,191,0.6)]" />
             Manual questions
+            {manualQuestions.length > 0 && (
+              <span className="text-[12px] font-medium text-[var(--dim)]">({manualQuestions.length})</span>
+            )}
           </h2>
           <div className="flex items-center gap-2">
             <input
@@ -851,6 +994,7 @@ function CreateQuizForm({ role, onCreated }) {
                   </div>
                 </div>
                 <input
+                  id={`manual-q-${q.clientId}`}
                   value={q.questionText}
                   onChange={(e) => updateManualQuestion(q.clientId, "questionText", e.target.value)}
                   placeholder="Question text (type in Telugu, Hindi or English)"
@@ -885,6 +1029,10 @@ function CreateQuizForm({ role, onCreated }) {
                 </div>
               </div>
             ))}
+            <button type="button" onClick={addManualQuestion} className="lm-btn-secondary self-start">
+              <Plus size={12} />
+              Add another question
+            </button>
           </div>
         )}
       </div>

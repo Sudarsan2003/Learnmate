@@ -14,6 +14,8 @@ import Reports from "./components/Reports";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 import { SESSION_EXPIRED_MESSAGE } from "./api/client";
+import { SessionWarning } from "./components/SessionTimer";
+import { useSessionExpiry } from "./api/sessionClock";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -31,7 +33,22 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState(""); // shown on the login screen, e.g. after a session expires
 
   // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile" | "reports"
-  const [view, setView] = useState("chat");
+  // Kept for this tab only, so a reload (for example after the phone camera
+  // opens for "Scan questions") comes back to the same page instead of chat.
+  const [view, setView] = useState(() => {
+    try {
+      return sessionStorage.getItem("learnmate_view") || "chat";
+    } catch {
+      return "chat";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("learnmate_view", view);
+    } catch {
+      // ignore
+    }
+  }, [view]);
   const [sessionId, setSessionId] = useState(null);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
 
@@ -58,6 +75,10 @@ export default function App() {
     document.addEventListener("learnmate:session-expired", handleSessionExpired);
     return () => document.removeEventListener("learnmate:session-expired", handleSessionExpired);
   }, []);
+
+  // Sign out the moment the login token runs out (24 h for students, 12 h for
+  // staff), instead of waiting for the next request to fail.
+  useSessionExpiry(Boolean(user));
 
   // Notification cards (and anything else) can ask to open a page:
   //   learnmate:navigate { view: "quizzes" } or { view: "games", gameType: "CODE" }
@@ -101,6 +122,7 @@ export default function App() {
           viewport in index.css, so this doesn't get cut off by the mobile
           browser toolbar or add a sideways scrollbar. */}
       <div className="h-full w-full bg-[var(--bg)] text-[var(--text)]">
+        {user && <SessionWarning />}
         {user ? (
           <div className="flex h-full w-full">
             <Sidebar

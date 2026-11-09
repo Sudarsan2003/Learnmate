@@ -1,5 +1,6 @@
 import { ArrowLeft, Menu } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import SessionTimer from "./SessionTimer";
 import ThemeToggle from "./ThemeToggle";
 
 /**
@@ -37,6 +38,7 @@ export default function PageFrame({ onBack, backLabel = "Back to chat", children
           {backLabel}
         </button>
         <div className="pf-end">
+          <SessionTimer />
           <NotificationBell />
           <ThemeToggle />
         </div>
