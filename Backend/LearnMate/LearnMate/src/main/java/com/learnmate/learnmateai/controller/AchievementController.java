@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 /** A student's own medals and their class's toppers (the dashboard's Hall of fame). */
 @RestController
 @RequestMapping("/api/me")
-@CrossOrigin(origins = "*")
 public class AchievementController {
 
     private final AchievementService achievements;

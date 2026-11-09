@@ -1,5 +1,7 @@
 package com.learnmate.learnmateai.security;
 
+import com.learnmate.learnmateai.model.User;
+import com.learnmate.learnmateai.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,10 +23,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
-    public JwtAuthFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtService jwtService, CustomUserDetailsService userDetailsService,
+                         UserRepository userRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * False when the account's password was changed or reset, its role changed,
+     * or it was locked after this token was issued: that token is logged out.
+     * The request then carries on unauthenticated and gets "session expired".
+     */
+    private boolean tokenStillCurrent(String token, String username) {
+        int current = userRepository.findByUsername(username).map(User::getTokenVersion).orElse(-1);
+        return current == jwtService.extractVersion(token);
     }
 
     @Override
@@ -36,7 +51,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
 
-            if (jwtService.isValid(token)) {
+            if (jwtService.isValid(token) && tokenStillCurrent(token, jwtService.extractUsername(token))) {
                 String username = jwtService.extractUsername(token);
 
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {

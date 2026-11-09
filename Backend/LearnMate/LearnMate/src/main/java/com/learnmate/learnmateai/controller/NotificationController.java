@@ -11,7 +11,6 @@ import java.util.Map;
 /** The signed-in user's own notifications; nobody can read or change anyone else's. */
 @RestController
 @RequestMapping("/api/notifications")
-@CrossOrigin(origins = "*")
 public class NotificationController {
 
     private final NotificationService service;

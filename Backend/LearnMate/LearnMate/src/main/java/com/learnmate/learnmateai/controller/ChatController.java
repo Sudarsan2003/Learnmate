@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@CrossOrigin(origins = "*")
 public class ChatController {
 
     private final AgentOrchestrator orchestrator;

@@ -17,7 +17,6 @@ import java.util.Optional;
 
 /** A student only ever sees their own practice quizzes (every query is scoped by username). */
 @RestController
-@CrossOrigin(origins = "*")
 public class ChatQuizResultsController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatQuizResultsController.class);

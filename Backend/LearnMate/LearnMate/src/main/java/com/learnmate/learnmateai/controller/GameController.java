@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/games")
-@CrossOrigin(origins = "*")
 public class GameController {
 
     // Every game the API accepts, in the order /progress returns cards. The
