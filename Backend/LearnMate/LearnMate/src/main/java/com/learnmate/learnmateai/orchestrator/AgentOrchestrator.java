@@ -437,14 +437,18 @@ public class AgentOrchestrator {
                         ? chatHistoryService.getSessionHistory(ownerUsername, req.sessionId())
                         : List.of();
 
-        String retrievalQuery = buildRetrievalQuery(req.query(), history);
+        // A question in Kannada, Telugu or Hindi script is looked up with an English
+        // version of it, since the books are in English (it's still answered in that language).
+        String ownQuery = learningAgent.englishSearchQuery(req.query());
+        String withContext = buildRetrievalQuery(req.query(), history);
+        String retrievalQuery = withContext.equals(req.query()) ? ownQuery : learningAgent.englishSearchQuery(withContext);
 
         // "Explain chapter 9" / "summary of circles": read that chapter itself. Searching
         // for the words "chapter 9" finds pieces that merely contain a 9. The question on
         // its own decides first; a short follow-up ("simpler please") falls back to the
         // previous question's chapter.
         List<Chapter> allChapters = chapterCatalog.chaptersFor(user.getInstitution(), user.getStandard());
-        String chapterQuery = ChapterCatalog.match(req.query(), allChapters).isEmpty() ? retrievalQuery : req.query();
+        String chapterQuery = ChapterCatalog.match(ownQuery, allChapters).isEmpty() ? retrievalQuery : ownQuery;
         List<Chapter> chapters = ChapterCatalog.match(chapterQuery, allChapters);
         boolean wholeChapter = !chapters.isEmpty() && chapters.size() <= 2
                 && chapters.stream().allMatch(c -> ChapterCatalog.asksForWholeChapter(chapterQuery, c));
