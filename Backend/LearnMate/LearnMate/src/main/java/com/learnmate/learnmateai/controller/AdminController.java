@@ -39,12 +39,14 @@ public class AdminController {
     private final SchoolAccess access;
     private final UserDataService userData;
     private final LoginAttemptService loginAttempts;
+    private final com.learnmate.learnmateai.service.AiUsageService aiUsage;
 
     public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                            SchoolService schoolService, StudentImportService studentImportService,
                            PromotionService promotionService, SchoolAccess access, UserDataService userData,
-                           LoginAttemptService loginAttempts) {
+                           LoginAttemptService loginAttempts, com.learnmate.learnmateai.service.AiUsageService aiUsage) {
         this.loginAttempts = loginAttempts;
+        this.aiUsage = aiUsage;
         this.access = access;
         this.userData = userData;
         this.userRepository = userRepository;
@@ -174,6 +176,35 @@ public class AdminController {
         return schoolRow(schoolService.setAccessEndsOn(id, ends), null);
     }
 
+    // Owner only: most AI questions a student of this school may ask per day.
+    // Body: { "limit": 40 }, { "limit": 0 } for no limit, or { "limit": null } for the server default.
+    @PutMapping("/schools/{id}/daily-limit")
+    public Map<String, Object> setSchoolDailyLimit(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        SchoolAccess.requireOwner(access.current());
+        Object raw = body.get("limit");
+        Integer limit;
+        try {
+            limit = raw == null || raw.toString().isBlank() ? null : Integer.valueOf(raw.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Enter a whole number, like 40.");
+        }
+        return schoolRow(schoolService.setDailyQuestionLimit(id, limit), null);
+    }
+
+    // ------------------------------------------------------------------ AI usage and cost
+
+    // AI questions, tokens and estimated cost for the last `days` days (India time),
+    // per school, with the heaviest users and a per-day series. The owner sees every
+    // school (or one, with ?institution=); a school admin sees only their own.
+    @GetMapping("/usage")
+    public Map<String, Object> usage(@RequestParam(defaultValue = "30") int days,
+                                     @RequestParam(required = false) String institution) {
+        if (days < 1 || days > 366) throw new IllegalArgumentException("Choose between 1 and 366 days.");
+        String school = SchoolAccess.school(access.current(), institution);
+        java.time.LocalDate to = com.learnmate.learnmateai.service.AiUsageService.today();
+        return aiUsage.report(to.minusDays(days - 1L), to, school);
+    }
+
     private static Map<String, Object> schoolRow(School s, Long memberCount) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", s.getId());
@@ -182,6 +213,7 @@ public class AdminController {
         row.put("active", s.isActive());
         row.put("createdAt", s.getCreatedAt());
         row.put("accessEndsOn", s.getAccessEndsOn() == null ? "" : s.getAccessEndsOn().toString());
+        row.put("dailyQuestionLimit", s.getDailyQuestionLimit()); // null = server default
         if (memberCount != null) row.put("memberCount", memberCount);
         return row;
     }
@@ -207,6 +239,9 @@ public class AdminController {
                     row.put("standard", u.getStandard() == null ? "" : u.getStandard());
                     row.put("locked", u.isLocked());
                     row.put("owner", u.isOwner());
+                    // Who agreed to the current Privacy Policy and Terms: PARENT, SCHOOL, STAFF or "" (not yet).
+                    row.put("consent", com.learnmate.learnmateai.service.Consent.needed(u)
+                            ? "" : u.getConsentBy() == null ? "" : u.getConsentBy());
                     return row;
                 })
                 .collect(Collectors.toList());

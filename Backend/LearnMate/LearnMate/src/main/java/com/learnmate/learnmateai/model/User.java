@@ -64,4 +64,14 @@ public class User {
     // admins only manage their own school (see SchoolAccess).
     @Column(name = "is_owner", nullable = false, columnDefinition = "boolean default false")
     private boolean owner = false;
+
+    // Consent to the Privacy Policy and Terms (see service.Consent). For a student
+    // this is a parent's or guardian's consent (DPDP Act 2023, section 9).
+    // consentBy: PARENT (ticked at sign-up or on first sign-in), SCHOOL (the school
+    // collected it, under its agreement with LearnMate, for imported students) or
+    // STAFF (a teacher or admin accepting for themselves).
+    private java.time.Instant consentAt;
+    private String consentVersion;
+    private String consentBy;
+    private String guardianName;
 }

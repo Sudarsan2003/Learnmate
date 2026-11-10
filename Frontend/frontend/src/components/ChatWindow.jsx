@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList, MessageCircle } from "lucide-react";
-import { sendChatMessage, getSessionHistory } from "../api/client";
+import { sendChatMessage, getSessionHistory, getChatLimit } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
 import { useTypewriter } from "./Usetypewriter";
@@ -162,6 +162,16 @@ export default function ChatWindow({
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // Today's AI question allowance ({ limit, used, remaining }); a note shows when few are left.
+  const [allowance, setAllowance] = useState(null);
+  const refreshAllowance = useCallback(() => {
+    getChatLimit()
+      .then(setAllowance)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshAllowance();
+  }, [refreshAllowance]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -376,21 +386,26 @@ export default function ChatWindow({
       } catch (err) {
         if (token !== requestTokenRef.current) return;
         const detail = err.response?.data?.message ?? err.message ?? "Unknown error";
+        // The daily question limit's message is written for students: show it as-is.
+        const limitReached = err.response?.status === 429 && err.response?.data?.limitReached;
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             role: "tutor",
-            text: `Couldn't reach the tutor backend (${detail}). Confirm LearnMateApplication is running on :8080.`,
+            text: limitReached
+              ? detail
+              : `Couldn't reach the tutor backend (${detail}). Confirm LearnMateApplication is running on :8080.`,
             isError: true,
             isNew: true,
           },
         ]);
       } finally {
         if (token === requestTokenRef.current) setIsLoading(false);
+        refreshAllowance();
       }
     },
-    [sessionId, onSessionCreated]
+    [sessionId, onSessionCreated, refreshAllowance]
   );
 
   // A question sent from elsewhere (e.g. "Practise" on a weak chapter): ask it once
@@ -642,6 +657,13 @@ export default function ChatWindow({
       </div>
 
       <div className="relative z-10 border-t border-[#5B8DEF]/15 bg-[var(--bg-canvas)]/70 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_-14px_rgba(40,70,160,0.28)] backdrop-blur-md sm:px-6 sm:py-4">
+        {allowance?.limit > 0 && allowance.remaining <= 5 && (
+          <p className="mx-auto mb-2 max-w-3xl px-1 font-ui text-xs text-[var(--muted)]" role="status">
+            {allowance.remaining === 0
+              ? "You've used all of today's questions. They reset at midnight."
+              : `${allowance.remaining} of ${allowance.limit} questions left today.`}
+          </p>
+        )}
         <div className="mx-auto flex max-w-3xl items-end gap-2 sm:gap-3">
           <textarea
             ref={textareaRef}

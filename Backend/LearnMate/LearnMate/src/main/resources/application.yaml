@@ -48,6 +48,15 @@ learnmate:
     anthropic:
       model: claude-sonnet-5
       temperature: 0.3
+  # AI cost control (see AiUsageService).
+  ai:
+    daily-limit:
+      student: ${AI_DAILY_LIMIT_STUDENT:60}  # questions per student per day; a school can override; 0 = none
+      staff: ${AI_DAILY_LIMIT_STAFF:0}       # teachers and admins; 0 = none
+    price:                                   # for the usage report's cost estimate
+      input-per-mtok: ${AI_PRICE_INPUT:}     # US$ per million tokens; empty = list price of the model above
+      output-per-mtok: ${AI_PRICE_OUTPUT:}
+      usd-to-inr: ${AI_USD_TO_INR:88}
 
 anthropic:
   api-key: ${ANTHROPIC_API_KEY}

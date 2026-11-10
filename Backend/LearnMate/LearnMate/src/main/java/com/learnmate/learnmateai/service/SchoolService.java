@@ -67,6 +67,16 @@ public class SchoolService {
         return repository.save(school);
     }
 
+    /** Null = use the server default; 0 = no limit. */
+    public School setDailyQuestionLimit(Long id, Integer limit) {
+        if (limit != null && (limit < 0 || limit > 10_000)) {
+            throw new IllegalArgumentException("The daily limit must be between 0 (no limit) and 10000.");
+        }
+        School school = get(id);
+        school.setDailyQuestionLimit(limit);
+        return repository.save(school);
+    }
+
     public School get(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown school."));

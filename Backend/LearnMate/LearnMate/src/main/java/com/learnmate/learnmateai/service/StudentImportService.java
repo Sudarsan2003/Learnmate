@@ -175,6 +175,8 @@ public class StudentImportService {
             u.setStandard(r.standard());
             u.setEmail(r.email().isEmpty() ? null : r.email());
             u.setMobile(r.mobile().isEmpty() ? null : r.mobile());
+            // The school collected the parents' consent (its data agreement with LearnMate requires it).
+            Consent.record(u, Consent.BY_SCHOOL, null);
             users.add(u);
             // Only generated passwords go back to the admin (to hand out); ones the
             // school typed into the file they already have.

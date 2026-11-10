@@ -34,6 +34,7 @@ import {
   setUserOwner,
 } from "../api/client";
 import SchoolsView from "./SchoolsView";
+import AiUsageView from "./AiUsageView";
 import ImportStudents from "./ImportStudents";
 import PromoteClasses from "./PromoteClasses";
 
@@ -526,11 +527,16 @@ export default function ManageUsers({ currentUsername }) {
               <button type="button" aria-pressed={viewMode === "schools"} onClick={() => setViewMode("schools")}>
                 Schools
               </button>
+              <button type="button" aria-pressed={viewMode === "usage"} onClick={() => setViewMode("usage")}>
+                AI usage
+              </button>
             </div>
           </div>
         </div>
 
-        {viewMode === "schools" ? (
+        {viewMode === "usage" ? (
+          <AiUsageView owner={viewerOwner} />
+        ) : viewMode === "schools" ? (
           <SchoolsView />
         ) : viewMode === "institutions" ? (
           <InstitutionsView tokens={tokens} query={query} refreshTick={refreshTick} onClear={clearFilters} />

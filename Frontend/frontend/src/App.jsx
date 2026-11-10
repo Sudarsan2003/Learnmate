@@ -15,6 +15,7 @@ import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 import { SESSION_EXPIRED_MESSAGE } from "./api/client";
 import { SessionWarning } from "./components/SessionTimer";
+import ConsentGate from "./components/ConsentGate";
 import { useSessionExpiry } from "./api/sessionClock";
 
 export default function App() {
@@ -123,6 +124,7 @@ export default function App() {
           browser toolbar or add a sideways scrollbar. */}
       <div className="h-full w-full bg-[var(--bg)] text-[var(--text)]">
         {user && <SessionWarning />}
+        {user && <ConsentGate username={user.username} onLogout={handleLogout} />}
         {user ? (
           <div className="flex h-full w-full">
             <Sidebar
