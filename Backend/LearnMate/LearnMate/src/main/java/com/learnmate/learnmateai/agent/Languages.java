@@ -21,6 +21,13 @@ final class Languages {
 
     private Languages() {}
 
+    /** True when the text contains Telugu, Hindi (Devanagari) or Kannada script. */
+    static boolean usesIndianScript(String text) {
+        if (text == null) return false;
+        return text.codePoints().anyMatch(cp -> SUPPORTED.stream()
+                .anyMatch(l -> cp >= l.firstCodePoint() && cp <= l.lastCodePoint()));
+    }
+
     /** The supported languages the text is written in or asks for, in SUPPORTED order. */
     static List<String> requested(String text) {
         String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);

@@ -233,4 +233,31 @@ public class LearningAgent {
 
         return Languages.guidance(combined, "Answer", "explanation");
     }
+
+    private static final String SEARCH_QUERY_PROMPT = """
+            You turn a school student's question, written in Kannada, Telugu or Hindi (or mixed with English),
+            into a short English search query for finding the answer in an English NCERT-style textbook.
+            Use the English terms a textbook would use (for example "saturated solution", "photosynthesis",
+            "factors of production"), and keep any chapter number or chapter name.
+            Reply with only the search query: no quotes, no explanation, at most 20 words.""";
+
+    /**
+     * The textbooks are in English, so a question typed in Kannada, Telugu or
+     * Hindi script shares no words with them: the keyword search finds nothing
+     * and the meaning search often picks the wrong passages. For such a
+     * question this returns a short English search query to look the answer up
+     * with (the student is still answered in their language). English
+     * questions, and any failure, return the question unchanged.
+     */
+    public String englishSearchQuery(String query) {
+        if (!Languages.usesIndianScript(query)) return query;
+        try {
+            String out = llmClient.complete(SEARCH_QUERY_PROMPT, query);
+            out = out == null ? "" : out.strip().replaceAll("^[\"'`]+|[\"'`]+$", "").strip();
+            if (out.isBlank() || out.length() > 300 || Languages.usesIndianScript(out)) return query;
+            return out;
+        } catch (RuntimeException e) {
+            return query;
+        }
+    }
 }
