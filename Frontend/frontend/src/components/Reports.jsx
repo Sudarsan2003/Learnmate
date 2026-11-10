@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FileBarChart2, Download, Printer, FileText, Loader2, RefreshCw, Users, Trophy, ChevronLeft, ChevronRight, UserX, Phone, Target } from "lucide-react";
 import { getReportClasses, getClassReport, getToppers, getInactiveStudents } from "../api/client";
 import ClassWeakChapters from "./ClassWeakChapters";
 import { PlaceMedal, MedalLegend } from "./Medal";
+import { CARD_LANGS, KN, remarkKn, placeKn, periodKn, practiceNoteKn, printedKn } from "./reportCardKannada";
+
+// Report card language: "en" (English only) or "en-kn" (English with Kannada underneath).
+const CARD_LANG_KEY = "learnmate_report_card_lang";
+const CardLang = createContext("en");
+
+/** English text, with its Kannada version underneath when the card is bilingual. */
+function Bi({ en, kn, inline = false }) {
+  const bilingual = useContext(CardLang) === "en-kn";
+  if (!bilingual || !kn) return en;
+  return inline ? <>{en} <span className="rp-kn-inline">/ {kn}</span></> : <>{en}<span className="rp-kn">{kn}</span></>;
+}
 
 /**
  * Class reports (teachers and admins).
@@ -112,6 +124,21 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [printing, setPrinting] = useState(null); // { kind: "class" } | { kind: "cards", students }
+  const [cardLang, setCardLang] = useState(() => {
+    try {
+      return localStorage.getItem(CARD_LANG_KEY) === "en-kn" ? "en-kn" : "en";
+    } catch {
+      return "en";
+    }
+  });
+  const chooseCardLang = (value) => {
+    setCardLang(value);
+    try {
+      localStorage.setItem(CARD_LANG_KEY, value);
+    } catch {
+      // not remembered next time; fine
+    }
+  };
   const [tab, setTab] = useState("report"); // "report" | "toppers" | "weak"
   const [weekToppers, setWeekToppers] = useState(null);
   const [monthToppers, setMonthToppers] = useState(null);
@@ -311,6 +338,14 @@ export default function Reports() {
               >
                 <FileText size={15} /> Print all report cards
               </button>
+              <label className="rp-lang">
+                <span>Report card language</span>
+                <select value={cardLang} onChange={(e) => chooseCardLang(e.target.value)}>
+                  {CARD_LANGS.map((l) => (
+                    <option key={l.value} value={l.value}>{l.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <p className="rp-hint">Tip: choose “Save as PDF” in the print window to get a file you can email to parents.</p>
 
@@ -360,9 +395,11 @@ export default function Reports() {
             {printing.kind === "class" ? (
               <PrintClassSheet report={report} rows={ranked} toppers={[weekToppers, monthToppers]} />
             ) : (
-              printing.students.map((s) => (
-                <ReportCard key={s.username} report={report} student={s} />
-              ))
+              <CardLang.Provider value={cardLang}>
+                {printing.students.map((s) => (
+                  <ReportCard key={s.username} report={report} student={s} />
+                ))}
+              </CardLang.Provider>
             )}
           </div>,
           document.body
@@ -751,35 +788,45 @@ function QuizPodium({ quiz }) {
 const band = (p) => (p >= 70 ? "rp-good" : p >= 50 ? "rp-mid" : "rp-low");
 
 function ReportCard({ report, student }) {
+  const bilingual = useContext(CardLang) === "en-kn";
+  const knPeriod = periodKn(report.from && fmtDate(report.from), report.to && fmtDate(report.to));
+  const showLegend = report.quizzes.some((q) => student.quizScores[q.id]?.rank <= 3 && student.quizScores[q.id]?.percent > 0);
   return (
-    <article className="rp-card">
+    <article className={`rp-card${bilingual ? " rp-card-bi" : ""}`}>
       <header className="rp-card-head">
         <div>
           <p className="rp-card-school">{report.institution}</p>
-          <h1>Progress report</h1>
+          <h1><Bi en="Progress report" kn={KN.progressReport} /></h1>
         </div>
         <dl className="rp-card-meta">
-          <div><dt>Student</dt><dd>{nameOf(student)}</dd></div>
-          {student.fullName && <div><dt>Username</dt><dd>{student.username}</dd></div>}
-          <div><dt>Class</dt><dd>{report.standard}</dd></div>
-          <div><dt>Period</dt><dd>{periodLabel(report)}</dd></div>
+          <div><dt><Bi en="Student" kn={KN.student} /></dt><dd>{nameOf(student)}</dd></div>
+          {student.fullName && <div><dt><Bi en="Username" kn={KN.username} /></dt><dd>{student.username}</dd></div>}
+          <div><dt><Bi en="Class" kn={KN.class} /></dt><dd>{report.standard}</dd></div>
+          <div><dt><Bi en="Period" kn={KN.period} /></dt><dd><Bi en={periodLabel(report)} kn={knPeriod} /></dd></div>
         </dl>
       </header>
 
       <section className="rp-card-summary">
-        <div><span>{student.averagePercent == null ? "–" : `${student.averagePercent}%`}</span>Quiz average</div>
-        <div><span>{student.quizzesTaken} / {report.quizzes.length}</span>Quizzes taken</div>
-        <div><span>{student.practiceQuizzes}</span>Practice quizzes</div>
-        <div><span>{student.gameStars}</span>Game stars</div>
+        <div><span>{student.averagePercent == null ? "–" : `${student.averagePercent}%`}</span><Bi en="Quiz average" kn={KN.quizAverage} /></div>
+        <div><span>{student.quizzesTaken} / {report.quizzes.length}</span><Bi en="Quizzes taken" kn={KN.quizzesTaken} /></div>
+        <div><span>{student.practiceQuizzes}</span><Bi en="Practice quizzes" kn={KN.practiceQuizzes} /></div>
+        <div><span>{student.gameStars}</span><Bi en="Game stars" kn={KN.gameStars} /></div>
       </section>
 
-      <h2>Class quizzes</h2>
+      <h2><Bi en="Class quizzes" kn={KN.classQuizzes} inline /></h2>
       {report.quizzes.length === 0 ? (
-        <p>No quizzes were set for this class in this period.</p>
+        <p><Bi en="No quizzes were set for this class in this period." kn={KN.noQuizzes} /></p>
       ) : (
         <table>
           <thead>
-            <tr><th>Quiz</th><th>Subject</th><th>Date</th><th>Score</th><th>%</th><th>Place in class</th></tr>
+            <tr>
+              <th><Bi en="Quiz" kn={KN.quiz} /></th>
+              <th><Bi en="Subject" kn={KN.subject} /></th>
+              <th><Bi en="Date" kn={KN.date} /></th>
+              <th><Bi en="Score" kn={KN.score} /></th>
+              <th>%</th>
+              <th><Bi en="Place in class" kn={KN.placeInClass} /></th>
+            </tr>
           </thead>
           <tbody>
             {report.quizzes.map((q) => {
@@ -793,35 +840,45 @@ function ReportCard({ report, student }) {
                   </td>
                   <td>{q.subject || ""}</td>
                   <td>{fmtDate(r?.submittedAt ?? q.createdAt)}</td>
-                  <td>{r ? `${r.score} / ${r.total}` : "Not attempted"}</td>
+                  <td>{r ? `${r.score} / ${r.total}` : <Bi en="Not attempted" kn={KN.notAttempted} />}</td>
                   <td>{r ? `${r.percent}%` : ""}</td>
-                  <td>{placed ? `${ordinal(r.rank)} of ${r.participants}` : ""}</td>
+                  <td>{placed ? <Bi en={`${ordinal(r.rank)} of ${r.participants}`} kn={placeKn(r.rank, r.participants)} /> : ""}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       )}
-      {report.quizzes.some((q) => student.quizScores[q.id]?.rank <= 3 && student.quizScores[q.id]?.percent > 0) && <MedalLegend />}
-
-      {student.practiceQuizzes > 0 && (
-        <p className="rp-card-note">
-          Also completed {student.practiceQuizzes} practice {student.practiceQuizzes === 1 ? "quiz" : "quizzes"} with the AI tutor
-          {student.practiceAveragePercent != null ? `, averaging ${student.practiceAveragePercent}%` : ""}.
+      {showLegend && (
+        <p className="rp-legend">
+          <PlaceMedal rank={1} /> <Bi en="1st in class" kn={KN.firstInClass} inline /> &nbsp; <PlaceMedal rank={2} />{" "}
+          <Bi en="2nd" kn={KN.second} inline /> &nbsp; <PlaceMedal rank={3} /> <Bi en="3rd" kn={KN.third} inline />
         </p>
       )}
 
-      <h2>Remark</h2>
-      <p className="rp-card-remark">{remarkFor(student.averagePercent)}</p>
+      {student.practiceQuizzes > 0 && (
+        <p className="rp-card-note">
+          <Bi
+            en={`Also completed ${student.practiceQuizzes} practice ${student.practiceQuizzes === 1 ? "quiz" : "quizzes"} with the AI tutor${
+              student.practiceAveragePercent != null ? `, averaging ${student.practiceAveragePercent}%` : ""}.`}
+            kn={practiceNoteKn(student.practiceQuizzes, student.practiceAveragePercent)}
+          />
+        </p>
+      )}
 
-      <h2>Teacher&apos;s comments</h2>
+      <h2><Bi en="Remark" kn={KN.remark} inline /></h2>
+      <p className="rp-card-remark"><Bi en={remarkFor(student.averagePercent)} kn={remarkKn(student.averagePercent)} /></p>
+
+      <h2><Bi en="Teacher's comments" kn={KN.teachersComments} inline /></h2>
       <div className="rp-card-comments" />
 
       <footer className="rp-card-sign">
-        <div>Class teacher</div>
-        <div>Parent / guardian</div>
+        <div><Bi en="Class teacher" kn={KN.classTeacher} /></div>
+        <div><Bi en="Parent / guardian" kn={KN.parentGuardian} /></div>
       </footer>
-      <p className="rp-card-printed">Printed {fmtDate(report.generatedAt)} from LearnMate</p>
+      <p className="rp-card-printed">
+        <Bi en={`Printed ${fmtDate(report.generatedAt)} from LearnMate`} kn={printedKn(fmtDate(report.generatedAt))} inline />
+      </p>
     </article>
   );
 }
@@ -850,6 +907,8 @@ const CSS = `
 .rp-stat-l { font-size: 12.5px; color: var(--dim); }
 .rp-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.25rem; }
 .rp-hint { margin: .5rem 0 0; font-size: 12.5px; color: var(--dim); }
+.rp-lang { display: inline-flex; align-items: center; gap: .5rem; font-size: 13px; font-weight: 600; color: var(--muted); }
+.rp-lang select { height: 2.5rem; padding: 0 .6rem; border-radius: 10px; border: 1px solid var(--divider); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; }
 
 .rp-table-wrap { margin-top: 1rem; overflow-x: auto; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
 .rp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -924,9 +983,15 @@ const CSS = `
 
 // Only applies while printing: hide the app, show the print container.
 const PRINT_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@400;700&display=swap');
+.rp-kn { display: block; font-size: .85em; font-weight: normal; }
 @media print {
   body > *:not(.rp-print) { display: none !important; }
-  .rp-print { display: block !important; color: #000; background: #fff; font-family: Georgia, 'Times New Roman', serif; }
+  .rp-print { display: block !important; color: #000; background: #fff; font-family: Georgia, 'Times New Roman', 'Noto Sans Kannada', 'Kannada Sangam MN', 'Nirmala UI', 'Tunga', serif; }
+  .rp-kn { display: block; margin-top: 1pt; font-family: 'Noto Sans Kannada', 'Kannada Sangam MN', 'Nirmala UI', 'Tunga', sans-serif; font-size: .82em; font-weight: normal; color: #333; text-transform: none; letter-spacing: 0; }
+  .rp-kn-inline { font-family: 'Noto Sans Kannada', 'Kannada Sangam MN', 'Nirmala UI', 'Tunga', sans-serif; font-weight: normal; text-transform: none; letter-spacing: 0; }
+  .rp-card-bi .rp-card-meta dt { min-width: 64pt; }
+  .rp-card-bi .rp-card-head h1 .rp-kn { font-size: .6em; }
   @page { size: A4; margin: 14mm; }
   /* The class sheet prints landscape; report cards stay portrait. */
   @page sheet { size: A4 landscape; margin: 10mm; }
@@ -966,7 +1031,7 @@ const PRINT_CSS = `
   .rp-card-meta dd { margin: 0; }
   .rp-card-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin-top: 12pt; }
   .rp-card-summary div { border: 1px solid #999; padding: 6pt; font-size: 9.5pt; text-align: center; }
-  .rp-card-summary span { display: block; font-size: 16pt; font-weight: bold; }
+  .rp-card-summary > div > span:first-child { display: block; font-size: 16pt; font-weight: bold; }
   .rp-card-note, .rp-card-remark { font-size: 11pt; }
   .rp-card-remark { padding: 8pt; border: 1px solid #999; }
   .rp-card-comments { height: 60pt; border: 1px solid #999; }
