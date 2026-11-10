@@ -21,12 +21,15 @@ public class QuizController {
     private final QuizService quizService;
     private final com.learnmate.learnmateai.service.ChapterCatalog chapterCatalog;
     private final com.learnmate.learnmateai.service.SchoolAccess access;
+    private final com.learnmate.learnmateai.service.AiUsageService aiUsage;
 
     public QuizController(QuizService quizService, com.learnmate.learnmateai.service.ChapterCatalog chapterCatalog,
-                          com.learnmate.learnmateai.service.SchoolAccess access) {
+                          com.learnmate.learnmateai.service.SchoolAccess access,
+                          com.learnmate.learnmateai.service.AiUsageService aiUsage) {
         this.chapterCatalog = chapterCatalog;
         this.access = access;
         this.quizService = quizService;
+        this.aiUsage = aiUsage;
     }
 
     // Validation problems (bad scan image, missing standard, ...) are the
@@ -128,6 +131,7 @@ public class QuizController {
 
     @PostMapping("/{quizId}/ask")
     public QuizAskResponse ask(@PathVariable Long quizId, @RequestBody QuizAskRequest req, Authentication auth) {
+        aiUsage.beforeQuestion(auth.getName()); // counts toward the daily question limit
         return new QuizAskResponse(quizService.askAboutQuiz(quizId, auth.getName(), req));
     }
 

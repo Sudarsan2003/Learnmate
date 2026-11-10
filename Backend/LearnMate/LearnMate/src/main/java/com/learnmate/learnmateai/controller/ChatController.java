@@ -6,6 +6,7 @@ import com.learnmate.learnmateai.model.ChatMessage;
 import com.learnmate.learnmateai.model.LearningHistory;
 import com.learnmate.learnmateai.orchestrator.AgentOrchestrator;
 import com.learnmate.learnmateai.repository.LearningHistoryRepository;
+import com.learnmate.learnmateai.service.AiUsageService;
 import com.learnmate.learnmateai.service.ChatHistoryService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -21,13 +22,16 @@ public class ChatController {
     private final AgentOrchestrator orchestrator;
     private final ChatHistoryService chatHistoryService;
     private final LearningHistoryRepository historyRepository;
+    private final AiUsageService aiUsage;
 
     public ChatController(AgentOrchestrator orchestrator,
                           ChatHistoryService chatHistoryService,
-                          LearningHistoryRepository historyRepository) {
+                          LearningHistoryRepository historyRepository,
+                          AiUsageService aiUsage) {
         this.orchestrator = orchestrator;
         this.chatHistoryService = chatHistoryService;
         this.historyRepository = historyRepository;
+        this.aiUsage = aiUsage;
     }
 
     @PostMapping("/api/chat")
@@ -36,6 +40,7 @@ public class ChatController {
                 ? UUID.randomUUID().toString()
                 : request.sessionId();
 
+        aiUsage.beforeQuestion(auth.getName()); // daily question limit (429 when used up)
         ChatResponse response = orchestrator.handle(request, auth.getName(), sessionId);
 
         // --- persisted per-session chat history (drives the sidebar + chat UI) ---
@@ -61,6 +66,12 @@ public class ChatController {
 
     // Uploaded documents for the student's own school + class; the chat's
     // "quiz me" picker lists these so the student chooses what to be quizzed on.
+    // Today's question limit for the chat screen: { limit (0 = none), used, remaining }.
+    @GetMapping("/api/chat/limit")
+    public Map<String, Object> limit(Authentication auth) {
+        return aiUsage.status(auth.getName());
+    }
+
     @GetMapping("/api/chat/materials")
     public List<Map<String, Object>> materials(Authentication auth) {
         return orchestrator.quizMaterials(auth.getName());

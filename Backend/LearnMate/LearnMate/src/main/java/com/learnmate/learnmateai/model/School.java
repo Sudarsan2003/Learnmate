@@ -39,6 +39,10 @@ public class School {
     // until the owner extends or clears it. Null = no end date (a paying school).
     private java.time.LocalDate accessEndsOn;
 
+    // Most AI questions one student may ask per day (India time). Null = the
+    // server default (learnmate.ai.daily-limit.student); 0 = no limit.
+    private Integer dailyQuestionLimit;
+
     public boolean accessEnded(java.time.LocalDate today) {
         return accessEndsOn != null && today.isAfter(accessEndsOn);
     }

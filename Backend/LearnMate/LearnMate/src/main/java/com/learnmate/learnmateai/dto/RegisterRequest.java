@@ -13,6 +13,9 @@ public record RegisterRequest(
         // The school's join code (from the school admin). The institution is
         // taken from the matching school, never typed in by the student.
         @NotBlank String schoolCode,
-        String standard // student's class, e.g. "5" — optional, only meaningful for USER role
+        String standard, // student's class, e.g. "5" — optional, only meaningful for USER role
+        // A parent or guardian ticked "I agree to the Privacy Policy and Terms" (required).
+        Boolean parentConsent,
+        String guardianName // optional: the parent's or guardian's name
 ) {
 }

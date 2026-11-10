@@ -2,6 +2,7 @@ package com.learnmate.learnmateai.llm;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -41,10 +42,14 @@ public class AnthropicLlmClient implements LlmClient {
     @Value("${anthropic.api-key}")
     private String apiKey;
 
-    public AnthropicLlmClient(WebClient.Builder webClientBuilder) {
+    // Told every call's token counts (per-user / per-school AI cost); may be absent.
+    private final ObjectProvider<LlmUsageRecorder> usageRecorder;
+
+    public AnthropicLlmClient(WebClient.Builder webClientBuilder, ObjectProvider<LlmUsageRecorder> usageRecorder) {
         this.webClient = webClientBuilder
                 .baseUrl("https://api.anthropic.com/v1")
                 .build();
+        this.usageRecorder = usageRecorder;
     }
 
     @Override
@@ -98,6 +103,8 @@ public class AnthropicLlmClient implements LlmClient {
             throw new IllegalStateException("No response from Anthropic API");
         }
 
+        recordUsage(response.get("usage"));
+
         // Make truncation obvious instead of letting it surface later as a JSON parse error.
         if ("max_tokens".equals(response.get("stop_reason"))) {
             log.warn("Anthropic response was cut off at max_tokens ({}). "
@@ -105,6 +112,20 @@ public class AnthropicLlmClient implements LlmClient {
         }
 
         return extractText(response);
+    }
+
+    /** Passes the response's usage.input_tokens / output_tokens to the recorder. */
+    private void recordUsage(Object usage) {
+        if (!(usage instanceof Map<?, ?> u)) return;
+        LlmUsageRecorder recorder = usageRecorder.getIfAvailable();
+        if (recorder == null) return;
+        recorder.record(tokens(u.get("input_tokens")) + tokens(u.get("cache_creation_input_tokens"))
+                        + tokens(u.get("cache_read_input_tokens")),
+                tokens(u.get("output_tokens")));
+    }
+
+    private static long tokens(Object v) {
+        return v instanceof Number n ? n.longValue() : 0L;
     }
 
     @SuppressWarnings("unchecked")

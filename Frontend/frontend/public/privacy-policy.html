@@ -1,321 +1,161 @@
 <!DOCTYPE html>
+<!--
+  DRAFT for review by a lawyer familiar with India's Digital Personal Data
+  Protection Act, 2023 and its Rules before relying on it. When this page
+  changes in a way users must agree to again, update the effective date
+  below AND Consent.VERSION in the backend, so everyone is asked again.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LearnMate Privacy Policy</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.7;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      color: #222;
-      background: #fff;
+    :root { --text: #222; --muted: #666; --bg: #fff; --accent: #208AEF; --line: #e5e7eb; --note: #f3f7ff; }
+    @media (prefers-color-scheme: dark) {
+      :root { --text: #e8e8e8; --muted: #a0a0a0; --bg: #121212; --accent: #6BB2FF; --line: #2c2c2c; --note: #1a2233; }
     }
-
-    h1 {
-      color: #208AEF;
-      margin-bottom: 8px;
-    }
-
-    h2 {
-      margin-top: 32px;
-      color: #333;
-    }
-
-    p, li {
-      font-size: 16px;
-    }
-
-    .updated {
-      color: #666;
-      margin-bottom: 32px;
-    }
-
-    a {
-      color: #208AEF;
-    }
+    body { font-family: Arial, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: var(--text); background: var(--bg); }
+    h1 { color: var(--accent); margin-bottom: 8px; }
+    h2 { margin-top: 32px; }
+    p, li { font-size: 16px; }
+    .updated { color: var(--muted); margin-bottom: 32px; }
+    a { color: var(--accent); }
+    .summary { background: var(--note); border: 1px solid var(--line); border-radius: 10px; padding: 4px 20px; }
+    table { border-collapse: collapse; width: 100%; font-size: 15px; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
   </style>
 </head>
-
 <body>
 
   <h1>LearnMate Privacy Policy</h1>
+  <p class="updated">Effective date: 10 November 2026 &middot; <a href="/terms.html">Terms of Use</a></p>
 
-  <p class="updated">
-    Effective date: September 25, 2026
-  </p>
+  <div class="summary">
+    <p><strong>In short:</strong></p>
+    <ul>
+      <li>LearnMate is used through schools. We collect only what a learning app needs: account details, the questions students ask, and quiz and game results.</li>
+      <li>A student's account is created only with a parent's or guardian's consent, given at sign-up or collected by the school.</li>
+      <li>Questions are answered by an AI service. We never sell personal data, show advertising, or build advertising profiles of children.</li>
+      <li>Parents, students and schools can ask to see, correct or delete data at any time.</li>
+    </ul>
+  </div>
 
+  <h2>1. Who we are</h2>
   <p>
-    LearnMate is an educational learning platform that provides students
-    and educators with learning assistance, educational content,
-    quizzes, games, document-based learning, and AI-powered study support.
+    LearnMate (&ldquo;we&rdquo;, &ldquo;us&rdquo;) provides an AI study assistant, quizzes, learning games and progress
+    reports to schools, their teachers and their students, through the website at srvlearnmate.in and the LearnMate
+    mobile app. For the personal data described here, LearnMate is the <em>Data Fiduciary</em> under India's Digital
+    Personal Data Protection Act, 2023 (&ldquo;DPDP Act&rdquo;). Each school that uses LearnMate also decides how
+    LearnMate is used for its students, under a written agreement with us.
   </p>
 
+  <h2>2. What we collect</h2>
+  <table>
+    <tr><th>Data</th><th>Why</th></tr>
+    <tr><td>Username, password (stored only as a secure hash), name, school, class</td><td>To create the account, sign in, and show the right books, quizzes and reports</td></tr>
+    <tr><td>Parent's mobile number; optionally email, gender and address</td><td>To contact the family about the account and to limit how many accounts one number can create</td></tr>
+    <tr><td>Parent or guardian name and the date consent was given</td><td>To record consent, as the law requires</td></tr>
+    <tr><td>Questions asked in chat and the answers given</td><td>To answer questions, let the student see past chats, and show teachers which topics students find hard</td></tr>
+    <tr><td>Quiz answers, scores, game progress, stars and streaks</td><td>For quizzes, games, leaderboards and report cards</td></tr>
+    <tr><td>Messages between students and teachers</td><td>For the in-app messaging feature</td></tr>
+    <tr><td>Sign-in times, failed sign-in attempts and the network address they came from</td><td>To keep accounts secure (for example, pausing sign-in after repeated wrong passwords) and to show schools which students are inactive</td></tr>
+    <tr><td>Daily count of AI questions and AI usage per account</td><td>To apply the school's daily question limit and to manage costs</td></tr>
+    <tr><td>Books, notes and question papers uploaded by teachers</td><td>So the AI can answer from the school's own material</td></tr>
+  </table>
   <p>
-    This Privacy Policy explains what information LearnMate may collect,
-    how that information is used, and the choices available to users of
-    the LearnMate website and mobile application.
+    We do not collect location, contacts, photos (other than a question paper a teacher chooses to scan), or
+    advertising identifiers.
   </p>
 
-  <h2>1. Information We Collect</h2>
-
+  <h2>3. Children's data and parental consent</h2>
   <p>
-    Depending on how you use LearnMate, we may process the following
-    categories of information:
+    Most LearnMate users are under 18. Following section 9 of the DPDP Act:
   </p>
-
   <ul>
-    <li>Username and account credentials.</li>
-    <li>Email address, when provided.</li>
-    <li>Mobile number, when provided.</li>
-    <li>Gender, when provided.</li>
-    <li>Address, when provided.</li>
-    <li>Institution or school information.</li>
-    <li>Standard, class, or educational level.</li>
-    <li>Authentication and account-role information.</li>
-    <li>Chat messages and chat history.</li>
-    <li>Quiz attempts, answers, scores, and results.</li>
-    <li>Game progress, scores, stars, levels, and related results.</li>
-    <li>Educational documents uploaded through LearnMate.</li>
+    <li>A student account is created only after a parent or guardian agrees to this policy &mdash; by ticking the consent box at sign-up, or through the school, which collects consent from parents before giving us class lists.</li>
+    <li>Accounts that existed before we asked for consent are asked once, on their next sign-in, before they can continue.</li>
+    <li>We do not track children across other websites or apps, do not monitor their behaviour for advertising, and do not show them advertising of any kind.</li>
+    <li>We use children's data only to provide education to them through their school.</li>
+  </ul>
+  <p>
+    A parent or guardian may withdraw consent at any time by writing to us (section 10) or to the school. We will then
+    stop processing the child's data and delete the account, except anything we must keep by law.
+  </p>
+
+  <h2>4. AI answers</h2>
+  <p>
+    When a student asks a question, the question &mdash; together with relevant passages from the school's uploaded
+    books &mdash; is sent to our AI providers to produce an answer. Students should not type personal details such as
+    phone numbers or home addresses into the chat. AI answers can be wrong; students should check important facts with
+    their textbook or teacher.
+  </p>
+
+  <h2>5. Who processes the data for us</h2>
+  <p>We share personal data only with these service providers (Data Processors), only as needed to run LearnMate, and under contracts that require them to protect it:</p>
+  <table>
+    <tr><th>Provider</th><th>What they do</th><th>Where</th></tr>
+    <tr><td>Amazon Web Services</td><td>Hosts the LearnMate servers and database</td><td>India (Hyderabad region)</td></tr>
+    <tr><td>Cloudflare</td><td>Secure connection and protection from attacks for srvlearnmate.in</td><td>Global network</td></tr>
+    <tr><td>Anthropic</td><td>The AI model that writes answers, quizzes and feedback</td><td>United States</td></tr>
+    <tr><td>Voyage AI</td><td>Turns questions and book text into search data so the right pages are found</td><td>United States</td></tr>
+  </table>
+  <p>
+    Questions sent to the AI providers are used only to produce the answer; under their commercial terms they are not
+    used to train AI models. Some of this processing happens outside India, as the DPDP Act permits except for
+    countries the Government of India restricts.
+  </p>
+  <p>
+    Within a school, teachers and the school's administrators can see their students' quiz results, chat topics,
+    progress and reports. Other schools cannot see them. We do not sell or rent personal data, and we disclose it to
+    others only when the law requires us to.
+  </p>
+
+  <h2>6. How long we keep data</h2>
+  <ul>
+    <li>Account details and learning records: while the account is active and the school uses LearnMate.</li>
+    <li>Chat history: until the student deletes it in the app, or the account is deleted.</li>
+    <li>When a school stops using LearnMate, we delete its students' data within 90 days, unless the school asks us to hand it back first.</li>
+    <li>Sign-in security records are kept only as long as needed to protect accounts.</li>
   </ul>
 
-  <h2>2. Account Information</h2>
-
+  <h2>7. Security</h2>
   <p>
-    When you create a LearnMate account, you may provide information such
-    as a username, password, email address, mobile number, gender,
-    address, institution, and standard or class.
+    Connections are encrypted (HTTPS), passwords are stored only as secure hashes, sign-in is paused after repeated
+    wrong passwords, sessions end automatically, and each school's data is kept separate. No system is perfectly
+    secure; if a breach affecting personal data happens, we will inform the affected schools, users and the Data
+    Protection Board of India as the law requires.
   </p>
 
-  <p>
-    This information is used to create and manage your account and to
-    provide features associated with your LearnMate profile.
-  </p>
-
-  <h2>3. Authentication and Session Information</h2>
-
-  <p>
-    LearnMate uses authentication tokens to maintain your signed-in
-    session. On the mobile application, authentication session information
-    is stored using the device's secure storage facilities. On the web
-    application, authentication information is stored locally in the
-    browser.
-  </p>
-
-  <h2>4. AI Chat and Learning Assistance</h2>
-
-  <p>
-    LearnMate provides AI-powered educational assistance. Questions and
-    other information submitted through the chat functionality are sent
-    to the LearnMate backend so that the requested learning functionality
-    can be provided.
-  </p>
-
-  <p>
-    Chat history and chat sessions may be stored so that users can review
-    previous conversations and continue their learning sessions.
-  </p>
-
-  <p>
-    Users can use the available chat-history controls to delete chat
-    history or individual chat sessions where those controls are provided.
-  </p>
-
-  <h2>5. Quizzes and Educational Activities</h2>
-
-  <p>
-    LearnMate processes information associated with quizzes and
-    educational activities, including quiz participation, answers,
-    results, scores, and related progress.
-  </p>
-
-  <p>
-    LearnMate may also provide leaderboards or similar educational
-    features based on activity results.
-  </p>
-
-  <h2>6. Games and Learning Progress</h2>
-
-  <p>
-    LearnMate includes educational games. Information such as game
-    progress, levels, scores, stars, streaks, and other game results may
-    be processed to provide these features.
-  </p>
-
-  <p>
-    Some leaderboard features may use institution-related information to
-    determine which users participate in an institution-specific
-    leaderboard.
-  </p>
-
-  <h2>7. Educational Documents</h2>
-
-  <p>
-    LearnMate may allow authorized users to upload educational documents
-    for learning and document-based educational functionality.
-  </p>
-
-  <p>
-    Documents submitted through LearnMate are transmitted to the LearnMate
-    backend for processing and providing the requested functionality.
-  </p>
-
-  <h2>8. How We Use Information</h2>
-
-  <p>
-    Information processed by LearnMate may be used to:
-  </p>
-
+  <h2>8. Your rights</h2>
+  <p>Students, and parents or guardians on their behalf, can:</p>
   <ul>
-    <li>Create and manage user accounts.</li>
-    <li>Authenticate users.</li>
-    <li>Provide AI-powered learning assistance.</li>
-    <li>Maintain chat sessions and learning history.</li>
-    <li>Provide quizzes and educational activities.</li>
-    <li>Track educational game progress.</li>
-    <li>Provide educational documents and document-based functionality.</li>
-    <li>Provide leaderboards and related learning features.</li>
-    <li>Maintain and operate the LearnMate service.</li>
-    <li>Protect the security and integrity of the service.</li>
+    <li>ask what personal data we hold and who we have shared it with;</li>
+    <li>ask us to correct, complete or update it;</li>
+    <li>ask us to delete it, or withdraw consent;</li>
+    <li>nominate another person to exercise these rights if they are unable to;</li>
+    <li>complain to us (section 10), and if not satisfied, to the Data Protection Board of India.</li>
   </ul>
 
-  <h2>9. Data Sharing and Third-Party Services</h2>
-
+  <h2>9. Account and data deletion</h2>
   <p>
-    LearnMate sends information to its backend services when required to
-    provide application functionality.
+    LearnMate accounts are managed by schools. To delete a student's account, contact the school's LearnMate
+    administrator, who can delete it from Manage users, or write to us directly (section 10). Deleting an account
+    removes its personal data, chats, quiz results and game progress, except anything we must keep by law.
+    Students can also delete individual chats or their whole chat history in the app at any time.
   </p>
 
+  <h2>10. Contact and grievances</h2>
   <p>
-    The specific third-party services or AI providers used to process
-    information may depend on the current LearnMate backend configuration.
-    Users should review this section again whenever the service
-    architecture or service providers change.
+    For questions, requests about your data, or complaints, write to our Grievance Officer at
+    <a href="mailto:annalurusudarsan@gmail.com">annalurusudarsan@gmail.com</a>. Please include the student's username
+    and school. We will respond promptly, and in any case within the time the law requires.
   </p>
 
-  <h2>10. Data Security</h2>
-
+  <h2>11. Changes</h2>
   <p>
-    LearnMate uses authentication mechanisms and secure communication
-    between the application and its backend services. Mobile authentication
-    information is stored using secure device storage.
-  </p>
-
-  <p>
-    While reasonable security measures are used to protect information,
-    no method of electronic transmission or storage can be guaranteed to
-    be completely secure.
-  </p>
-
-  <h2>11. Data Retention</h2>
-
-  <p>
-    LearnMate retains information for as long as reasonably necessary to
-    provide the requested services, maintain accounts and learning
-    functionality, and satisfy applicable operational or legal
-    requirements.
-  </p>
-
-  <p>
-    Specific retention periods may vary depending on the type of
-    information and the purpose for which it is processed.
-  </p>
-
-  <h2>12. Account and Data Deletion</h2>
-
-  <p>
-    LearnMate is a school-managed educational platform. Student accounts
-    are managed by the school or educational institution so that authorized
-    school administrators can manage accounts and review student learning
-    progress.
-  </p>
-
-  <p>
-    If a student wants their LearnMate account deleted, they must contact
-    their school or institution administrator directly. The authorized
-    school administrator is responsible for reviewing and processing the
-    student's account deletion request.
-  </p>
-
-  <p>
-    Students can use this Privacy Policy as the web resource for account
-    deletion information. The deletion request should be initiated by
-    contacting the student's school or institution administrator.
-  </p>
-
-  <p>
-    LearnMate administrators can remove student accounts from the system.
-    When an account is deleted, associated personal information and
-    account-related data will be deleted, except where certain information
-    must or may be retained for legitimate legal, security, fraud
-    prevention, or other applicable requirements.
-  </p>
-
-  <p>
-    Because LearnMate accounts are managed by schools or educational
-    institutions, students do not have a self-service account deletion
-    function inside LearnMate. Students should contact their school or
-    institution administrator to initiate an account deletion request.
-  </p>
-
-  <p>
-    For questions about account management or the deletion process, users
-    may contact LearnMate at:
-  </p>
-
-  <p>
-    <strong>Email:</strong>
-    <a href="mailto:annalurusudarsan@gmail.com">
-      annalurusudarsan@gmail.com
-    </a>
-  </p>
-
-  <h2>13. Children's Privacy</h2>
-
-  <p>
-    LearnMate is an educational platform intended to support students and
-    educators through school or educational institution-managed accounts.
-  </p>
-
-  <p>
-    Where LearnMate is used by students who are children or minors, the
-    school or educational institution is responsible for managing student
-    accounts in accordance with its applicable policies and requirements.
-  </p>
-
-  <p>
-    Parents or guardians who have questions about a student's LearnMate
-    account should contact the student's school or educational institution
-    administrator.
-  </p>
-
-  <h2>14. Changes to This Privacy Policy</h2>
-
-  <p>
-    We may update this Privacy Policy when LearnMate's functionality,
-    data practices, or applicable requirements change.
-  </p>
-
-  <p>
-    The updated version will be published on this page with a revised
-    effective date.
-  </p>
-
-  <h2>15. Contact Us</h2>
-
-  <p>
-    If you have questions about this Privacy Policy, data processed by
-    LearnMate, or the account and data deletion process, please contact:
-  </p>
-
-  <p>
-    <strong>Email:</strong>
-    <a href="mailto:annalurusudarsan@gmail.com">
-      annalurusudarsan@gmail.com
-    </a>
+    If we change this policy in a way that matters, we will update the date above and ask users (or parents) to agree
+    again in the app before continuing.
   </p>
 
 </body>

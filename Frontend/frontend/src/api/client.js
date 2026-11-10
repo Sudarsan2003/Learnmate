@@ -61,7 +61,33 @@ export async function register(username, password, profile = {}) {
     address: profile.address || undefined,
     schoolCode: profile.schoolCode || undefined,
     standard: profile.standard || undefined,
+    parentConsent: profile.parentConsent === true,
+    guardianName: profile.guardianName || undefined,
   });
+  return data;
+}
+
+// Agreement to the current Privacy Policy and Terms (by a parent, for a student).
+export async function giveConsent(guardianName) {
+  const { data } = await api.post("/api/auth/me/consent", { agree: true, guardianName: guardianName || undefined });
+  return data;
+}
+
+// Today's AI question limit: { limit (0 = none), used, remaining }.
+export async function getChatLimit() {
+  const { data } = await api.get("/api/chat/limit");
+  return data;
+}
+
+// AI use and estimated cost per school over the last `days` days (admins).
+export async function getAiUsage(days = 30, institution) {
+  const { data } = await api.get("/api/admin/usage", { params: { days, institution: institution || undefined } });
+  return data;
+}
+
+// Owner: a school's daily question limit per student (null = default, 0 = none).
+export async function setSchoolDailyLimit(id, limit) {
+  const { data } = await api.put(`/api/admin/schools/${id}/daily-limit`, { limit });
   return data;
 }
 

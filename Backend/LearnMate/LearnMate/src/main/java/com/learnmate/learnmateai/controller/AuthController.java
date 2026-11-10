@@ -9,6 +9,7 @@ import com.learnmate.learnmateai.repository.UserRepository;
 import com.learnmate.learnmateai.security.JwtService;
 import com.learnmate.learnmateai.security.LoginAttemptService;
 import com.learnmate.learnmateai.security.PasswordPolicy;
+import com.learnmate.learnmateai.service.Consent;
 import com.learnmate.learnmateai.service.SchoolService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -66,6 +67,12 @@ public class AuthController {
         if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new IllegalArgumentException("That username is already taken. Please choose another.");
         }
+        // Students are children: a parent or guardian must agree before any of
+        // their data is stored (DPDP Act 2023, section 9).
+        if (!Boolean.TRUE.equals(request.parentConsent())) {
+            throw new IllegalArgumentException("A parent or guardian must agree to the Privacy Policy and Terms "
+                    + "before the account is created. (Using the mobile app? Please update it first.)");
+        }
         PasswordPolicy.check(request.password(), "USER", username);
         // A parent's number may be shared by brothers and sisters, so up to
         // MAX_ACCOUNTS_PER_MOBILE accounts can use it.
@@ -92,6 +99,7 @@ public class AuthController {
         user.setAddress(request.address());
         user.setInstitution(school.getName());
         user.setStandard(request.standard()); // was missing — students never got their class saved
+        Consent.record(user, Consent.BY_PARENT, request.guardianName());
         userRepository.save(user);
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole(), user.getTokenVersion());
@@ -111,8 +119,28 @@ public class AuthController {
                 "role", user.getRole(),
                 "owner", user.isOwner(),
                 "institution", user.getInstitution() == null ? "" : user.getInstitution(),
-                "standard", user.getStandard() == null ? "" : user.getStandard()
+                "standard", user.getStandard() == null ? "" : user.getStandard(),
+                // The app asks once (a parent, for a student) to agree to the current policy.
+                "consentNeeded", Consent.needed(user),
+                "consentVersion", Consent.VERSION
         );
+    }
+
+    // Agreement to the current Privacy Policy and Terms, for accounts created
+    // before consent was asked (or before the policy last changed).
+    // Body: { "agree": true, "guardianName": "..." } (guardianName optional).
+    @PostMapping("/me/consent")
+    public java.util.Map<String, Object> giveConsent(@RequestBody java.util.Map<String, Object> body,
+                                                     org.springframework.security.core.Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (!Boolean.TRUE.equals(body.get("agree"))) {
+            throw new IllegalArgumentException("Please tick the box to agree.");
+        }
+        Object guardian = body.get("guardianName");
+        Consent.record(user, Consent.byForSelf(user), guardian == null ? null : guardian.toString());
+        userRepository.save(user);
+        return java.util.Map.of("consentNeeded", false, "consentVersion", Consent.VERSION);
     }
 
     // Self-service: a student can set their own class, but NOT their

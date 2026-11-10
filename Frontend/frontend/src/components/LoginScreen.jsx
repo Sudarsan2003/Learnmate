@@ -92,6 +92,8 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
   const [address, setAddress] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
   const [standard, setStandard] = useState("");
+  const [parentConsent, setParentConsent] = useState(false);
+  const [guardianName, setGuardianName] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -104,7 +106,7 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
     try {
       const result = mode === "login"
         ? await login(username, password)
-        : await register(username, password, { email, mobile, gender, address, schoolCode, standard });
+        : await register(username, password, { email, mobile, gender, address, schoolCode, standard, parentConsent, guardianName });
       localStorage.setItem("learnmate_token", result.token);
       localStorage.setItem("learnmate_username", result.username);
 
@@ -358,6 +360,35 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                   rows={2}
                   className={`${inputCls} resize-none`}
                 />
+
+                <input
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
+                  placeholder="Parent / guardian name"
+                  autoComplete="off"
+                  className={inputCls}
+                />
+
+                <label className="flex cursor-pointer items-start gap-2 px-1 text-xs leading-snug text-[var(--muted)]">
+                  <input
+                    type="checkbox"
+                    checked={parentConsent}
+                    onChange={(e) => setParentConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#3558DE]"
+                  />
+                  <span>
+                    I am the student&apos;s parent or guardian (or an adult creating my own account), and I agree to
+                    LearnMate&apos;s{" "}
+                    <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="underline">
+                      Privacy Policy
+                    </a>{" "}
+                    and{" "}
+                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline">
+                      Terms
+                    </a>
+                    .
+                  </span>
+                </label>
               </div>
             )}
           </div>
@@ -376,7 +407,7 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
 
           <button
             type="submit"
-            disabled={isLoading || !username || !password}
+            disabled={isLoading || !username || !password || (mode === "register" && !parentConsent)}
             style={{ transform: "translateZ(18px)" }}
             className="submit-btn flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#4F80F8] to-[#3558DE] py-2.5 text-sm font-medium text-[#FFFFFF] transition-all disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
