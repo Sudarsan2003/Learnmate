@@ -57,9 +57,19 @@ function voiceFor(language) {
   );
 }
 
+// Phone browsers are strict about speech: iPhones only speak when the first
+// request comes from a tap, Android Chrome sometimes drops speech asked for
+// right after stopping, and nothing plays on an iPhone in silent mode. So:
+// - "speaking" is only shown once the phone really starts (onstart);
+// - a request that doesn't start is retried once, then `blocked` is set so
+//   the page can ask the reader to tap 🔊 (and check silent mode / volume);
+// - the reader calls speak() straight from taps (page turns, 🔊), not later.
 function useSpeech(language) {
   const [speaking, setSpeaking] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [voiceMissing, setVoiceMissing] = useState(false);
+  const currentRef = useRef(null); // the utterance we're waiting on (also stops it being garbage-collected)
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (!window.speechSynthesis) return undefined;
@@ -68,33 +78,78 @@ function useSpeech(language) {
     window.speechSynthesis.addEventListener?.("voiceschanged", check);
     return () => {
       window.speechSynthesis.removeEventListener?.("voiceschanged", check);
+      clearTimeout(timerRef.current);
+      currentRef.current = null;
       window.speechSynthesis.cancel();
     };
   }, [language]);
 
   const speak = useCallback(
     (text) => {
-      if (!window.speechSynthesis || !text) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = SPEECH_LANG[language] ?? "en-IN";
-      const v = voiceFor(language);
-      if (v) u.voice = v;
-      u.rate = 0.85; // a little slower, for small children
-      u.onend = () => setSpeaking(false);
-      u.onerror = () => setSpeaking(false);
-      setSpeaking(true);
-      window.speechSynthesis.speak(u);
+      const synth = typeof window === "undefined" ? null : window.speechSynthesis;
+      if (!synth || !text) return;
+      clearTimeout(timerRef.current);
+      if (synth.speaking || synth.pending) synth.cancel();
+
+      const make = () => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = SPEECH_LANG[language] ?? "en-IN";
+        const v = voiceFor(language);
+        if (v) u.voice = v;
+        u.rate = 0.85; // a little slower, for small children
+        u.onstart = () => {
+          if (currentRef.current !== u) return;
+          setSpeaking(true);
+          setBlocked(false);
+        };
+        const done = (e) => {
+          if (currentRef.current !== u) return;
+          setSpeaking(false);
+          if (e?.error === "not-allowed") setBlocked(true);
+        };
+        u.onend = done;
+        u.onerror = done;
+        currentRef.current = u;
+        return u;
+      };
+
+      let u = make();
+      synth.speak(u);
+      synth.resume(); // Chrome can be left "paused" after a cancel
+
+      // Not started? Try once more (Android drops some requests), then give up and say so.
+      timerRef.current = setTimeout(() => {
+        if (currentRef.current !== u || synth.speaking) return;
+        synth.cancel();
+        u = make();
+        synth.speak(u);
+        synth.resume();
+        timerRef.current = setTimeout(() => {
+          if (currentRef.current === u && !synth.speaking) {
+            setSpeaking(false);
+            setBlocked(true);
+          }
+        }, 1500);
+      }, 500);
     },
     [language],
   );
 
   const stop = useCallback(() => {
+    clearTimeout(timerRef.current);
+    currentRef.current = null;
     window.speechSynthesis?.cancel();
     setSpeaking(false);
   }, []);
 
-  return { speak, stop, speaking, voiceMissing, supported: typeof window !== "undefined" && !!window.speechSynthesis };
+  return {
+    speak,
+    stop,
+    speaking,
+    blocked,
+    voiceMissing,
+    supported: typeof window !== "undefined" && !!window.speechSynthesis,
+  };
 }
 
 // ------------------------------------------------------------------ pictures
@@ -593,7 +648,7 @@ function StoryReader({ storyId, onClose }) {
   const [error, setError] = useState("");
   const [page, setPage] = useState(0);
   const [autoRead, setAutoRead] = useState(true);
-  const { speak, stop, speaking, voiceMissing, supported } = useSpeech(story?.language ?? "English");
+  const { speak, stop, speaking, blocked, voiceMissing, supported } = useSpeech(story?.language ?? "English");
   const touchX = useRef(null);
 
   useEffect(() => {
@@ -610,14 +665,22 @@ function StoryReader({ storyId, onClose }) {
   const current = pages[page];
   const last = page === pages.length - 1;
 
-  // Read each page aloud as it opens (if "Read to me" is on).
+  // Try reading the first page as the book opens. Computers allow this; phones
+  // may not (no tap yet), in which case `blocked` asks the reader to tap 🔊.
+  const firstText = pages[0]?.text;
   useEffect(() => {
-    if (current && autoRead && supported) speak(current.text);
-  }, [current, autoRead, supported, speak]);
+    if (firstText && supported) speak(firstText);
+    // Only when the book opens: page turns read from their own tap (go below).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstText, supported]);
 
+  // Turning a page reads it straight from the tap, which phones allow.
   const go = (delta) => {
-    stop();
-    setPage((p) => Math.max(0, Math.min(pages.length - 1, p + delta)));
+    const next = Math.max(0, Math.min(pages.length - 1, page + delta));
+    if (next === page) return;
+    setPage(next);
+    if (autoRead && supported) speak(pages[next].text);
+    else stop();
   };
 
   useEffect(() => {
@@ -647,6 +710,7 @@ function StoryReader({ storyId, onClose }) {
             type="button"
             onClick={() => {
               if (autoRead) stop();
+              else if (current) speak(current.text);
               setAutoRead((v) => !v);
             }}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm shadow-sm ${autoRead ? "bg-[#FF7A59] text-white" : "bg-white/70 text-[#334] [[data-theme=dark]_&]:bg-white/10 [[data-theme=dark]_&]:text-[var(--text)]"}`}
@@ -684,6 +748,11 @@ function StoryReader({ storyId, onClose }) {
           >
             {current.text}
           </p>
+          {blocked && (
+            <p role="status" className="mx-auto mt-3 max-w-md rounded-xl bg-[#FF7A59]/15 px-3 py-2 text-center text-sm font-medium text-[#B4441F] [[data-theme=dark]_&]:text-[#FFB59E]">
+              Tap the orange 🔊 button to listen. No sound? Turn off silent mode and turn up the volume.
+            </p>
+          )}
           {voiceMissing && autoRead && (
             <p className="mt-2 text-center text-xs text-[var(--muted)]">
               This device has no {story.language} voice, so reading aloud may not work. Try the phone app or another browser.
