@@ -58,14 +58,7 @@ public class ReplicateImageClient {
                 "go_fast", true));
         Map<String, Object> prediction;
         try {
-            prediction = api.post()
-                    .uri("/models/{model}/predictions", model)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                    .header("Prefer", "wait=60")
-                    .bodyValue(body)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block(Duration.ofSeconds(75));
+            prediction = createWithRetry(body);
             // Still running after the wait: poll until it finishes (up to about a minute more).
             for (int i = 0; i < 30 && prediction != null && isRunning(prediction); i++) {
                 Thread.sleep(2000);
@@ -80,6 +73,8 @@ public class ReplicateImageClient {
                     ? "The picture service rejected LearnMate's key. Check REPLICATE_API_TOKEN."
                     : e.getStatusCode().value() == 402
                     ? "The picture service account has no credit left."
+                    : e.getStatusCode().value() == 429
+                    ? "The picture service is limiting LearnMate right now. Wait a minute, then redraw this picture."
                     : "The picture service is busy. Please try again in a minute.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -101,6 +96,45 @@ public class ReplicateImageClient {
                 .block(Duration.ofSeconds(60));
         if (bytes == null || bytes.length == 0) throw new IllegalStateException("The picture couldn't be downloaded.");
         return bytes;
+    }
+
+    // Replicate throttles accounts with little credit to a few pictures a minute
+    // (429 "Your rate limit resets in ~30s"). Wait as asked and try again,
+    // so a story's pages are drawn one after another instead of failing.
+    private static final int MAX_THROTTLE_RETRIES = 8;
+    private static final java.util.regex.Pattern RESETS_IN = java.util.regex.Pattern.compile("resets in ~?(\\d+)\\s*s");
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> createWithRetry(Map<String, Object> body) throws InterruptedException {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return api.post()
+                        .uri("/models/{model}/predictions", model)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("Prefer", "wait=60")
+                        .bodyValue(body)
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .block(Duration.ofSeconds(75));
+            } catch (WebClientResponseException e) {
+                if (e.getStatusCode().value() != 429 || attempt >= MAX_THROTTLE_RETRIES) throw e;
+                int wait = waitSeconds(e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER), e.getResponseBodyAsString());
+                log.info("Replicate asked LearnMate to slow down; waiting {}s before picture retry {}", wait, attempt + 1);
+                Thread.sleep(wait * 1000L);
+            }
+        }
+    }
+
+    /** Seconds to wait after a 429: the Retry-After header, else "resets in ~Ns" in the body, else 10; kept to 2-60. */
+    static int waitSeconds(String retryAfter, String body) {
+        int wait = 10;
+        java.util.regex.Matcher m = body == null ? null : RESETS_IN.matcher(body);
+        if (retryAfter != null && retryAfter.trim().matches("\\d+")) {
+            wait = Integer.parseInt(retryAfter.trim());
+        } else if (m != null && m.find()) {
+            wait = Integer.parseInt(m.group(1)) + 1; // "~30s" is approximate: a second's margin
+        }
+        return Math.max(2, Math.min(60, wait));
     }
 
     private static boolean isRunning(Map<String, Object> p) {
