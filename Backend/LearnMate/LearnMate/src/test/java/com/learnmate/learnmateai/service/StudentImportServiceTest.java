@@ -9,6 +9,10 @@ class StudentImportServiceTest {
     @Test
     void classesAreNormalisedTheWaySignUpStoresThem() {
         assertEquals("9", StudentImportService.normaliseClass("9"));
+        assertEquals("LKG", StudentImportService.normaliseClass("KG-1"));
+        assertEquals("LKG", StudentImportService.normaliseClass("lkg"));
+        assertEquals("UKG", StudentImportService.normaliseClass("KG 2"));
+        assertEquals("UKG", StudentImportService.normaliseClass("Upper KG"));
         assertEquals("9", StudentImportService.normaliseClass("09"));
         assertEquals("9", StudentImportService.normaliseClass("IX"));
         assertEquals("9", StudentImportService.normaliseClass("Class 9"));

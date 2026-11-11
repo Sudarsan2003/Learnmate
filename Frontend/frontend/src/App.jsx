@@ -11,6 +11,7 @@ import Messages from "./components/Messages";
 import Dashboard from "./components/Dashboard";
 import Games from "./components/Games";
 import Reports from "./components/Reports";
+import Stories from "./components/Stories";
 import PageFrame from "./components/PageFrame";
 import { ThemeProvider } from "./components/ThemeContext";
 import { SESSION_EXPIRED_MESSAGE } from "./api/client";
@@ -33,7 +34,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login"); // which tab LoginScreen opens on
   const [authNotice, setAuthNotice] = useState(""); // shown on the login screen, e.g. after a session expires
 
-  // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile" | "reports"
+  // "chat" | "dashboard" | "games" | "upload" | "users" | "quizzes" | "profile" | "reports" | "stories"
   // Kept for this tab only, so a reload (for example after the phone camera
   // opens for "Scan questions") comes back to the same page instead of chat.
   const [view, setView] = useState(() => {
@@ -176,6 +177,10 @@ export default function App() {
                     onAskLearnMate={backToChat}
                   />
                 </PageFrame>
+              ) : view === "stories" ? (
+                <PageFrame onBack={backToChat}>
+                  <Stories role={user.role} />
+                </PageFrame>
               ) : view === "messages" ? (
                 <PageFrame onBack={backToChat}>
                   <Messages currentUsername={user.username} role={user.role} initialWith={messageTarget} />
@@ -197,6 +202,7 @@ export default function App() {
                   onOpenDashboard={() => setView("dashboard")}
                   onOpenReports={() => setView("reports")}
                   onOpenGames={() => setView("games")}
+                  onOpenStories={() => setView("stories")}
                   initialAsk={pendingAsk}
                   onAskHandled={() => setPendingAsk(null)}
                   onOpenMessages={() => {

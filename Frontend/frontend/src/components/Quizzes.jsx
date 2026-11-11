@@ -55,8 +55,8 @@ const PENDING_QUIZ_CHAT_KEY = "learnmate_pending_quiz_chat";
 const OPTION_KEYS = ["A", "B", "C", "D"];
 // Admin-selectable quiz timer choices — 15 to 60 minutes in 5-minute steps.
 const DURATION_OPTIONS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-// Standards a quiz can target — classes 1 to 12.
-const STANDARD_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+// Standards a quiz can target: LKG (KG-1), UKG (KG-2) and classes 1 to 12.
+const STANDARD_OPTIONS = ["LKG", "UKG", ...Array.from({ length: 12 }, (_, i) => String(i + 1))];
 // Score at or above this percentage counts as a pass in stats and badges.
 const PASS_PERCENT = 50;
 
@@ -713,7 +713,7 @@ function CreateQuizForm({ role, currentUsername, onCreated }) {
     setError(null);
 
     if (!title.trim()) return setError("Title is required.");
-    if (!STANDARD_OPTIONS.includes(standard)) return setError("Pick a standard from 1 to 12.");
+    if (!STANDARD_OPTIONS.includes(standard)) return setError("Pick a class: LKG, UKG or 1 to 12.");
     if (isAdmin && !institution.trim()) {
       return setError("Institution is required — pick which school/institution this quiz is for.");
     }

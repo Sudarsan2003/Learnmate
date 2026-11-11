@@ -7,4 +7,7 @@ package com.learnmate.learnmateai.llm;
 public interface LlmUsageRecorder {
 
     void record(long inputTokens, long outputTokens);
+
+    /** One picture made by an image model. */
+    default void recordImage() {}
 }

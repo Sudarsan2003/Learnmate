@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList, MessageCircle } from "lucide-react";
+import { Orbit, Menu, Sparkles, Plus, Copy, Check, RotateCcw, Square, ArrowDown, LayoutDashboard, Gamepad2, ClipboardList, MessageCircle, BookOpen } from "lucide-react";
 import { sendChatMessage, getSessionHistory, getChatLimit } from "../api/client";
 import ProfileMenu from "./ProfileMenu";
 import AmbientBackground from "./AmbientBackground";
@@ -152,6 +152,7 @@ export default function ChatWindow({
   onOpenDashboard,
   onOpenReports,
   onOpenGames,
+  onOpenStories,
   onOpenMessages,
   initialAsk,
   onAskHandled,
@@ -515,6 +516,11 @@ export default function ChatWindow({
           <button onClick={onOpenGames} aria-label="Games" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
             <Gamepad2 size={16} />
             <span className="hidden sm:inline">Games</span>
+          </button>
+
+          <button onClick={onOpenStories} aria-label="Stories" className="flex h-10 min-w-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#5B8DEF]/25 px-2.5 text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:border-[#5B8DEF]/50 hover:text-[var(--text)] sm:h-auto sm:px-3 sm:py-1.5">
+            <BookOpen size={16} />
+            <span className="hidden sm:inline">Stories</span>
           </button>
 
           <MessagesButton onClick={onOpenMessages} />

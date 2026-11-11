@@ -38,12 +38,13 @@ public class AiUsageService implements LlmUsageRecorder {
     static final String BACKGROUND = "(background)";
 
     private static final String UPSERT = """
-            INSERT INTO ai_usage (username, institution, day, requests, input_tokens, output_tokens)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO ai_usage (username, institution, day, requests, input_tokens, output_tokens, images)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (username, day) DO UPDATE SET
                 requests = ai_usage.requests + EXCLUDED.requests,
                 input_tokens = ai_usage.input_tokens + EXCLUDED.input_tokens,
                 output_tokens = ai_usage.output_tokens + EXCLUDED.output_tokens,
+                images = ai_usage.images + EXCLUDED.images,
                 institution = coalesce(EXCLUDED.institution, ai_usage.institution)
             RETURNING requests
             """;
@@ -70,6 +71,10 @@ public class AiUsageService implements LlmUsageRecorder {
 
     @Value("${learnmate.ai.price.output-per-mtok:}")
     private String outputPriceOverride;
+
+    // US$ per story picture (FLUX.1 schnell on Replicate is about $0.003).
+    @Value("${learnmate.ai.price.image-usd:0.003}")
+    private double imagePriceUsd;
 
     @Value("${learnmate.ai.price.usd-to-inr:88}")
     private double usdToInr;
@@ -154,7 +159,11 @@ public class AiUsageService implements LlmUsageRecorder {
     }
 
     private int add(String username, String institution, int requests, long in, long out) {
-        Integer n = jdbc.queryForObject(UPSERT, Integer.class, username, institution, today(), requests, in, out);
+        return add(username, institution, requests, in, out, 0);
+    }
+
+    private int add(String username, String institution, int requests, long in, long out, int images) {
+        Integer n = jdbc.queryForObject(UPSERT, Integer.class, username, institution, today(), requests, in, out, images);
         return n == null ? 0 : n;
     }
 
@@ -202,6 +211,21 @@ public class AiUsageService implements LlmUsageRecorder {
         }
     }
 
+    /** Counts one story picture for the signed-in user (priced at learnmate.ai.price.image-usd). Never fails. */
+    @Override
+    public void recordImage() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String username = auth == null || auth.getName() == null || "anonymousUser".equals(auth.getName())
+                    ? BACKGROUND : auth.getName();
+            String institution = BACKGROUND.equals(username) ? null
+                    : users.findByUsername(username).map(User::getInstitution).orElse(null);
+            add(username, institution, 0, 0, 0, 1);
+        } catch (RuntimeException e) {
+            log.warn("Could not record a story picture: {}", e.getMessage());
+        }
+    }
+
     // ------------------------------------------------------------------ report
 
     /**
@@ -231,7 +255,8 @@ public class AiUsageService implements LlmUsageRecorder {
                        count(DISTINCT CASE WHEN a.requests > 0 THEN a.username END) AS active_users,
                        coalesce(sum(a.requests), 0) AS requests,
                        coalesce(sum(a.input_tokens), 0) AS input_tokens,
-                       coalesce(sum(a.output_tokens), 0) AS output_tokens
+                       coalesce(sum(a.output_tokens), 0) AS output_tokens,
+                       coalesce(sum(a.images), 0) AS images
                 FROM ai_usage a LEFT JOIN users u ON u.username = a.username
                 WHERE a.day BETWEEN ? AND ?""" + scope + """
                  GROUP BY a.institution
@@ -241,6 +266,7 @@ public class AiUsageService implements LlmUsageRecorder {
             String key = inst == null ? "" : inst.trim().toLowerCase();
             long in = rs.getLong("input_tokens");
             long out = rs.getLong("output_tokens");
+            long pics = rs.getLong("images");
             long active = rs.getLong("active_students");
             School school = schoolByName.get(key);
             Map<String, Object> row = new LinkedHashMap<>();
@@ -253,9 +279,10 @@ public class AiUsageService implements LlmUsageRecorder {
             row.put("requests", rs.getLong("requests"));
             row.put("inputTokens", in);
             row.put("outputTokens", out);
-            putCost(row, in, out);
+            row.put("images", pics);
+            putCost(row, in, out, pics);
             row.put("costPerActiveStudentInr", active == 0 ? null
-                    : round2(costUsd(in, out, inputPricePerMTok, outputPricePerMTok) * usdToInr / active));
+                    : round2(totalUsd(in, out, pics) * usdToInr / active));
             schoolRows.add(row);
         }, args.toArray());
 
@@ -274,7 +301,8 @@ public class AiUsageService implements LlmUsageRecorder {
             row.put("requests", 0L);
             row.put("inputTokens", 0L);
             row.put("outputTokens", 0L);
-            putCost(row, 0, 0);
+            row.put("images", 0L);
+            putCost(row, 0, 0, 0);
             row.put("costPerActiveStudentInr", null);
             schoolRows.add(row);
         }
@@ -283,20 +311,23 @@ public class AiUsageService implements LlmUsageRecorder {
         List<Object> topArgs = new ArrayList<>(args);
         topArgs.add(inputPricePerMTok);
         topArgs.add(outputPricePerMTok);
+        topArgs.add(imagePriceUsd * 1_000_000);
         jdbc.query("""
                 SELECT a.username, max(a.institution) AS institution, coalesce(max(u.role), '') AS role,
                        coalesce(max(u.standard), '') AS standard,
                        coalesce(sum(a.requests), 0) AS requests,
                        coalesce(sum(a.input_tokens), 0) AS input_tokens,
-                       coalesce(sum(a.output_tokens), 0) AS output_tokens
+                       coalesce(sum(a.output_tokens), 0) AS output_tokens,
+                       coalesce(sum(a.images), 0) AS images
                 FROM ai_usage a LEFT JOIN users u ON u.username = a.username
                 WHERE a.day BETWEEN ? AND ?""" + scope + """
                  GROUP BY a.username
-                 ORDER BY sum(a.input_tokens) * ? + sum(a.output_tokens) * ? DESC
+                 ORDER BY sum(a.input_tokens) * ? + sum(a.output_tokens) * ? + sum(a.images) * ? DESC
                  LIMIT 20
                 """, rs -> {
             long in = rs.getLong("input_tokens");
             long out = rs.getLong("output_tokens");
+            long pics = rs.getLong("images");
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("username", rs.getString("username"));
             row.put("school", rs.getString("institution") == null ? "" : rs.getString("institution"));
@@ -305,7 +336,7 @@ public class AiUsageService implements LlmUsageRecorder {
             row.put("requests", rs.getLong("requests"));
             row.put("inputTokens", in);
             row.put("outputTokens", out);
-            putCost(row, in, out);
+            putCost(row, in, out, pics);
             topUsers.add(row);
         }, topArgs.toArray());
 
@@ -313,17 +344,19 @@ public class AiUsageService implements LlmUsageRecorder {
         jdbc.query("""
                 SELECT a.day, coalesce(sum(a.requests), 0) AS requests,
                        coalesce(sum(a.input_tokens), 0) AS input_tokens,
-                       coalesce(sum(a.output_tokens), 0) AS output_tokens
+                       coalesce(sum(a.output_tokens), 0) AS output_tokens,
+                       coalesce(sum(a.images), 0) AS images
                 FROM ai_usage a
                 WHERE a.day BETWEEN ? AND ?""" + scope + """
                  GROUP BY a.day ORDER BY a.day
                 """, rs -> {
             long in = rs.getLong("input_tokens");
             long out = rs.getLong("output_tokens");
+            long pics = rs.getLong("images");
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("day", rs.getDate("day").toLocalDate().toString());
             row.put("requests", rs.getLong("requests"));
-            putCost(row, in, out);
+            putCost(row, in, out, pics);
             daily.add(row);
         }, args.toArray());
 
@@ -333,12 +366,15 @@ public class AiUsageService implements LlmUsageRecorder {
         totals.put("requests", schoolRows.stream().mapToLong(r -> (Long) r.get("requests")).sum());
         totals.put("inputTokens", totalIn);
         totals.put("outputTokens", totalOut);
-        putCost(totals, totalIn, totalOut);
+        long totalPics = schoolRows.stream().mapToLong(r -> (Long) r.get("images")).sum();
+        totals.put("images", totalPics);
+        putCost(totals, totalIn, totalOut, totalPics);
 
         Map<String, Object> prices = new LinkedHashMap<>();
         prices.put("model", model);
         prices.put("inputPerMTokUsd", inputPricePerMTok);
         prices.put("outputPerMTokUsd", outputPricePerMTok);
+        prices.put("imageUsd", imagePriceUsd);
         prices.put("usdToInr", usdToInr);
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -353,8 +389,12 @@ public class AiUsageService implements LlmUsageRecorder {
         return out;
     }
 
-    private void putCost(Map<String, Object> row, long in, long out) {
-        double usd = costUsd(in, out, inputPricePerMTok, outputPricePerMTok);
+    private double totalUsd(long in, long out, long images) {
+        return costUsd(in, out, inputPricePerMTok, outputPricePerMTok) + images * imagePriceUsd;
+    }
+
+    private void putCost(Map<String, Object> row, long in, long out, long images) {
+        double usd = totalUsd(in, out, images);
         row.put("costUsd", round2(usd));
         row.put("costInr", round2(usd * usdToInr));
     }

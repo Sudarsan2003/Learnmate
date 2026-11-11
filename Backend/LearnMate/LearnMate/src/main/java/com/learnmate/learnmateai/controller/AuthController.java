@@ -98,7 +98,9 @@ public class AuthController {
         user.setGender(request.gender());
         user.setAddress(request.address());
         user.setInstitution(school.getName());
-        user.setStandard(request.standard()); // was missing — students never got their class saved
+        // "5th", "Class 5", "KG-1" ... are stored the same way as imported students ("5", "LKG").
+        user.setStandard(request.standard() == null || request.standard().isBlank() ? null
+                : com.learnmate.learnmateai.service.StudentImportService.normaliseClass(request.standard()));
         Consent.record(user, Consent.BY_PARENT, request.guardianName());
         userRepository.save(user);
 

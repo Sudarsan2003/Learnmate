@@ -275,8 +275,15 @@ public class StudentImportService {
         return s == null ? "" : s.replace(' ', ' ').trim().replaceAll("\\s{2,}", " ");
     }
 
-    /** "Class 9", "9th", "IX" and "Grade 9" all mean class "9" (up to "XII" = "12"), matching how sign-up stores it. */
-    static String normaliseClass(String raw) {
+    /**
+     * "Class 9", "9th", "IX" and "Grade 9" all mean class "9" (up to "XII" = "12"), matching how sign-up stores it.
+     * Kindergarten is "LKG" (KG-1) or "UKG" (KG-2), which year-end promotion already understands.
+     */
+    public static String normaliseClass(String raw) {
+        if (raw == null) return null;
+        String kg = raw.toLowerCase(Locale.ROOT).replaceAll("[\\s._-]+", "");
+        if (kg.equals("lkg") || kg.equals("kg1") || kg.equals("lowerkg") || kg.equals("lowerkindergarten")) return "LKG";
+        if (kg.equals("ukg") || kg.equals("kg2") || kg.equals("upperkg") || kg.equals("upperkindergarten")) return "UKG";
         String s = raw.toLowerCase(Locale.ROOT).replaceAll("^(class|std|standard|grade)\\s*", "").trim();
         s = s.replaceAll("^(\\d{1,2})(st|nd|rd|th)$", "$1");
         Map<String, String> roman = Map.ofEntries(

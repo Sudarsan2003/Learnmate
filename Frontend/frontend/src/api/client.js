@@ -573,3 +573,51 @@ export async function getQuizChapters(standard, institution) {
   });
   return data;
 }
+
+// ---------------------------------------------------------------- picture-book stories
+
+export async function getStorySettings() {
+  const { data } = await api.get("/api/stories/settings");
+  return data;
+}
+
+export async function listStories(institution) {
+  const { data } = await api.get("/api/stories", { params: { institution: institution || undefined } });
+  return data;
+}
+
+export async function createStory(story) {
+  const { data } = await api.post("/api/stories", story);
+  return data;
+}
+
+export async function getStory(id) {
+  const { data } = await api.get(`/api/stories/${id}`);
+  return data;
+}
+
+export async function editStoryPage(id, pageNo, changes) {
+  const { data } = await api.put(`/api/stories/${id}/pages/${pageNo}`, changes);
+  return data;
+}
+
+export async function redrawStoryPage(id, pageNo, scene) {
+  const { data } = await api.post(`/api/stories/${id}/pages/${pageNo}/redraw`, { scene: scene || undefined });
+  return data;
+}
+
+export async function setStoryPublished(id, published) {
+  const { data } = await api.post(`/api/stories/${id}/${published ? "publish" : "unpublish"}`);
+  return data;
+}
+
+export async function deleteStory(id) {
+  const { data } = await api.delete(`/api/stories/${id}`);
+  return data;
+}
+
+// A page's picture as an object URL (pictures need the login token, so <img src> can't fetch them directly).
+export async function storyPictureUrl(id, pageNo) {
+  const { data } = await api.get(`/api/stories/${id}/pages/${pageNo}/image`, { responseType: "blob" });
+  return URL.createObjectURL(data);
+}
