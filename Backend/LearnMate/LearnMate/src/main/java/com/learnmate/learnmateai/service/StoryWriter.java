@@ -36,10 +36,15 @@ public class StoryWriter {
               using words a %4$s child knows. Repetition and gentle rhythm are good.
             - The story gently teaches the topic, using the facts and words from the school's material when given.
               The last page repeats the main idea.
-            - Warm, kind and safe: no violence, danger, fear, sadness that is not resolved, brands, real people,
-              religion or politics. Use Indian names and everyday Indian settings where natural.
+            - Warm, kind and safe: no violence, danger, fear, sadness that is not resolved, brands, living celebrities,
+              religion or present-day politics. Use Indian names and everyday Indian settings where natural.
+            - True stories: when the topic is a real person or event from history ("True story: ..."), keep every
+              fact true. Simplify for young children, but never invent events, dates, numbers or quotes, and do not
+              add other real people. Leave out anything frightening. Use the person's real name in the text.
+              Otherwise, do not write about real people.
             - "character": a short visual description of the main character(s) (species or child, age, clothes,
-              colours), so every picture can show them the same way. No names of real people or famous characters.
+              colours), so every picture can show them the same way. Describe how they look; never use a real
+              person's or a famous character's name here.
             - Each "scene": what the picture for that page shows, in one sentence, concrete and visual.
               Never ask for words, letters or numbers to be written in the picture.
             """;

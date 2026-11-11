@@ -44,6 +44,15 @@ class StoryWriterTest {
     }
 
     @Test
+    void trueHistoryStoriesMustKeepTheFacts() {
+        String[] seen = new String[1];
+        new StoryWriter((sys, u) -> { seen[0] = sys; return JSON; })
+                .write("True story: Saalumarada Thimmakka planted 385 banyan saplings", "UKG", "English", 4, List.of());
+        assertThat(seen[0]).contains("keep every").contains("never invent events, dates, numbers or quotes")
+                .doesNotContain("brands, real people");
+    }
+
+    @Test
     void refusesTooShortOrUnreadableStories() {
         assertThatThrownBy(() -> new StoryWriter((s, u) -> "sorry").write("x", "LKG", "English", 6, List.of()))
                 .hasMessageContaining("didn't return a story");
