@@ -42,4 +42,8 @@ public class AiUsage {
 
     @Column(name = "output_tokens", nullable = false, columnDefinition = "bigint default 0")
     private long outputTokens;
+
+    // Story pictures made (see StoryService).
+    @Column(name = "images", nullable = false, columnDefinition = "integer default 0")
+    private int images;
 }

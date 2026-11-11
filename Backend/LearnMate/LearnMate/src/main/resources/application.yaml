@@ -56,7 +56,16 @@ learnmate:
     price:                                   # for the usage report's cost estimate
       input-per-mtok: ${AI_PRICE_INPUT:}     # US$ per million tokens; empty = list price of the model above
       output-per-mtok: ${AI_PRICE_OUTPUT:}
+      image-usd: ${AI_PRICE_IMAGE:0.003}     # US$ per story picture
       usd-to-inr: ${AI_USD_TO_INR:88}
+  # Picture-book stories (see StoryService). Pictures need a Replicate API token.
+  stories:
+    replicate:
+      token: ${REPLICATE_API_TOKEN:}
+      model: black-forest-labs/flux-schnell  # Apache 2.0 licence: commercial use allowed
+    dir: ${STORIES_DIR:${user.home}/learnmate-data/stories}
+    daily-limit-per-school: 20
+    daily-picture-limit-per-school: 150
 
 anthropic:
   api-key: ${ANTHROPIC_API_KEY}

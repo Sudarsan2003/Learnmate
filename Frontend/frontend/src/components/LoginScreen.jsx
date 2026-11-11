@@ -349,7 +349,7 @@ export default function LoginScreen({ onAuthenticated, initialMode = "login", on
                 <input
                   value={standard}
                   onChange={(e) => setStandard(e.target.value)}
-                  placeholder="Class / standard (students only, e.g. 5)"
+                  placeholder="Class (students only, e.g. 5, LKG or UKG)"
                   className={inputCls}
                 />
 
