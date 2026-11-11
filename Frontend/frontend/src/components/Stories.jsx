@@ -40,6 +40,51 @@ const CLASS_OPTIONS = [
   { value: "UKG", label: "UKG (KG-2)" },
   ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `Class ${i + 1}` })),
 ];
+// Ready-made topics: true stories from Indian history, gentle enough for young
+// children (no wars). Each carries the key facts so the story stays true.
+const TRUE_STORIES = [
+  {
+    label: "Saalumarada Thimmakka plants banyan trees",
+    topic: "True story: Saalumarada Thimmakka from Karnataka and her husband Chikkaiah planted 385 banyan saplings along the road near Hulikal and watered and cared for them like their own children. The trees still give shade today.",
+  },
+  {
+    label: "Young Abdul Kalam delivers newspapers",
+    topic: "True story: as a boy in Rameswaram, A.P.J. Abdul Kalam woke up early to deliver newspapers to help his family, and still loved studying. He grew up to build rockets and became President of India.",
+  },
+  {
+    label: "India's satellite rides a bullock cart",
+    topic: "True story: in 1981 Indian scientists carried their satellite APPLE on a bullock cart to test it, because it was the safest way to move it. Soon it went to space and helped India send TV and radio signals.",
+  },
+  {
+    label: "Chandrayaan-3 lands on the Moon",
+    topic: "True story: on 23 August 2023 India's Chandrayaan-3 lander Vikram landed gently near the Moon's south pole, the first time any country landed there. The little rover Pragyan rolled out and studied the Moon's soil.",
+  },
+  {
+    label: "C.V. Raman asks why the sea is blue",
+    topic: "True story: on a ship journey in 1921, C.V. Raman looked at the sea and wondered why it is blue. His experiments led to the Raman effect and a Nobel Prize in 1930. National Science Day, 28 February, celebrates his discovery.",
+  },
+  {
+    label: "Savitribai Phule opens a school for girls",
+    topic: "True story: in 1848 in Pune, Savitribai Phule and Jyotirao Phule opened a school for girls when girls were not allowed to study. Savitribai became India's first woman teacher and kept teaching bravely.",
+  },
+  {
+    label: "Sir M. Visvesvaraya builds the KRS dam",
+    topic: "True story: engineer Sir M. Visvesvaraya planned the Krishna Raja Sagara dam near Mysuru to store river water for farms and towns. Engineers' Day, 15 September, is celebrated on his birthday.",
+  },
+  {
+    label: "Gandhiji walks to Dandi to make salt",
+    topic: "True story: in 1930 Mahatma Gandhi walked about 385 km from Sabarmati Ashram to Dandi beach with many people, peacefully, and made salt from sea water to show that salt belongs to everyone.",
+  },
+  {
+    label: "Tagore's school under the trees",
+    topic: "True story: in 1901 Rabindranath Tagore started a school at Shantiniketan where children learned under the shade of trees, close to nature, with music, art and stories.",
+  },
+  {
+    label: "J.C. Bose shows that plants respond",
+    topic: "True story: scientist Jagadish Chandra Bose built a special instrument, the crescograph, to show that plants grow and respond to light, heat and touch. People were amazed that plants react to the world around them.",
+  },
+];
+
 const classLabel = (v) => CLASS_OPTIONS.find((c) => c.value === v)?.label ?? `Class ${v}`;
 
 const SPEECH_LANG = { English: "en-IN", Kannada: "kn-IN", Telugu: "te-IN", Hindi: "hi-IN" };
@@ -384,6 +429,21 @@ function CreateStory({ onCreated }) {
         <Sparkles size={16} className="text-[#FF7A59]" aria-hidden="true" /> Make a new story
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm sm:col-span-2">
+          <span className="text-[var(--muted)]">Pick a true story from Indian history (optional), or write your own below</span>
+          <select
+            value={TRUE_STORIES.find((t) => t.topic === topic)?.topic ?? ""}
+            onChange={(e) => e.target.value && setTopic(e.target.value)}
+            className={`${input} mt-1`}
+          >
+            <option value="">Choose a true story…</option>
+            {TRUE_STORIES.map((t) => (
+              <option key={t.label} value={t.topic}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="text-sm sm:col-span-2">
           <span className="text-[var(--muted)]">What should it teach?</span>
           <input
