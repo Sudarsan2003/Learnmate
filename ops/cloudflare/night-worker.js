@@ -17,6 +17,12 @@
  * during the day.
  */
 
+// Night closure on/off. Set to false while Google Play reviews a new app
+// version (its reviewers test at any hour, often during India's night), and
+// back to true once the version is approved. The EC2 server must also stay on
+// at night while this is false.
+const NIGHT_CLOSURE = false;
+
 const OPEN_AT = 6;    // 6 AM India time
 const CLOSE_AT = 22;  // 10 PM India time
 const IST_OFFSET_MINUTES = 5 * 60 + 30;
@@ -28,7 +34,7 @@ export default {
     const isApi = url.pathname.startsWith("/api/");
 
     if (preview === "night" || preview === "down") return closed(preview, isApi);
-    if (isNight()) return closed("night", isApi);
+    if (NIGHT_CLOSURE && isNight()) return closed("night", isApi);
 
     try {
       const response = await fetch(request);
