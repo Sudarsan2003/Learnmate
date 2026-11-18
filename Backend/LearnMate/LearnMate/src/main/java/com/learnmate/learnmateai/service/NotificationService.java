@@ -44,12 +44,14 @@ public class NotificationService implements ApplicationRunner {
     private final NotificationRepository notifications;
     private final AnnouncedGameRepository announcedGames;
     private final UserRepository users;
+    private final PushService push;
 
     public NotificationService(NotificationRepository notifications, AnnouncedGameRepository announcedGames,
-                               UserRepository users) {
+                               UserRepository users, PushService push) {
         this.notifications = notifications;
         this.announcedGames = announcedGames;
         this.users = users;
+        this.push = push;
     }
 
     /** Tells every student in the quiz's class about it. */
@@ -142,6 +144,8 @@ public class NotificationService implements ApplicationRunner {
         n.setMessage(preview);
         n.setCreatedAt(Instant.now());
         notifications.save(n);
+        // On the phone every message shows, like WhatsApp: "Ravi Kumar: Doubt in chapter 9".
+        push.push(List.of(to), senderName, preview, link);
     }
 
     /** The chat with that sender was opened: its message notifications are read. */
@@ -174,6 +178,7 @@ public class NotificationService implements ApplicationRunner {
             batch.add(n);
         }
         notifications.saveAll(batch);
+        push.push(recipients.stream().map(User::getUsername).toList(), title, message, link);
         return batch.size();
     }
 
