@@ -36,6 +36,7 @@ public class UserDataService implements ApplicationRunner {
             "DELETE FROM Message m WHERE m.fromUsername %s",
             "DELETE FROM Message m WHERE m.toUsername %s",
             "DELETE FROM PromotionMove p WHERE p.username %s",
+            "DELETE FROM PushToken t WHERE t.username %s",
     };
 
     private final EntityManager em;

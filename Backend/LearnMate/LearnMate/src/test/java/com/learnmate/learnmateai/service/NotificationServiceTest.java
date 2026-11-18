@@ -24,7 +24,8 @@ class NotificationServiceTest {
     private final NotificationRepository notifications = mock(NotificationRepository.class);
     private final AnnouncedGameRepository announced = mock(AnnouncedGameRepository.class);
     private final UserRepository users = mock(UserRepository.class);
-    private final NotificationService service = new NotificationService(notifications, announced, users);
+    private final PushService push = mock(PushService.class);
+    private final NotificationService service = new NotificationService(notifications, announced, users, push);
 
     private static User user(String name, String role, String school, String cls, boolean locked) {
         User u = new User();
@@ -93,5 +94,7 @@ class NotificationServiceTest {
         assertEquals("New quiz: Fractions", out.get(0).getTitle());
         assertEquals("Maths quiz for Class 9 · 15 min", out.get(0).getMessage());
         assertEquals("quizzes", out.get(0).getLink());
+        // The same students get it on their phones.
+        verify(push).push(List.of("in9", "in9caps"), "New quiz: Fractions", "Maths quiz for Class 9 · 15 min", "quizzes");
     }
 }
